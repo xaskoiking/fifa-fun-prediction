@@ -1,0 +1,12 @@
+{
+  "matches": [],
+  "users": [
+    {
+      "name": "ADMIN",
+      "secret": "ADMN",
+      "isAdmin": true
+    }
+  ],
+  "adminPasscode": "CHANGE_ME",
+  "history": []
+}

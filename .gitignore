@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Environment files (never commit real secrets)
+.env
+.env.local
+
+# Runtime data — the app writes votes/players here at runtime.
+# The committed template is data.example.json. Do not commit live data.
+data.json
+
+# Legacy/runtime artifacts
+backups/
+history_log.csv
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/
