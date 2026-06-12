@@ -19,6 +19,15 @@ let pendingVotePrediction = null;
 let fixturesData = [];
 let fixturesCurrentIndex = 0;
 
+// Racing leaderboard chart state
+let raceFrames = [];
+let raceCurrentFrame = 0;
+let racePlaying = false;
+let raceIntervalHandle = null;
+let raceMaxPoints = 1;
+let raceRowsByName = new Map();
+const RACE_FRAME_DURATION_MS = 700;
+
 // DOM Elements
 const usernameModal = document.getElementById('usernameModal');
 const usernameInput = document.getElementById('usernameInput');
@@ -27,6 +36,13 @@ const userStatusArea = document.getElementById('userStatusArea');
 const changeUserBtn = document.getElementById('changeUserBtn');
 const matchesGrid = document.getElementById('matchesGrid');
 const leaderboardBody = document.getElementById('leaderboardBody');
+const leaderboardTableView = document.getElementById('leaderboardTableView');
+const leaderboardRaceView = document.getElementById('leaderboardRaceView');
+const raceFrameLabel = document.getElementById('raceFrameLabel');
+const raceBars = document.getElementById('raceBars');
+const raceEmptyState = document.getElementById('raceEmptyState');
+const racePlayPauseBtn = document.getElementById('racePlayPauseBtn');
+const raceScrubber = document.getElementById('raceScrubber');
 
 const adminAuthCard = document.getElementById('adminAuthCard');
 const adminWorkspace = document.getElementById('adminWorkspace');
@@ -97,6 +113,10 @@ function startIntervals() {
 
 // Global Tab Switcher
 function switchTab(tabName) {
+  if (tabName !== 'leaderboard' && racePlaying) {
+    pauseRacePlayback();
+  }
+
   activeTab = tabName;
   
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -226,6 +246,168 @@ async function loadLeaderboard() {
     console.error('Error getting leaderboard:', err);
     leaderboardBody.innerHTML = `<tr><td colspan="5" class="loading-state error-text">Error loading standings.</td></tr>`;
   }
+}
+
+// Toggle between the Table and Race views in the Leaderboard tab
+function switchLeaderboardView(view) {
+  document.getElementById('leaderboardViewTableBtn').classList.toggle('active', view === 'table');
+  document.getElementById('leaderboardViewRaceBtn').classList.toggle('active', view === 'race');
+
+  if (view === 'table') {
+    leaderboardTableView.style.display = '';
+    leaderboardRaceView.style.display = 'none';
+    pauseRacePlayback();
+  } else {
+    leaderboardTableView.style.display = 'none';
+    leaderboardRaceView.style.display = '';
+    if (raceFrames.length === 0) {
+      loadLeaderboardHistory();
+    }
+  }
+}
+
+// Fetch leaderboard history frames and render the initial (start) frame
+async function loadLeaderboardHistory() {
+  try {
+    const response = await fetch('/api/leaderboard/history');
+    if (!response.ok) throw new Error('Failed to load leaderboard history');
+    raceFrames = await response.json();
+
+    raceMaxPoints = 1;
+    raceFrames.forEach(frame => {
+      frame.standings.forEach(player => {
+        if (player.points > raceMaxPoints) raceMaxPoints = player.points;
+      });
+    });
+
+    raceCurrentFrame = 0;
+    raceScrubber.max = String(Math.max(raceFrames.length - 1, 0));
+    raceScrubber.value = '0';
+
+    const hasMatches = raceFrames.length > 1;
+    raceEmptyState.style.display = hasMatches ? 'none' : '';
+    racePlayPauseBtn.disabled = !hasMatches;
+    raceScrubber.disabled = !hasMatches;
+
+    initRaceBars();
+    renderRaceFrame(0, false);
+  } catch (err) {
+    console.error('Error loading leaderboard history:', err);
+    raceBars.innerHTML = `<p class="loading-state error-text">Error loading race data.</p>`;
+  }
+}
+
+// Build one row per player from the start frame, in initial order
+function initRaceBars() {
+  raceBars.innerHTML = '';
+  raceRowsByName = new Map();
+
+  const startFrame = raceFrames[0];
+  startFrame.standings.forEach(player => {
+    const row = document.createElement('div');
+    row.className = 'race-row';
+    row.innerHTML = `
+      <span class="race-name">${escapeHtml(player.name)}</span>
+      <div class="race-bar-track"><div class="race-bar-fill"></div></div>
+      <span class="race-points">0 pts</span>
+    `;
+    raceBars.appendChild(row);
+    raceRowsByName.set(player.name, row);
+  });
+}
+
+// Render a given frame, animating bar width and row order changes (FLIP technique)
+function renderRaceFrame(frameIndex, animate) {
+  const frame = raceFrames[frameIndex];
+  if (!frame) return;
+
+  raceFrameLabel.textContent = frame.matchNumber
+    ? `Match ${frame.matchNumber}: ${frame.homeTeam} vs ${frame.awayTeam}`
+    : 'Start';
+
+  const rows = Array.from(raceRowsByName.values());
+  const firstRects = new Map();
+  if (animate) {
+    rows.forEach(row => firstRects.set(row, row.getBoundingClientRect()));
+  }
+
+  frame.standings.forEach((player, index) => {
+    const row = raceRowsByName.get(player.name);
+    if (!row) return;
+
+    const pct = (player.points / raceMaxPoints) * 100;
+    row.querySelector('.race-bar-fill').style.width = `${pct}%`;
+    row.querySelector('.race-points').textContent = `${player.points} pts`;
+    row.classList.toggle('race-row-leader', index === 0 && player.points > 0);
+
+    raceBars.appendChild(row);
+  });
+
+  if (!animate) return;
+
+  rows.forEach(row => {
+    const first = firstRects.get(row);
+    const last = row.getBoundingClientRect();
+    const deltaY = first.top - last.top;
+    if (deltaY) {
+      row.style.transition = 'none';
+      row.style.transform = `translateY(${deltaY}px)`;
+      requestAnimationFrame(() => {
+        row.style.transition = `transform ${RACE_FRAME_DURATION_MS}ms ease`;
+        row.style.transform = '';
+      });
+    }
+  });
+}
+
+// Play/Pause button handler
+function toggleRacePlayback() {
+  if (racePlaying) {
+    pauseRacePlayback();
+    return;
+  }
+
+  if (raceCurrentFrame >= raceFrames.length - 1) {
+    raceCurrentFrame = 0;
+    raceScrubber.value = '0';
+    renderRaceFrame(0, true);
+  }
+
+  startRacePlayback();
+}
+
+function startRacePlayback() {
+  if (raceFrames.length <= 1) return;
+
+  racePlaying = true;
+  racePlayPauseBtn.innerHTML = '&#9208;';
+
+  raceIntervalHandle = setInterval(() => {
+    raceCurrentFrame += 1;
+    if (raceCurrentFrame >= raceFrames.length) {
+      raceCurrentFrame = raceFrames.length - 1;
+      pauseRacePlayback();
+      return;
+    }
+    raceScrubber.value = String(raceCurrentFrame);
+    renderRaceFrame(raceCurrentFrame, true);
+  }, RACE_FRAME_DURATION_MS);
+}
+
+function pauseRacePlayback() {
+  racePlaying = false;
+  racePlayPauseBtn.innerHTML = '&#9654;';
+  if (raceIntervalHandle) {
+    clearInterval(raceIntervalHandle);
+    raceIntervalHandle = null;
+  }
+}
+
+// Scrubber handler: jump to a frame without animation, pausing playback
+function onRaceScrubberInput() {
+  pauseRacePlayback();
+  raceCurrentFrame = parseInt(raceScrubber.value, 10);
+  renderRaceFrame(raceCurrentFrame, false);
 }
 
 // Render matches grid (Only open matches + admin-extended matches)
