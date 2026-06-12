@@ -908,6 +908,79 @@ app.post('/api/admin/delete', verifyAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// =================== FIXTURES PROXY ===================
+
+// In-memory cache for fixtures (5-minute TTL to respect the free-tier rate limit)
+let _fixturesCache = null;
+let _fixturesCacheTime = 0;
+const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
+
+const STAGE_LABELS = {
+  'ROUND_OF_32':        'Round of 32',
+  'ROUND_OF_16':        'Round of 16',
+  'QUARTER_FINAL':      'Quarter-final',
+  'SEMI_FINAL':         'Semi-final',
+  '3RD_PLACE_PLAY_OFF': 'Third Place',
+  'FINAL':              'Final'
+};
+
+app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
+  const apiKey = process.env.FOOTBALL_DATA_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'FOOTBALL_DATA_API_KEY environment variable is not set on the server.' });
+  }
+
+  const forceRefresh = req.query.refresh === 'true';
+  const now = Date.now();
+  if (!forceRefresh && _fixturesCache && (now - _fixturesCacheTime) < FIXTURES_CACHE_TTL) {
+    return res.json(_fixturesCache);
+  }
+
+  try {
+    const apiRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
+      headers: { 'X-Auth-Token': apiKey }
+    });
+    if (!apiRes.ok) {
+      const text = await apiRes.text();
+      return res.status(apiRes.status).json({ error: `football-data.org responded with ${apiRes.status}: ${text}` });
+    }
+
+    const data = await apiRes.json();
+    const fixtures = (data.matches || [])
+      .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate))
+      .map((m, i) => {
+        const isGroup = m.stage === 'GROUP_STAGE';
+        const matchType = isGroup ? 'League' : 'KO';
+        const group = isGroup && m.group
+          ? m.group.replace('GROUP_', 'Group ')
+          : (STAGE_LABELS[m.stage] || m.stage || 'KO');
+        const ft = (m.score || {}).fullTime || {};
+        const finished = m.status === 'FINISHED';
+        const live = m.status === 'IN_PLAY' || m.status === 'PAUSED';
+        return {
+          apiId: m.id,
+          matchNumber: String(i + 1),
+          homeTeam: m.homeTeam?.name || 'TBD',
+          awayTeam: m.awayTeam?.name || 'TBD',
+          matchType,
+          group,
+          kickoff: m.utcDate,
+          status: m.status,
+          scoreHome: (finished || live) ? ft.home : null,
+          scoreAway: (finished || live) ? ft.away : null,
+          matchday: m.matchday
+        };
+      });
+
+    _fixturesCache = fixtures;
+    _fixturesCacheTime = Date.now();
+    res.json(fixtures);
+  } catch (err) {
+    console.error('[FIXTURES] Error fetching from football-data.org:', err);
+    res.status(500).json({ error: 'Failed to fetch fixtures from football-data.org.' });
+  }
+});
+
 // Start Server — pre-load data from GCS before accepting requests
 async function startServer() {
   if (gcsBucket) {

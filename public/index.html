@@ -312,6 +312,23 @@
 
           </div>
 
+          <!-- Match Log Card -->
+          <div class="rules-card" style="margin-top: 20px;" id="matchLogCard">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 16px;">
+              <h3 style="margin: 0; border: none; padding: 0;">📋 Match Log — FIFA World Cup</h3>
+              <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                <button class="btn btn-secondary btn-sm" id="fixturesRefreshBtn" onclick="refreshFixtures()" title="Refresh fixtures" style="padding: 4px 10px;">↻</button>
+                <button class="btn btn-secondary btn-sm" onclick="matchLogPrev()" title="Previous match" style="padding: 4px 10px;">◀</button>
+                <input type="number" id="matchLogJumpInput" min="1" placeholder="#" class="form-control" style="width: 58px; padding: 4px 6px; font-size: 0.8rem; text-align: center;" onkeydown="if(event.key==='Enter') matchLogJump()">
+                <button class="btn btn-secondary btn-sm" onclick="matchLogJump()" style="padding: 4px 10px;">Go</button>
+                <button class="btn btn-secondary btn-sm" onclick="matchLogNext()" title="Next match" style="padding: 4px 10px;">▶</button>
+              </div>
+            </div>
+            <div id="matchLogContent">
+              <div class="loading-state">Loading fixtures from football-data.org…</div>
+            </div>
+          </div>
+
           <!-- Vote Log Card -->
           <div class="rules-card" style="margin-top: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 12px;">

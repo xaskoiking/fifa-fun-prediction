@@ -981,3 +981,18 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Match Log fixture display field (read-only equivalent of form-control) */
+.fixture-field {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
