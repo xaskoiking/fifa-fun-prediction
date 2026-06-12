@@ -217,7 +217,7 @@ async function loadLeaderboard() {
     leaderboardBody.innerHTML = '';
     
     if (leaderboard.length === 0) {
-      leaderboardBody.innerHTML = `<tr><td colspan="5" class="loading-state">No players registered yet.</td></tr>`;
+      leaderboardBody.innerHTML = `<tr><td colspan="6" class="loading-state">No players registered yet.</td></tr>`;
       return;
     }
     
@@ -231,6 +231,10 @@ async function loadLeaderboard() {
       const total = player.totalPredictions || 0;
       const correct = player.correct || 0;
       const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+      const pending = player.liveNotVoted || 0;
+      const pendingCell = pending > 0
+        ? `<span class="pending-badge">${pending}</span>`
+        : `<span class="pending-none">0</span>`;
 
       const row = document.createElement('tr');
       row.className = rankClass;
@@ -239,13 +243,14 @@ async function loadLeaderboard() {
         <td class="col-name">${escapeHtml(player.name)}</td>
         <td class="col-predictions">${correct} / ${total}</td>
         <td class="col-accuracy">${accuracy}%</td>
+        <td class="col-pending">${pendingCell}</td>
         <td class="col-points">${player.points} pts</td>
       `;
       leaderboardBody.appendChild(row);
     });
   } catch (err) {
     console.error('Error getting leaderboard:', err);
-    leaderboardBody.innerHTML = `<tr><td colspan="5" class="loading-state error-text">Error loading standings.</td></tr>`;
+    leaderboardBody.innerHTML = `<tr><td colspan="6" class="loading-state error-text">Error loading standings.</td></tr>`;
   }
 }
 
@@ -414,9 +419,37 @@ function onRaceScrubberInput() {
 }
 
 // Render matches grid (Only open matches + admin-extended matches)
+// Show/update the "you haven't voted on N open matches" banner on the predictions tab.
+function updateNotVotedAlert(count) {
+  const alertBox = document.getElementById('notVotedAlert');
+  if (!alertBox) return;
+  if (count > 0) {
+    const plural = count === 1 ? 'match' : 'matches';
+    alertBox.className = 'not-voted-alert warn';
+    alertBox.innerHTML = `⚠️ You still have <strong>${count}</strong> open ${plural} you haven't voted on. Cast your votes before kickoff!`;
+    alertBox.style.display = 'block';
+  } else {
+    alertBox.className = 'not-voted-alert ok';
+    alertBox.innerHTML = `✅ You're all caught up — you've voted on every open match!`;
+    alertBox.style.display = 'block';
+  }
+}
+
 function renderMatches() {
   matchesGrid.innerHTML = '';
   const now = new Date();
+
+  // Count live, open matches the user hasn't voted on yet (drives the alert banner).
+  // Same definition as the leaderboard "Not Yet Voted" column: not resolved, not
+  // admin-locked, still before kickoff (or extension active), and no vote cast.
+  const notVotedCount = matches.filter(match => {
+    if (match.status === 'resolved') return false;
+    if (match.votingLocked) return false;
+    const started = new Date(match.kickoff) <= now;
+    const open = !started || match.extensionActive;
+    return open && !match.myVote;
+  }).length;
+  updateNotVotedAlert(notVotedCount);
 
   // Filter only scheduled matches whose kickoff is in the future,
   // OR matches with an active voting extension

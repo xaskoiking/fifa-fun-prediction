@@ -551,48 +551,65 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
 // Leaderboard calculation
 app.get('/api/leaderboard', (req, res) => {
   const db = readData();
-  
+  const now = new Date();
+
+  // A match is "live" (open for voting) when it isn't resolved, isn't admin-locked,
+  // and either hasn't kicked off yet or has an active voting extension.
+  const isLive = (match) => {
+    if (match.status === 'resolved') return false;
+    if (match.votingLocked) return false;
+    const kickoff = new Date(match.kickoff);
+    const extendedUntil = match.votingExtendedUntil ? new Date(match.votingExtendedUntil) : null;
+    const extensionActive = extendedUntil && extendedUntil > now;
+    return kickoff > now || extensionActive;
+  };
+  const liveMatches = db.matches.filter(isLive);
+
+  const votedIn = (match, user) => {
+    return (match.votes.home || []).includes(user)
+      || (match.votes.away || []).includes(user)
+      || (match.votes.draw || []).includes(user);
+  };
+
   // Initialize scoreboard for all registered users
   const standings = {};
-  db.users.forEach(user => {
-    standings[user.name] = {
-      name: user.name,
-      points: 0,
-      correct: 0,
-      totalPredictions: 0
-    };
-  });
+  const ensureStanding = (name) => {
+    if (!standings[name]) {
+      standings[name] = { name, points: 0, correct: 0, totalPredictions: 0, liveNotVoted: 0 };
+    }
+    return standings[name];
+  };
+  db.users.forEach(user => ensureStanding(user.name));
 
-  // Calculate scores for all resolved matches
+  // Calculate scores. totalPredictions now counts ONLY resolved matches the user voted on.
   db.matches.forEach(match => {
     const isResolved = match.status === 'resolved';
+    if (!isResolved) return;
 
-    const homeVoters = match.votes.home || [];
-    const awayVoters = match.votes.away || [];
-    const drawVoters = match.votes.draw || [];
-
-    const votersInMatch = [...homeVoters, ...awayVoters, ...drawVoters];
+    const votersInMatch = [
+      ...(match.votes.home || []),
+      ...(match.votes.away || []),
+      ...(match.votes.draw || [])
+    ];
     votersInMatch.forEach(user => {
-      // If user isn't in players database (e.g. deleted or legacy), make sure they have a standing entry
-      if (!standings[user]) {
-        standings[user] = { name: user, points: 0, correct: 0, totalPredictions: 0 };
-      }
-      standings[user].totalPredictions += 1;
+      ensureStanding(user).totalPredictions += 1;
     });
 
-    if (isResolved) {
-      const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
-      Object.keys(pointsAllocated).forEach(user => {
-        if (!standings[user]) {
-          standings[user] = { name: user, points: 0, correct: 0, totalPredictions: 0 };
-        }
-        const pts = pointsAllocated[user];
-        if (pts > 0) {
-          standings[user].points += pts;
-          standings[user].correct += 1;
-        }
-      });
-    }
+    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
+    Object.keys(pointsAllocated).forEach(user => {
+      const pts = pointsAllocated[user];
+      if (pts > 0) {
+        ensureStanding(user).points += pts;
+        ensureStanding(user).correct += 1;
+      }
+    });
+  });
+
+  // Count how many currently-live matches each player has NOT voted on yet.
+  Object.keys(standings).forEach(name => {
+    standings[name].liveNotVoted = liveMatches.reduce(
+      (count, match) => count + (votedIn(match, name) ? 0 : 1), 0
+    );
   });
 
   // Convert map to list and sort

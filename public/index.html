@@ -65,6 +65,8 @@
           <p class="section-description">Cast your vote before kickoff starts and locks the match!</p>
         </div>
 
+        <div id="notVotedAlert" class="not-voted-alert" style="display: none;"></div>
+
         <div id="matchesGrid" class="matches-grid">
           <div class="loading-state">Loading matches...</div>
         </div>
@@ -120,15 +122,16 @@
                 <tr>
                   <th class="col-rank">Rank</th>
                   <th class="col-name">Player</th>
-                  <th class="col-predictions">Predictions (Correct/Total)</th>
+                  <th class="col-predictions">Predictions (Correct/Resolved)</th>
                   <th class="col-accuracy">Accuracy</th>
+                  <th class="col-pending" title="Live matches still open for voting that this player hasn't voted on yet">Not Yet Voted</th>
                   <th class="col-points">Total Points</th>
                 </tr>
               </thead>
               <tbody id="leaderboardBody">
                 <!-- Leaderboard rows will be dynamically inserted here -->
                 <tr>
-                  <td colspan="5" class="loading-state">Loading standings...</td>
+                  <td colspan="6" class="loading-state">Loading standings...</td>
                 </tr>
               </tbody>
             </table>

@@ -538,12 +538,51 @@ body {
   background: rgba(255, 255, 255, 0.02);
 }
 
+/* "Not yet voted" alert banner on the predictions tab */
+.not-voted-alert {
+  margin: 0 0 20px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.not-voted-alert.warn {
+  background: rgba(255, 179, 0, 0.12);
+  border: 1px solid rgba(255, 179, 0, 0.45);
+  color: var(--color-gold);
+}
+.not-voted-alert.ok {
+  background: rgba(0, 200, 120, 0.10);
+  border: 1px solid rgba(0, 200, 120, 0.35);
+  color: var(--color-accent);
+}
+.not-voted-alert strong { font-weight: 800; }
+
 /* Specific table columns */
 .col-rank { width: 80px; text-align: center; }
 .col-name { font-weight: 700; font-size: 1.05rem; }
 .col-predictions { color: var(--text-muted); }
 .col-accuracy { font-weight: 500; }
+.col-pending { text-align: center; width: 120px; }
 .col-points { font-weight: 800; font-size: 1.15rem; color: var(--color-accent); text-align: right; width: 150px; }
+
+/* Pending (live, not-yet-voted) badge */
+.pending-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 13px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  background: rgba(255, 179, 0, 0.15);
+  color: var(--color-gold);
+  border: 1px solid rgba(255, 179, 0, 0.4);
+}
+.pending-none { color: var(--text-muted); font-weight: 600; }
 
 /* Rank badges styling */
 .rank-badge {
