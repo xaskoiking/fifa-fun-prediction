@@ -300,6 +300,54 @@ function calculatePointsForMatch(votes, outcome, matchType) {
   return pointsAllocated;
 }
 
+// Build cumulative leaderboard snapshots after each resolved match, in
+// chronological order (for the racing leaderboard chart)
+function buildLeaderboardHistory(db) {
+  const standings = {};
+  db.users.forEach(user => {
+    standings[user.name] = { name: user.name, points: 0 };
+  });
+
+  const snapshot = () => Object.values(standings)
+    .map(s => ({ name: s.name, points: s.points }))
+    .sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      return a.name.localeCompare(b.name);
+    });
+
+  const frames = [
+    { matchNumber: null, homeTeam: null, awayTeam: null, standings: snapshot() }
+  ];
+
+  const resolvedMatches = db.matches
+    .filter(m => m.status === 'resolved')
+    .slice()
+    .sort((a, b) => {
+      const diff = new Date(a.kickoff) - new Date(b.kickoff);
+      if (diff !== 0) return diff;
+      return String(a.matchNumber).localeCompare(String(b.matchNumber));
+    });
+
+  resolvedMatches.forEach(match => {
+    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
+    Object.keys(pointsAllocated).forEach(user => {
+      if (!standings[user]) {
+        standings[user] = { name: user, points: 0 };
+      }
+      standings[user].points += pointsAllocated[user];
+    });
+
+    frames.push({
+      matchNumber: match.matchNumber,
+      homeTeam: match.homeTeam,
+      awayTeam: match.awayTeam,
+      standings: snapshot()
+    });
+  });
+
+  return frames;
+}
+
 // Middleware: Authenticate user secret and get username
 function authenticateSecret(req, res, next) {
   const secret = req.headers['x-user-secret'];
@@ -558,6 +606,12 @@ app.get('/api/leaderboard', (req, res) => {
   });
 
   res.json(leaderboard);
+});
+
+// Leaderboard history (cumulative standings after each resolved match, for the racing chart)
+app.get('/api/leaderboard/history', (req, res) => {
+  const db = readData();
+  res.json(buildLeaderboardHistory(db));
 });
 
 
