@@ -4,8 +4,8 @@
   "description": "A self-hostable football match prediction game for friend groups (FIFA / World Cup style).",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --env-file-if-exists=.env --watch server.js"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.21.0",

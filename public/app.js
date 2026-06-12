@@ -15,6 +15,19 @@ let pollInterval = null;
 let pendingVoteMatchId = null;
 let pendingVotePrediction = null;
 
+// Match Log (football-data.org fixtures)
+let fixturesData = [];
+let fixturesCurrentIndex = 0;
+
+// Racing leaderboard chart state
+let raceFrames = [];
+let raceCurrentFrame = 0;
+let racePlaying = false;
+let raceIntervalHandle = null;
+let raceMaxPoints = 1;
+let raceRowsByName = new Map();
+const RACE_FRAME_DURATION_MS = 700;
+
 // DOM Elements
 const usernameModal = document.getElementById('usernameModal');
 const usernameInput = document.getElementById('usernameInput');
@@ -23,6 +36,14 @@ const userStatusArea = document.getElementById('userStatusArea');
 const changeUserBtn = document.getElementById('changeUserBtn');
 const matchesGrid = document.getElementById('matchesGrid');
 const leaderboardBody = document.getElementById('leaderboardBody');
+const leaderboardTableView = document.getElementById('leaderboardTableView');
+const leaderboardRaceView = document.getElementById('leaderboardRaceView');
+const raceFrameLabel = document.getElementById('raceFrameLabel');
+const raceBars = document.getElementById('raceBars');
+const raceEmptyState = document.getElementById('raceEmptyState');
+const racePlayPauseBtn = document.getElementById('racePlayPauseBtn');
+const raceScrubber = document.getElementById('raceScrubber');
+const raceDateLabel = document.getElementById('raceDateLabel');
 
 const adminAuthCard = document.getElementById('adminAuthCard');
 const adminWorkspace = document.getElementById('adminWorkspace');
@@ -93,6 +114,10 @@ function startIntervals() {
 
 // Global Tab Switcher
 function switchTab(tabName) {
+  if (tabName !== 'leaderboard' && racePlaying) {
+    pauseRacePlayback();
+  }
+
   activeTab = tabName;
   
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -222,6 +247,170 @@ async function loadLeaderboard() {
     console.error('Error getting leaderboard:', err);
     leaderboardBody.innerHTML = `<tr><td colspan="5" class="loading-state error-text">Error loading standings.</td></tr>`;
   }
+}
+
+// Toggle between the Table and Race views in the Leaderboard tab
+function switchLeaderboardView(view) {
+  document.getElementById('leaderboardViewTableBtn').classList.toggle('active', view === 'table');
+  document.getElementById('leaderboardViewRaceBtn').classList.toggle('active', view === 'race');
+
+  if (view === 'table') {
+    leaderboardTableView.style.display = '';
+    leaderboardRaceView.style.display = 'none';
+    pauseRacePlayback();
+  } else {
+    leaderboardTableView.style.display = 'none';
+    leaderboardRaceView.style.display = '';
+    if (raceFrames.length === 0) {
+      loadLeaderboardHistory();
+    }
+  }
+}
+
+// Fetch leaderboard history frames and render the initial (start) frame
+async function loadLeaderboardHistory() {
+  try {
+    const response = await fetch('/api/leaderboard/history');
+    if (!response.ok) throw new Error('Failed to load leaderboard history');
+    raceFrames = await response.json();
+
+    raceMaxPoints = 1;
+    raceFrames.forEach(frame => {
+      frame.standings.forEach(player => {
+        if (player.points > raceMaxPoints) raceMaxPoints = player.points;
+      });
+    });
+
+    raceCurrentFrame = raceFrames.length - 1;
+    raceScrubber.max = String(Math.max(raceFrames.length - 1, 0));
+    raceScrubber.value = String(raceCurrentFrame);
+
+    const hasMatches = raceFrames.length > 1;
+    raceEmptyState.style.display = hasMatches ? 'none' : '';
+    racePlayPauseBtn.disabled = !hasMatches;
+    raceScrubber.disabled = !hasMatches;
+
+    initRaceBars();
+    renderRaceFrame(raceCurrentFrame, false);
+  } catch (err) {
+    console.error('Error loading leaderboard history:', err);
+    raceBars.innerHTML = `<p class="loading-state error-text">Error loading race data.</p>`;
+  }
+}
+
+// Build one row per player from the start frame, in initial order
+function initRaceBars() {
+  raceBars.innerHTML = '';
+  raceRowsByName = new Map();
+
+  const startFrame = raceFrames[0];
+  startFrame.standings.forEach(player => {
+    const row = document.createElement('div');
+    row.className = 'race-row';
+    row.innerHTML = `
+      <span class="race-name">${escapeHtml(player.name)}</span>
+      <div class="race-bar-track"><div class="race-bar-fill"></div></div>
+      <span class="race-points">0 pts</span>
+    `;
+    raceBars.appendChild(row);
+    raceRowsByName.set(player.name, row);
+  });
+}
+
+// Render a given frame, animating bar width and row order changes (FLIP technique)
+function renderRaceFrame(frameIndex, animate) {
+  const frame = raceFrames[frameIndex];
+  if (!frame) return;
+
+  raceFrameLabel.textContent = frame.matchNumber
+    ? `Match ${frame.matchNumber}: ${frame.homeTeam} vs ${frame.awayTeam}`
+    : 'Start';
+
+  raceDateLabel.textContent = frame.kickoff
+    ? new Date(frame.kickoff).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : '';
+
+  const rows = Array.from(raceRowsByName.values());
+  const firstRects = new Map();
+  if (animate) {
+    rows.forEach(row => firstRects.set(row, row.getBoundingClientRect()));
+  }
+
+  frame.standings.forEach((player, index) => {
+    const row = raceRowsByName.get(player.name);
+    if (!row) return;
+
+    const pct = (player.points / raceMaxPoints) * 100;
+    row.querySelector('.race-bar-fill').style.width = `${pct}%`;
+    row.querySelector('.race-points').textContent = `${player.points} pts`;
+    row.classList.toggle('race-row-leader', index === 0 && player.points > 0);
+
+    raceBars.appendChild(row);
+  });
+
+  if (!animate) return;
+
+  rows.forEach(row => {
+    const first = firstRects.get(row);
+    const last = row.getBoundingClientRect();
+    const deltaY = first.top - last.top;
+    if (deltaY) {
+      row.style.transition = 'none';
+      row.style.transform = `translateY(${deltaY}px)`;
+      requestAnimationFrame(() => {
+        row.style.transition = `transform ${RACE_FRAME_DURATION_MS}ms ease`;
+        row.style.transform = '';
+      });
+    }
+  });
+}
+
+// Play/Pause button handler
+function toggleRacePlayback() {
+  if (racePlaying) {
+    pauseRacePlayback();
+    return;
+  }
+
+  raceCurrentFrame = 0;
+  raceScrubber.value = '0';
+  renderRaceFrame(0, false);
+
+  startRacePlayback();
+}
+
+function startRacePlayback() {
+  if (raceFrames.length <= 1) return;
+
+  racePlaying = true;
+  racePlayPauseBtn.innerHTML = '&#9208;';
+
+  raceIntervalHandle = setInterval(() => {
+    raceCurrentFrame += 1;
+    if (raceCurrentFrame >= raceFrames.length) {
+      raceCurrentFrame = raceFrames.length - 1;
+      pauseRacePlayback();
+      return;
+    }
+    raceScrubber.value = String(raceCurrentFrame);
+    renderRaceFrame(raceCurrentFrame, true);
+  }, RACE_FRAME_DURATION_MS);
+}
+
+function pauseRacePlayback() {
+  racePlaying = false;
+  racePlayPauseBtn.innerHTML = '&#9654;';
+  if (raceIntervalHandle) {
+    clearInterval(raceIntervalHandle);
+    raceIntervalHandle = null;
+  }
+}
+
+// Scrubber handler: jump to a frame without animation, pausing playback
+function onRaceScrubberInput() {
+  pauseRacePlayback();
+  raceCurrentFrame = parseInt(raceScrubber.value, 10);
+  renderRaceFrame(raceCurrentFrame, false);
 }
 
 // Render matches grid (Only open matches + admin-extended matches)
@@ -628,6 +817,7 @@ function checkAdminState() {
     loadAdminPlayers();
     loadAdminHistory();
     loadAdminVotes();
+    loadFixtures();
   } else {
     adminAuthCard.style.display = 'block';
     adminWorkspace.style.display = 'none';
@@ -1321,6 +1511,241 @@ function copyRecoveryData(btn, data) {
     console.error('Could not copy text: ', err);
     alert('Recovery Data:\n' + data);
   });
+}
+
+// ===================== MATCH LOG (football-data.org fixtures) =====================
+
+async function loadFixtures(forceRefresh = false) {
+  const contentEl = document.getElementById('matchLogContent');
+  if (!contentEl) return;
+  contentEl.innerHTML = '<div class="loading-state">Loading fixtures from football-data.org…</div>';
+
+  try {
+    const url = forceRefresh ? '/api/admin/fixtures?refresh=true' : '/api/admin/fixtures';
+    const response = await fetch(url, {
+      headers: {
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      }
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      contentEl.innerHTML = `<div class="loading-state error-text">❌ ${escapeHtml(data.error || 'Failed to load fixtures.')}</div>`;
+      return;
+    }
+    fixturesData = data;
+    fixturesCurrentIndex = findCurrentFixtureIndex();
+    renderMatchLog();
+  } catch (err) {
+    console.error('[FIXTURES] Error:', err);
+    if (contentEl) contentEl.innerHTML = '<div class="loading-state error-text">❌ Failed to connect to server.</div>';
+  }
+}
+
+function refreshFixtures() {
+  const btn = document.getElementById('fixturesRefreshBtn');
+  if (btn) {
+    btn.disabled = true;
+    let remaining = 30;
+    btn.textContent = `↻ ${remaining}s`;
+    const countdown = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(countdown);
+        btn.disabled = false;
+        btn.textContent = '↻';
+      } else {
+        btn.textContent = `↻ ${remaining}s`;
+      }
+    }, 1000);
+  }
+  loadFixtures(true);
+}
+
+function findCurrentFixtureIndex() {
+  if (!fixturesData.length) return 0;
+  const now = new Date();
+  const liveIdx = fixturesData.findIndex(f => f.status === 'IN_PLAY' || f.status === 'PAUSED');
+  if (liveIdx >= 0) return liveIdx;
+  const nextIdx = fixturesData.findIndex(f => (f.status === 'SCHEDULED' || f.status === 'TIMED') && new Date(f.kickoff) > now);
+  if (nextIdx >= 0) return nextIdx;
+  return fixturesData.length - 1;
+}
+
+function isFixtureAlreadyInDb(fixture) {
+  if (!matches.length) return false;
+  const kickoffDay = new Date(fixture.kickoff).toDateString();
+  return matches.some(m =>
+    m.homeTeam.toLowerCase() === fixture.homeTeam.toLowerCase() &&
+    m.awayTeam.toLowerCase() === fixture.awayTeam.toLowerCase() &&
+    new Date(m.kickoff).toDateString() === kickoffDay
+  );
+}
+
+function renderMatchLog() {
+  const contentEl = document.getElementById('matchLogContent');
+  if (!contentEl || !fixturesData.length) return;
+
+  const f = fixturesData[fixturesCurrentIndex];
+  const total = fixturesData.length;
+
+  const kickoffLocal = new Date(f.kickoff);
+  const dateStr = kickoffLocal.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const timeStr = kickoffLocal.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+  const now = new Date();
+  const hoursUntil = (kickoffLocal - now) / (1000 * 60 * 60);
+  const isFinished = f.status === 'FINISHED';
+  const isLive = f.status === 'IN_PLAY' || f.status === 'PAUSED';
+  const isUpcoming = (f.status === 'SCHEDULED' || f.status === 'TIMED') && hoursUntil >= 0 && hoursUntil <= 24;
+  const alreadyAdded = isFixtureAlreadyInDb(f);
+
+  // Score block (finished or live)
+  let scoreBadge = '';
+  if (isFinished && f.scoreHome !== null) {
+    scoreBadge = `
+      <div style="text-align:center; margin:14px 0; background:rgba(0,230,118,0.08); border:1px solid rgba(0,230,118,0.2); border-radius:8px; padding:12px 0;">
+        <div style="font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">Full Time</div>
+        <div style="font-size:1.6rem; font-weight:800; letter-spacing:6px; color:var(--color-accent);">${f.scoreHome} – ${f.scoreAway}</div>
+      </div>`;
+  } else if (isLive) {
+    scoreBadge = `
+      <div style="text-align:center; margin:14px 0; background:rgba(255,152,0,0.08); border:1px solid rgba(255,152,0,0.3); border-radius:8px; padding:12px 0;">
+        <div style="font-size:0.72rem; color:#ff9800; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">🔴 Live</div>
+        ${f.scoreHome !== null ? `<div style="font-size:1.6rem; font-weight:800; letter-spacing:6px; color:#ff9800;">${f.scoreHome} – ${f.scoreAway}</div>` : ''}
+      </div>`;
+  }
+
+  // Status pill
+  const statusStyles = {
+    'FINISHED':  { bg:'rgba(0,230,118,0.1)',  border:'rgba(0,230,118,0.3)',  color:'var(--color-accent)', label:'Finished' },
+    'IN_PLAY':   { bg:'rgba(255,152,0,0.1)',  border:'rgba(255,152,0,0.4)',  color:'#ff9800',             label:'🔴 Live' },
+    'PAUSED':    { bg:'rgba(255,152,0,0.1)',  border:'rgba(255,152,0,0.4)',  color:'#ff9800',             label:'⏸ Half Time' },
+    'SCHEDULED': { bg:'rgba(255,255,255,0.04)', border:'rgba(255,255,255,0.12)', color:'var(--text-muted)', label:'Scheduled' },
+    'TIMED':     { bg:'rgba(255,255,255,0.04)', border:'rgba(255,255,255,0.12)', color:'var(--text-muted)', label:'Scheduled' },
+    'POSTPONED': { bg:'rgba(255,60,60,0.1)',  border:'rgba(255,60,60,0.3)',  color:'#ff6060',             label:'Postponed' },
+    'CANCELLED': { bg:'rgba(255,60,60,0.1)',  border:'rgba(255,60,60,0.3)',  color:'#ff6060',             label:'Cancelled' }
+  };
+  const s = statusStyles[f.status] || statusStyles['SCHEDULED'];
+  const statusPill = `<span style="background:${s.bg}; border:1px solid ${s.border}; color:${s.color}; padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:700;">${s.label}</span>`;
+
+  // Create Match button or "already added" note
+  let actionHtml = '';
+  if (isUpcoming) {
+    actionHtml = alreadyAdded
+      ? `<div style="margin-top:14px; text-align:center; color:var(--color-accent); font-size:0.85rem; font-weight:600;">✅ Already in database</div>`
+      : `<button class="btn btn-success btn-full" style="margin-top:14px;" onclick="createMatchFromFixture(${fixturesCurrentIndex})">➕ Create Match</button>`;
+  }
+
+  contentEl.innerHTML = `
+    <div style="font-size:0.75rem; color:var(--text-muted); text-align:right; margin-bottom:12px;">
+      Match ${fixturesCurrentIndex + 1} of ${total}
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Home Team</label>
+        <div class="fixture-field">${getTeamFlag(f.homeTeam)} ${escapeHtml(f.homeTeam)}</div>
+      </div>
+      <div class="form-group">
+        <label>Away Team</label>
+        <div class="fixture-field">${getTeamFlag(f.awayTeam)} ${escapeHtml(f.awayTeam)}</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Match Number</label>
+        <div class="fixture-field">${escapeHtml(f.matchNumber)}</div>
+      </div>
+      <div class="form-group">
+        <label>Group / Stage</label>
+        <div class="fixture-field">${escapeHtml(f.group)}</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Match Type</label>
+        <div class="fixture-field">${f.matchType === 'League' ? 'League (3-way)' : 'Knockout (2-way)'}</div>
+      </div>
+      <div class="form-group">
+        <label>Kickoff (Local)</label>
+        <div class="fixture-field">📅 ${dateStr} · ${timeStr}</div>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+      <span style="font-size:0.78rem; color:var(--text-muted);">Matchday ${f.matchday || '–'}</span>
+      ${statusPill}
+    </div>
+
+    ${scoreBadge}
+    ${actionHtml}
+  `;
+}
+
+function matchLogPrev() {
+  if (!fixturesData.length) return;
+  fixturesCurrentIndex = Math.max(0, fixturesCurrentIndex - 1);
+  renderMatchLog();
+}
+
+function matchLogNext() {
+  if (!fixturesData.length) return;
+  fixturesCurrentIndex = Math.min(fixturesData.length - 1, fixturesCurrentIndex + 1);
+  renderMatchLog();
+}
+
+function matchLogJump() {
+  const input = document.getElementById('matchLogJumpInput');
+  if (!input || !fixturesData.length) return;
+  const num = parseInt(input.value, 10);
+  if (isNaN(num)) {
+    fixturesCurrentIndex = findCurrentFixtureIndex();
+  } else {
+    const idx = fixturesData.findIndex(f => String(f.matchNumber) === String(num));
+    fixturesCurrentIndex = idx >= 0 ? idx : Math.max(0, Math.min(fixturesData.length - 1, num - 1));
+  }
+  input.value = '';
+  renderMatchLog();
+}
+
+async function createMatchFromFixture(index) {
+  const f = fixturesData[index];
+  if (!f) return;
+  if (!confirm(`Create match: ${f.homeTeam} vs ${f.awayTeam}?\nKickoff: ${new Date(f.kickoff).toLocaleString()}`)) return;
+
+  try {
+    const response = await fetch('/api/admin/match', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      },
+      body: JSON.stringify({
+        homeTeam: f.homeTeam,
+        awayTeam: f.awayTeam,
+        matchType: f.matchType,
+        kickoff: f.kickoff,
+        matchNumber: f.matchNumber,
+        group: f.group
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      alert(`❌ Error: ${data.error}`);
+      return;
+    }
+
+    await loadDashboardData();
+    renderMatchLog();
+  } catch (err) {
+    console.error('[FIXTURES] Error creating match:', err);
+    alert('❌ Failed to connect to server.');
+  }
 }
 
 // Download history logs as CSV file

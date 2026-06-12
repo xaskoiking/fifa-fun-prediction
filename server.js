@@ -300,6 +300,55 @@ function calculatePointsForMatch(votes, outcome, matchType) {
   return pointsAllocated;
 }
 
+// Build cumulative leaderboard snapshots after each resolved match, in
+// chronological order (for the racing leaderboard chart)
+function buildLeaderboardHistory(db) {
+  const standings = {};
+  db.users.forEach(user => {
+    standings[user.name] = { name: user.name, points: 0 };
+  });
+
+  const snapshot = () => Object.values(standings)
+    .map(s => ({ name: s.name, points: s.points }))
+    .sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      return a.name.localeCompare(b.name);
+    });
+
+  const frames = [
+    { matchNumber: null, homeTeam: null, awayTeam: null, kickoff: null, standings: snapshot() }
+  ];
+
+  const resolvedMatches = db.matches
+    .filter(m => m.status === 'resolved')
+    .slice()
+    .sort((a, b) => {
+      const diff = new Date(a.kickoff) - new Date(b.kickoff);
+      if (diff !== 0) return diff;
+      return String(a.matchNumber).localeCompare(String(b.matchNumber));
+    });
+
+  resolvedMatches.forEach(match => {
+    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
+    Object.keys(pointsAllocated).forEach(user => {
+      if (!standings[user]) {
+        standings[user] = { name: user, points: 0 };
+      }
+      standings[user].points += pointsAllocated[user];
+    });
+
+    frames.push({
+      matchNumber: match.matchNumber,
+      homeTeam: match.homeTeam,
+      awayTeam: match.awayTeam,
+      kickoff: match.kickoff,
+      standings: snapshot()
+    });
+  });
+
+  return frames;
+}
+
 // Middleware: Authenticate user secret and get username
 function authenticateSecret(req, res, next) {
   const secret = req.headers['x-user-secret'];
@@ -560,6 +609,11 @@ app.get('/api/leaderboard', (req, res) => {
   res.json(leaderboard);
 });
 
+// Leaderboard history (cumulative standings after each resolved match, for the racing chart)
+app.get('/api/leaderboard/history', (req, res) => {
+  const db = readData();
+  res.json(buildLeaderboardHistory(db));
+});
 
 // =================== ADMIN ENDPOINTS ===================
 
@@ -906,6 +960,79 @@ app.post('/api/admin/delete', verifyAdmin, (req, res) => {
   writeData(db);
 
   res.json({ success: true });
+});
+
+// =================== FIXTURES PROXY ===================
+
+// In-memory cache for fixtures (5-minute TTL to respect the free-tier rate limit)
+let _fixturesCache = null;
+let _fixturesCacheTime = 0;
+const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
+
+const STAGE_LABELS = {
+  'ROUND_OF_32':        'Round of 32',
+  'ROUND_OF_16':        'Round of 16',
+  'QUARTER_FINAL':      'Quarter-final',
+  'SEMI_FINAL':         'Semi-final',
+  '3RD_PLACE_PLAY_OFF': 'Third Place',
+  'FINAL':              'Final'
+};
+
+app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
+  const apiKey = process.env.FOOTBALL_DATA_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'FOOTBALL_DATA_API_KEY environment variable is not set on the server.' });
+  }
+
+  const forceRefresh = req.query.refresh === 'true';
+  const now = Date.now();
+  if (!forceRefresh && _fixturesCache && (now - _fixturesCacheTime) < FIXTURES_CACHE_TTL) {
+    return res.json(_fixturesCache);
+  }
+
+  try {
+    const apiRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
+      headers: { 'X-Auth-Token': apiKey }
+    });
+    if (!apiRes.ok) {
+      const text = await apiRes.text();
+      return res.status(apiRes.status).json({ error: `football-data.org responded with ${apiRes.status}: ${text}` });
+    }
+
+    const data = await apiRes.json();
+    const fixtures = (data.matches || [])
+      .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate))
+      .map((m, i) => {
+        const isGroup = m.stage === 'GROUP_STAGE';
+        const matchType = isGroup ? 'League' : 'KO';
+        const group = isGroup && m.group
+          ? m.group.replace('GROUP_', 'Group ')
+          : (STAGE_LABELS[m.stage] || m.stage || 'KO');
+        const ft = (m.score || {}).fullTime || {};
+        const finished = m.status === 'FINISHED';
+        const live = m.status === 'IN_PLAY' || m.status === 'PAUSED';
+        return {
+          apiId: m.id,
+          matchNumber: String(i + 1),
+          homeTeam: m.homeTeam?.name || 'TBD',
+          awayTeam: m.awayTeam?.name || 'TBD',
+          matchType,
+          group,
+          kickoff: m.utcDate,
+          status: m.status,
+          scoreHome: (finished || live) ? ft.home : null,
+          scoreAway: (finished || live) ? ft.away : null,
+          matchday: m.matchday
+        };
+      });
+
+    _fixturesCache = fixtures;
+    _fixturesCacheTime = Date.now();
+    res.json(fixtures);
+  } catch (err) {
+    console.error('[FIXTURES] Error fetching from football-data.org:', err);
+    res.status(500).json({ error: 'Failed to fetch fixtures from football-data.org.' });
+  }
 });
 
 // Start Server — pre-load data from GCS before accepting requests

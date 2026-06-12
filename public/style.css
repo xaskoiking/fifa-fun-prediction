@@ -566,6 +566,118 @@ body {
   color: var(--color-gold);
 }
 
+/* Racing Leaderboard Chart */
+.race-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.race-frame-label {
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  min-height: 1.2em;
+}
+
+.race-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.race-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.race-name {
+  width: 90px;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-bar-track {
+  flex: 1;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.race-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--color-accent);
+  border-radius: var(--radius-sm);
+  transition: width 700ms ease;
+}
+
+.race-row-leader .race-bar-fill {
+  background: var(--color-gold);
+}
+
+.race-points {
+  width: 70px;
+  flex-shrink: 0;
+  text-align: right;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--color-accent);
+}
+
+.race-row-leader .race-points {
+  color: var(--color-gold);
+}
+
+.race-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.race-scrubber {
+  flex: 1;
+  accent-color: var(--color-accent);
+}
+
+.race-date {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 64px;
+  text-align: right;
+}
+
+@media (max-width: 480px) {
+  .race-name {
+    width: 64px;
+    font-size: 0.85rem;
+  }
+
+  .race-points {
+    width: 56px;
+    font-size: 0.85rem;
+  }
+
+  .race-bar-track {
+    height: 22px;
+  }
+
+  .race-date {
+    font-size: 0.75rem;
+    min-width: 50px;
+  }
+}
+
 /* Rules Section Styles */
 .rules-container {
   display: flex;
@@ -980,4 +1092,19 @@ body {
   .admin-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Match Log fixture display field (read-only equivalent of form-control) */
+.fixture-field {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
