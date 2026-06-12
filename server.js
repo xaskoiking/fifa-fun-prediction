@@ -614,7 +614,6 @@ app.get('/api/leaderboard/history', (req, res) => {
   res.json(buildLeaderboardHistory(db));
 });
 
-
 // =================== ADMIN ENDPOINTS ===================
 
 // Validate Admin Passcode
