@@ -43,6 +43,7 @@ const raceBars = document.getElementById('raceBars');
 const raceEmptyState = document.getElementById('raceEmptyState');
 const racePlayPauseBtn = document.getElementById('racePlayPauseBtn');
 const raceScrubber = document.getElementById('raceScrubber');
+const raceDateLabel = document.getElementById('raceDateLabel');
 
 const adminAuthCard = document.getElementById('adminAuthCard');
 const adminWorkspace = document.getElementById('adminWorkspace');
@@ -280,9 +281,9 @@ async function loadLeaderboardHistory() {
       });
     });
 
-    raceCurrentFrame = 0;
+    raceCurrentFrame = raceFrames.length - 1;
     raceScrubber.max = String(Math.max(raceFrames.length - 1, 0));
-    raceScrubber.value = '0';
+    raceScrubber.value = String(raceCurrentFrame);
 
     const hasMatches = raceFrames.length > 1;
     raceEmptyState.style.display = hasMatches ? 'none' : '';
@@ -290,7 +291,7 @@ async function loadLeaderboardHistory() {
     raceScrubber.disabled = !hasMatches;
 
     initRaceBars();
-    renderRaceFrame(0, false);
+    renderRaceFrame(raceCurrentFrame, false);
   } catch (err) {
     console.error('Error loading leaderboard history:', err);
     raceBars.innerHTML = `<p class="loading-state error-text">Error loading race data.</p>`;
@@ -324,6 +325,10 @@ function renderRaceFrame(frameIndex, animate) {
   raceFrameLabel.textContent = frame.matchNumber
     ? `Match ${frame.matchNumber}: ${frame.homeTeam} vs ${frame.awayTeam}`
     : 'Start';
+
+  raceDateLabel.textContent = frame.kickoff
+    ? new Date(frame.kickoff).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : '';
 
   const rows = Array.from(raceRowsByName.values());
   const firstRects = new Map();
@@ -367,11 +372,9 @@ function toggleRacePlayback() {
     return;
   }
 
-  if (raceCurrentFrame >= raceFrames.length - 1) {
-    raceCurrentFrame = 0;
-    raceScrubber.value = '0';
-    renderRaceFrame(0, true);
-  }
+  raceCurrentFrame = 0;
+  raceScrubber.value = '0';
+  renderRaceFrame(0, false);
 
   startRacePlayback();
 }

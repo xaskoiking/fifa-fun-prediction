@@ -648,6 +648,15 @@ body {
   accent-color: var(--color-accent);
 }
 
+.race-date {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 64px;
+  text-align: right;
+}
+
 @media (max-width: 480px) {
   .race-name {
     width: 64px;
@@ -661,6 +670,11 @@ body {
 
   .race-bar-track {
     height: 22px;
+  }
+
+  .race-date {
+    font-size: 0.75rem;
+    min-width: 50px;
   }
 }
 

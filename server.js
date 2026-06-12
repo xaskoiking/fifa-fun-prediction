@@ -316,7 +316,7 @@ function buildLeaderboardHistory(db) {
     });
 
   const frames = [
-    { matchNumber: null, homeTeam: null, awayTeam: null, standings: snapshot() }
+    { matchNumber: null, homeTeam: null, awayTeam: null, kickoff: null, standings: snapshot() }
   ];
 
   const resolvedMatches = db.matches
@@ -341,6 +341,7 @@ function buildLeaderboardHistory(db) {
       matchNumber: match.matchNumber,
       homeTeam: match.homeTeam,
       awayTeam: match.awayTeam,
+      kickoff: match.kickoff,
       standings: snapshot()
     });
   });

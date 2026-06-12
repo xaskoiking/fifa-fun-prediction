@@ -42,7 +42,7 @@ function buildLeaderboardHistory(db) {
     });
 
   const frames = [
-    { matchNumber: null, homeTeam: null, awayTeam: null, standings: snapshot() }
+    { matchNumber: null, homeTeam: null, awayTeam: null, kickoff: null, standings: snapshot() }
   ];
 
   const resolvedMatches = db.matches
@@ -67,6 +67,7 @@ function buildLeaderboardHistory(db) {
       matchNumber: match.matchNumber,
       homeTeam: match.homeTeam,
       awayTeam: match.awayTeam,
+      kickoff: match.kickoff,
       standings: snapshot()
     });
   });
@@ -119,15 +120,15 @@ console.log("\nTest #1: basic cumulative accumulation");
 
   assertDeepEqual(frames.length, 3, 'three frames (start + 2 resolved matches, scheduled match ignored)');
   assertDeepEqual(frames[0], {
-    matchNumber: null, homeTeam: null, awayTeam: null,
+    matchNumber: null, homeTeam: null, awayTeam: null, kickoff: null,
     standings: [{ name: 'Alice', points: 0 }, { name: 'Bob', points: 0 }, { name: 'Carol', points: 0 }]
   }, 'frame 0 is the start frame, all zero, alphabetical');
   assertDeepEqual(frames[1], {
-    matchNumber: '1', homeTeam: 'A', awayTeam: 'B',
+    matchNumber: '1', homeTeam: 'A', awayTeam: 'B', kickoff: '2026-06-01T00:00:00.000Z',
     standings: [{ name: 'Alice', points: 2 }, { name: 'Bob', points: 0 }, { name: 'Carol', points: 0 }]
   }, 'frame 1 reflects match 1 (Alice wins home pick)');
   assertDeepEqual(frames[2], {
-    matchNumber: '2', homeTeam: 'C', awayTeam: 'D',
+    matchNumber: '2', homeTeam: 'C', awayTeam: 'D', kickoff: '2026-06-02T00:00:00.000Z',
     standings: [{ name: 'Alice', points: 4 }, { name: 'Carol', points: 2 }, { name: 'Bob', points: 0 }]
   }, 'frame 2 accumulates match 2 (Alice + Carol picked draw)');
 }

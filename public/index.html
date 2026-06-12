@@ -110,7 +110,7 @@
 
         <div class="filter-bar">
           <button class="filter-btn active" id="leaderboardViewTableBtn" onclick="switchLeaderboardView('table')">Table</button>
-          <button class="filter-btn" id="leaderboardViewRaceBtn" onclick="switchLeaderboardView('race')">Race</button>
+          <button class="filter-btn" id="leaderboardViewRaceBtn" onclick="switchLeaderboardView('race')">Chart</button>
         </div>
 
         <div class="leaderboard-card" id="leaderboardTableView">
@@ -144,6 +144,7 @@
           <div class="race-controls">
             <button class="btn btn-secondary btn-sm" id="racePlayPauseBtn" onclick="toggleRacePlayback()">&#9654;</button>
             <input type="range" class="race-scrubber" id="raceScrubber" min="0" max="0" value="0" step="1" oninput="onRaceScrubberInput()">
+            <span class="race-date" id="raceDateLabel"></span>
           </div>
         </div>
       </section>
