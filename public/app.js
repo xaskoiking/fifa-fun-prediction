@@ -19,6 +19,10 @@ let pendingVotePrediction = null;
 let fixturesData = [];
 let fixturesCurrentIndex = 0;
 
+// Tournament stages currently open for "Create Match" (admin-configurable)
+let openMatchStages = ['GROUP_STAGE'];
+let availableStages = [];
+
 // Racing leaderboard chart state
 let raceFrames = [];
 let raceCurrentFrame = 0;
@@ -848,7 +852,29 @@ function toggleAdminCard(toggleEl) {
   if (card) card.classList.toggle('collapsed');
 }
 
-function checkAdminState() {
+async function checkAdminState() {
+  let sessionExpired = false;
+
+  if (adminPasscode) {
+    // Re-verify the stored passcode — it may be stale if the server's
+    // admin passcode changed since it was saved to sessionStorage.
+    try {
+      const response = await fetch('/api/admin/verify', {
+        headers: {
+          'x-admin-passcode': adminPasscode,
+          'x-user-secret': currentUserSecret
+        }
+      });
+      if (!response.ok) {
+        adminPasscode = '';
+        sessionStorage.removeItem('admin_passcode');
+        sessionExpired = true;
+      }
+    } catch (err) {
+      console.error('Error verifying admin:', err);
+    }
+  }
+
   if (adminPasscode) {
     adminAuthCard.style.display = 'none';
     adminWorkspace.style.display = 'block';
@@ -856,10 +882,14 @@ function checkAdminState() {
     loadAdminPlayers();
     loadAdminHistory();
     loadAdminVotes();
+    loadAdminSettings();
     loadFixtures();
   } else {
     adminAuthCard.style.display = 'block';
     adminWorkspace.style.display = 'none';
+    if (sessionExpired) {
+      adminAuthMessage.textContent = '⚠️ Your admin session expired. Please re-enter the admin passcode.';
+    }
     adminPasscodeInput.focus();
   }
 }
@@ -1556,6 +1586,63 @@ function copyRecoveryData(btn, data) {
   });
 }
 
+// ===================== MATCH STAGE SETTINGS (which stages allow "Create Match") =====================
+
+async function loadAdminSettings() {
+  try {
+    const response = await fetch('/api/admin/settings', {
+      headers: {
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      }
+    });
+    if (!response.ok) throw new Error('Failed to load settings');
+    const data = await response.json();
+    openMatchStages = data.openMatchStages || [];
+    availableStages = data.availableStages || [];
+    renderStageToggles();
+    if (fixturesData.length) renderMatchLog();
+  } catch (err) {
+    console.error('Error loading admin settings:', err);
+  }
+}
+
+function renderStageToggles() {
+  const container = document.getElementById('matchStageToggles');
+  if (!container) return;
+
+  container.innerHTML = availableStages.map(stage => {
+    const active = openMatchStages.includes(stage.code);
+    return `<button class="stage-toggle ${active ? 'active' : ''}" onclick="toggleMatchStage('${stage.code}')">${escapeHtml(stage.label)}</button>`;
+  }).join('');
+}
+
+async function toggleMatchStage(stageCode) {
+  const next = openMatchStages.includes(stageCode)
+    ? openMatchStages.filter(s => s !== stageCode)
+    : [...openMatchStages, stageCode];
+
+  try {
+    const response = await fetch('/api/admin/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      },
+      body: JSON.stringify({ openMatchStages: next })
+    });
+    if (!response.ok) throw new Error('Failed to update settings');
+    const data = await response.json();
+    openMatchStages = data.openMatchStages || [];
+    availableStages = data.availableStages || availableStages;
+    renderStageToggles();
+    if (fixturesData.length) renderMatchLog();
+  } catch (err) {
+    console.error('Error updating match stage settings:', err);
+  }
+}
+
 // ===================== MATCH LOG (football-data.org fixtures) =====================
 
 async function loadFixtures(forceRefresh = false) {
@@ -1636,11 +1723,10 @@ function renderMatchLog() {
   const dateStr = kickoffLocal.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const timeStr = kickoffLocal.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
-  const now = new Date();
-  const hoursUntil = (kickoffLocal - now) / (1000 * 60 * 60);
   const isFinished = f.status === 'FINISHED';
   const isLive = f.status === 'IN_PLAY' || f.status === 'PAUSED';
-  const isUpcoming = (f.status === 'SCHEDULED' || f.status === 'TIMED') && hoursUntil >= 0 && hoursUntil <= 24;
+  const isStageOpen = openMatchStages.includes(f.stage);
+  const isUpcoming = (f.status === 'SCHEDULED' || f.status === 'TIMED') && isStageOpen;
   const alreadyAdded = isFixtureAlreadyInDb(f);
 
   // Score block (finished or live)
@@ -1682,7 +1768,7 @@ function renderMatchLog() {
 
   contentEl.innerHTML = `
     <div style="font-size:0.75rem; color:var(--text-muted); text-align:right; margin-bottom:12px;">
-      Match ${fixturesCurrentIndex + 1} of ${total}
+      Match #${escapeHtml(f.matchNumber)} &nbsp;·&nbsp; ${fixturesCurrentIndex + 1} of ${total}
     </div>
 
     <div class="form-row">
