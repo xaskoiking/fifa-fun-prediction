@@ -351,8 +351,14 @@
                 <button class="btn btn-secondary btn-sm" onclick="matchLogNext()" title="Next match" style="padding: 4px 10px;">▶</button>
               </div>
             </div>
-            <div id="matchLogContent" class="card-body">
-              <div class="loading-state">Loading fixtures from football-data.org…</div>
+            <div class="card-body">
+              <div class="stage-toggles-row">
+                <span class="stage-toggles-label">Open stages for "Create Match":</span>
+                <div id="matchStageToggles" class="stage-toggles"></div>
+              </div>
+              <div id="matchLogContent">
+                <div class="loading-state">Loading fixtures from football-data.org…</div>
+              </div>
             </div>
           </div>
 

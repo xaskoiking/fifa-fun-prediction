@@ -995,6 +995,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: 600px;
+  overflow-y: auto;
 }
 
 .admin-match-row {
@@ -1045,6 +1047,46 @@ body {
   background: var(--color-accent);
   color: #000;
   border-color: var(--color-accent);
+}
+
+/* Match Log — tournament stage toggles for "Create Match" */
+.stage-toggles-row {
+  margin-bottom: 16px;
+}
+
+.stage-toggles-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.stage-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stage-toggle {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+
+.stage-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.stage-toggle.active {
+  background: rgba(0, 230, 118, 0.15);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 /* Modal Overlay & Card styling */
