@@ -244,7 +244,7 @@ async function loadLeaderboard() {
         <td class="col-predictions">${correct} / ${total}</td>
         <td class="col-accuracy">${accuracy}%</td>
         <td class="col-pending">${pendingCell}</td>
-        <td class="col-points">${player.points} pts</td>
+        <td class="col-points">${player.points}<span class="unit-label"> pts</span></td>
       `;
       leaderboardBody.appendChild(row);
     });
@@ -648,27 +648,27 @@ function renderResults() {
     const row = document.createElement('tr');
     row.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
     row.innerHTML = `
-      <td style="text-align: center; font-weight: 800; font-family: monospace; color: var(--color-accent); font-size: 1.05rem;">
+      <td data-label="Match #" style="text-align: center; font-weight: 800; font-family: monospace; color: var(--color-accent); font-size: 1.05rem;">
         ${match.matchNumber ? '#' + match.matchNumber : '-'}
       </td>
-      <td style="font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px;">
+      <td data-label="Group / Stage" style="font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px;">
         ${escapeHtml(match.group || match.matchType)}
       </td>
-      <td style="font-weight: 700;">
+      <td data-label="Matchup" style="font-weight: 700;">
         <span>${getTeamFlag(match.homeTeam)} ${escapeHtml(match.homeTeam)}</span>
         <span style="color: var(--text-muted); font-size: 0.75rem; padding: 0 4px; font-weight: normal;">vs</span>
         <span>${escapeHtml(match.awayTeam)} ${getTeamFlag(match.awayTeam)}</span>
       </td>
-      <td style="color: var(--text-muted); font-size: 0.8rem;">
+      <td data-label="Kickoff (Local)" style="color: var(--text-muted); font-size: 0.8rem;">
         ${dateStr}
       </td>
-      <td style="text-align: center; font-weight: 800;">
+      <td data-label="Result" style="text-align: center; font-weight: 800;">
         ${outcomeText}
       </td>
-      <td style="text-align: center; font-weight: 700;" class="${pickClass}">
+      <td data-label="Your Pick" style="text-align: center; font-weight: 700;" class="${pickClass}">
         ${pickText}
       </td>
-      <td style="padding-left: 20px;">
+      <td data-label="Group Votes Distribution" style="padding-left: 20px;">
         ${distHtml}
       </td>
     `;
@@ -842,6 +842,12 @@ async function handleUserRegistration(event) {
 
 // =================== ADMIN CONTROL PANEL ===================
 
+// Toggle collapse state of an admin panel card (mobile only — see CSS)
+function toggleAdminCard(toggleEl) {
+  const card = toggleEl.closest('.rules-card');
+  if (card) card.classList.toggle('collapsed');
+}
+
 function checkAdminState() {
   if (adminPasscode) {
     adminAuthCard.style.display = 'none';
@@ -919,10 +925,10 @@ async function loadAdminPlayers() {
       const toggleBtnClass = p.isAdmin ? 'btn-secondary' : 'btn-primary';
 
       row.innerHTML = `
-        <td style="padding: 8px 6px; font-weight: 600;">${escapeHtml(p.name)}</td>
-        <td style="padding: 8px 6px; text-align: center; font-family: monospace; color: var(--color-accent); font-weight: 700; letter-spacing: 1px;">${p.secret}</td>
-        <td style="padding: 8px 6px; text-align: center;">${roleBadge}</td>
-        <td style="padding: 8px 6px; text-align: right;">
+        <td data-label="Name" style="padding: 8px 6px; font-weight: 600;">${escapeHtml(p.name)}</td>
+        <td data-label="Passcode" style="padding: 8px 6px; text-align: center; font-family: monospace; color: var(--color-accent); font-weight: 700; letter-spacing: 1px;">${p.secret}</td>
+        <td data-label="Role" style="padding: 8px 6px; text-align: center;">${roleBadge}</td>
+        <td data-label="Action" style="padding: 8px 6px; text-align: right;">
           <button class="btn ${toggleBtnClass} btn-sm" style="padding: 3px 8px; font-size: 0.75rem; margin-right: 4px;" onclick="togglePlayerRole('${escapeHtml(p.name)}', ${!!p.isAdmin})">${toggleBtnText}</button>
           <button class="btn btn-danger btn-sm" style="padding: 3px 8px; font-size: 0.75rem;" onclick="deletePlayer('${escapeHtml(p.name)}')">Delete</button>
         </td>
@@ -1499,9 +1505,13 @@ function renderVoteLog(data) {
       row.style.opacity = '0.45';
     }
 
-    const dateStr = v.timestamp
-      ? new Date(v.timestamp).toLocaleString()
-      : '<span style="color: var(--text-muted); font-style: italic;">Legacy (no timestamp)</span>';
+    let dateStr;
+    if (v.timestamp) {
+      const d = new Date(v.timestamp);
+      dateStr = `<span class="ts-full">${d.toLocaleString()}</span><span class="ts-stack">${d.toLocaleDateString()}<br>${d.toLocaleTimeString()}</span>`;
+    } else {
+      dateStr = '<span style="color: var(--text-muted); font-style: italic;">Legacy (no timestamp)</span>';
+    }
 
     const voteColor = v.vote === 'home' ? 'var(--color-accent)'
                     : v.vote === 'away' ? '#64b5f6'
@@ -1510,8 +1520,8 @@ function renderVoteLog(data) {
     const voteLabel = `<span style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); padding: 2px 10px; border-radius: 12px; font-weight: 700; font-size: 0.78rem; color: ${voteColor};">${escapeHtml(v.voteText)}</span>`;
 
     const statusBadge = v.isLatest
-      ? `<span style="color: var(--color-accent); font-size: 0.75rem; font-weight: 700;">✓ Current</span>`
-      : `<span style="color: var(--text-muted); font-size: 0.75rem;">Changed</span>`;
+      ? `<span class="status-full" style="color: var(--color-accent); font-size: 0.75rem; font-weight: 700;">✓ Current</span><span class="status-short" style="color: var(--color-accent); font-size: 0.75rem; font-weight: 700;">✓</span>`
+      : `<span class="status-full" style="color: var(--text-muted); font-size: 0.75rem;">Changed</span><span class="status-short" style="color: var(--text-muted); font-size: 0.75rem;">Old</span>`;
 
     const resolvedBadge = v.matchStatus === 'resolved'
       ? `<span style="color: var(--color-gold); font-size: 0.7rem; margin-left: 4px;">(Resolved)</span>`
