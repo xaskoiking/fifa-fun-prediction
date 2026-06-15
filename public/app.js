@@ -1636,11 +1636,10 @@ function renderMatchLog() {
   const dateStr = kickoffLocal.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const timeStr = kickoffLocal.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
-  const now = new Date();
-  const hoursUntil = (kickoffLocal - now) / (1000 * 60 * 60);
   const isFinished = f.status === 'FINISHED';
   const isLive = f.status === 'IN_PLAY' || f.status === 'PAUSED';
-  const isUpcoming = (f.status === 'SCHEDULED' || f.status === 'TIMED') && hoursUntil >= 0 && hoursUntil <= 24;
+  const isGroupStage = /^Group [A-Za-z]+$/.test(f.group || '');
+  const isUpcoming = (f.status === 'SCHEDULED' || f.status === 'TIMED') && isGroupStage;
   const alreadyAdded = isFixtureAlreadyInDb(f);
 
   // Score block (finished or live)
