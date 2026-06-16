@@ -781,6 +781,13 @@ body {
   .compare-ctl select { max-width: 150px; font-size: 0.82rem; }
 }
 
+/* Custom "2026" calendar icon (replaces the date-showing emoji) */
+.cal-icon {
+  width: 1.3em;
+  height: 1.3em;
+  vertical-align: -0.25em;
+}
+
 /* ===================== Mountain climb view ===================== */
 .climb-card { padding: 18px 20px; }
 .climb-picker {
