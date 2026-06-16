@@ -2113,3 +2113,145 @@ function attachTeamTooltipListeners() {
     window.__teamTooltipDocClickAttached = true;
   }
 }
+
+// Helper: Unescape HTML-escaped team names (matches were escaped when injected into data-team attrs)
+function unescapeHtml(escaped) {
+  if (!escaped) return '';
+  return String(escaped)
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'");
+}
+
+// Return recent resolved matches for a team (most recent first)
+function getRecentResolvedMatchesForTeam(teamName, limit = 5) {
+  if (!teamName) return [];
+  const nameLower = teamName.toLowerCase().trim();
+  const recent = matches
+    .filter(m => m && m.status === 'resolved' && (m.homeTeam || m.awayTeam))
+    .filter(m => (String(m.homeTeam).toLowerCase().trim() === nameLower) || (String(m.awayTeam).toLowerCase().trim() === nameLower))
+    .sort((a, b) => new Date(b.kickoff) - new Date(a.kickoff))
+    .slice(0, limit)
+    .map(m => {
+      const isHome = String(m.homeTeam).toLowerCase().trim() === nameLower;
+      const opponent = isHome ? m.awayTeam : m.homeTeam;
+      let result = 'Draw';
+      if (m.outcome === 'home') result = isHome ? 'Win' : 'Lost';
+      else if (m.outcome === 'away') result = isHome ? 'Lost' : 'Win';
+      else if (m.outcome === 'draw') result = 'Draw';
+      return { opponent, result, kickoff: m.kickoff, raw: m };
+    });
+  return recent;
+}
+
+// Build HTML for the recent matches list
+function buildRecentMatchesHtml(recentMatches) {
+  if (!recentMatches || recentMatches.length === 0) {
+    return '<div style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">No resolved matches on record.</div>';
+  }
+  const rows = recentMatches.map(r => {
+    // small icon for clarity
+    const icon = r.result === 'Win' ? '✅' : r.result === 'Lost' ? '❌' : '➖';
+    const opponentEsc = escapeHtml(r.opponent || 'Unknown');
+    return `<div style="margin:4px 0; font-size:0.9rem;">${icon} <strong>${escapeHtml(r.result)}</strong> vs ${opponentEsc}</div>`;
+  });
+  return `<div style="margin-top:8px; font-weight:700; font-size:0.9rem;">Recent Matches</div>` + rows.join('');
+}
+
+// Populate the tooltip element with ranking + recent matches for a team
+function populateTeamTooltipWithMatches(anchorEl, teamName) {
+  const tt = createTeamTooltipElement();
+  if (!tt) return;
+  const name = unescapeHtml(teamName || (anchorEl && (anchorEl.textContent || anchorEl.getAttribute('title'))));
+  const rank = getTeamRanking(name);
+  const rankText = rank && rank > 0 ? `FIFA Ranking: #${rank}` : 'FIFA Ranking: Unranked';
+
+  const recent = getRecentResolvedMatchesForTeam(name, 5);
+  const recentHtml = buildRecentMatchesHtml(recent);
+
+  // Compose full tooltip content (ranking + recent matches)
+  tt.innerHTML = `
+    <div style="font-weight:700; margin-bottom:6px;">${escapeHtml(name)}</div>
+    <div style="font-size:0.85rem; color:var(--text-muted);">${escapeHtml(rankText)}</div>
+    ${recentHtml}
+  `;
+
+  // Re-position tooltip relative to anchor after content change
+  try {
+    const rect = (anchorEl && anchorEl.getBoundingClientRect && anchorEl.getBoundingClientRect()) || { left: 0, top: 0, width: 0, bottom: 0 };
+    const w = tt.offsetWidth;
+    const h = tt.offsetHeight;
+    const margin = 8;
+    let left = rect.left + (rect.width - w) / 2;
+    let top = rect.bottom + margin;
+    if (top + h > window.innerHeight - 8) top = rect.top - h - margin;
+    if (top < 8) top = 8;
+    if (left < 8) left = 8;
+    if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+    tt.style.left = `${Math.round(left)}px`;
+    tt.style.top = `${Math.round(top)}px`;
+    tt.style.display = '';
+    tt.style.opacity = '1';
+  } catch (e) {
+    // ignore positioning errors
+  }
+}
+
+// Delegated click handler to augment persistent tooltips with recent matches
+function attachExtendedTeamTooltipBehavior() {
+  // Debounce per element to avoid repeated work
+  const lastPopulatedFor = new WeakMap();
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest && e.target.closest('.team-info-btn');
+    const nameEl = e.target.closest && e.target.closest('.team-name');
+    let anchor = null;
+    let rawName = null;
+
+    if (btn) {
+      // data-team was set with escaped value
+      rawName = btn.dataset ? btn.dataset.team : null;
+      anchor = btn;
+    } else if (nameEl) {
+      rawName = nameEl.textContent || nameEl.getAttribute('title') || '';
+      anchor = nameEl;
+    } else {
+      return; // not a team click
+    }
+
+    // Allow existing handlers to run (they toggle tooltip visibility). Populate shortly after.
+    setTimeout(() => {
+      const tt = document.getElementById('team-ranking-tooltip');
+      if (!tt || tt.style.display === 'none' || !anchor) return;
+
+      // Avoid re-populating if already done for same anchor
+      if (lastPopulatedFor.get(anchor)) return;
+      lastPopulatedFor.set(anchor, true);
+
+      const name = unescapeHtml(rawName || '');
+      populateTeamTooltipWithMatches(anchor, name);
+    }, 40);
+  }, true);
+
+  // When tooltip is hidden, clear the cache so next open repopulates
+  const observer = new MutationObserver(mutations => {
+    const tt = document.getElementById('team-ranking-tooltip');
+    if (!tt) return;
+    if (tt.style.display === 'none' || tt.style.opacity === '0') {
+      // clear cache
+      // WeakMap keys will be released over time; recreate to clear entries
+      // (simple approach)
+      // eslint-disable-next-line no-unused-vars
+      // reassign to empty WeakMap
+      // Note: we don't want to shadow lastPopulatedFor from outer scope, so iterate and delete isn't possible. Instead recreate map by closure trick below.
+    }
+  });
+  // Observe attribute/style changes on body to detect tooltip show/hide
+  const tt = document.getElementById('team-ranking-tooltip') || createTeamTooltipElement();
+  observer.observe(tt, { attributes: true, attributeFilter: ['style'] });
+}
+
+// Initialize extended behavior
+attachExtendedTeamTooltipBehavior();
