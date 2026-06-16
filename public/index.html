@@ -41,7 +41,7 @@
           <span class="tab-icon">🔮</span> <span class="tab-label">Predictions</span>
         </button>
         <button class="tab-btn" id="tabBtnResults" onclick="switchTab('results')">
-          <span class="tab-icon">📅</span> <span class="tab-label">Past Results</span>
+          <span class="tab-icon"><svg class="cal-icon" viewBox="0 0 24 24" role="img" aria-label="2026 calendar"><rect x="2.5" y="4.5" width="19" height="16.5" rx="3" fill="#0d2416" stroke="#1f7a45" stroke-width="1.5"/><rect x="2.5" y="4.5" width="19" height="5" rx="3" fill="#e53935"/><line x1="7.5" y1="2.5" x2="7.5" y2="6.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="16.5" y1="2.5" x2="16.5" y2="6.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><text x="12" y="18" text-anchor="middle" font-size="7.5" font-weight="800" fill="#fff" font-family="Arial, Helvetica, sans-serif">2026</text></svg></span> <span class="tab-label">Past Results</span>
         </button>
         <button class="tab-btn" id="tabBtnLeaderboard" onclick="switchTab('leaderboard')">
           <span class="tab-icon">🏆</span> <span class="tab-label">Leaderboard</span>
@@ -75,7 +75,7 @@
       <!-- ================= PAST RESULTS TAB ================= -->
       <section id="tabContentResults" class="tab-content">
         <div class="section-header">
-          <h2>📅 Past Results & Live Predictions</h2>
+          <h2><svg class="cal-icon" viewBox="0 0 24 24" role="img" aria-label="2026 calendar"><rect x="2.5" y="4.5" width="19" height="16.5" rx="3" fill="#0d2416" stroke="#1f7a45" stroke-width="1.5"/><rect x="2.5" y="4.5" width="19" height="5" rx="3" fill="#e53935"/><line x1="7.5" y1="2.5" x2="7.5" y2="6.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="16.5" y1="2.5" x2="16.5" y2="6.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><text x="12" y="18" text-anchor="middle" font-size="7.5" font-weight="800" fill="#fff" font-family="Arial, Helvetica, sans-serif">2026</text></svg> Past Results & Live Predictions</h2>
           <p class="section-description">Matches that are live or resolved. View everyone's secret predictions, final outcomes, and points awarded!</p>
         </div>
 
@@ -113,6 +113,9 @@
         <div class="filter-bar">
           <button class="filter-btn active" id="leaderboardViewTableBtn" onclick="switchLeaderboardView('table')">Table</button>
           <button class="filter-btn" id="leaderboardViewRaceBtn" onclick="switchLeaderboardView('race')">Chart</button>
+          <button class="filter-btn" id="leaderboardViewCompareBtn" onclick="switchLeaderboardView('compare')">Compare</button>
+          <button class="filter-btn" id="leaderboardViewClimbBtn" onclick="switchLeaderboardView('climb')">&#127956; Climb</button>
+          <button class="filter-btn save-img-btn" id="leaderboardSaveImgBtn" onclick="saveLeaderboardImage()">&#128247; Save image</button>
         </div>
 
         <div class="leaderboard-card" id="leaderboardTableView">
@@ -148,6 +151,53 @@
             <button class="btn btn-secondary btn-sm" id="racePlayPauseBtn" onclick="toggleRacePlayback()">&#9654;</button>
             <input type="range" class="race-scrubber" id="raceScrubber" min="0" max="0" value="0" step="1" oninput="onRaceScrubberInput()">
             <span class="race-date" id="raceDateLabel"></span>
+          </div>
+        </div>
+
+        <div class="leaderboard-card compare-card" id="leaderboardCompareView" style="display: none;">
+          <div class="compare-controls" id="compareControls" style="display: none;">
+            <label class="compare-ctl">From
+              <select id="compareFrom" onchange="renderComparison()"></select>
+            </label>
+            <span class="compare-arrow">&#8594;</span>
+            <label class="compare-ctl">To
+              <select id="compareTo" onchange="renderComparison()"></select>
+            </label>
+          </div>
+          <div class="compare-header" id="compareHeader"></div>
+          <div class="table-responsive">
+            <table class="leaderboard-table compare-table">
+              <thead>
+                <tr>
+                  <th class="sortable" onclick="sortComparison('name')">Player</th>
+                  <th class="sortable sort-num" onclick="sortComparison('prevRank')">Prev #</th>
+                  <th class="sortable sort-num" onclick="sortComparison('prevPoints')">Prev Pts</th>
+                  <th class="sortable sort-num" onclick="sortComparison('currRank')">Now #</th>
+                  <th class="sortable sort-num" onclick="sortComparison('currPoints')">Now Pts</th>
+                  <th class="sortable sort-num" onclick="sortComparison('deltaPts')">Pts +/&#8722;</th>
+                  <th class="sortable sort-num" onclick="sortComparison('deltaRank')">Moved</th>
+                </tr>
+              </thead>
+              <tbody id="compareBody">
+                <tr><td colspan="7" class="loading-state">Loading comparison...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="leaderboard-card climb-card" id="leaderboardClimbView" style="display: none;">
+          <div class="climb-picker" id="climbPicker"></div>
+          <div class="climb-frame-label" id="climbFrameLabel">Start</div>
+          <div class="climb-mountain" id="climbMountain">
+            <div class="climb-slope"></div>
+            <div class="climb-snow"></div>
+            <div class="climb-peak">&#128681;</div>
+          </div>
+          <p class="loading-state" id="climbEmptyState" style="display: none;">No matches resolved yet.</p>
+          <div class="race-controls">
+            <button class="btn btn-secondary btn-sm" id="climbPlayPauseBtn" onclick="toggleClimbPlayback()">&#9654;</button>
+            <input type="range" class="race-scrubber" id="climbScrubber" min="0" max="0" value="0" step="1" oninput="onClimbScrubberInput()">
+            <span class="race-date" id="climbDateLabel"></span>
           </div>
         </div>
       </section>
@@ -330,6 +380,15 @@
               <h3 class="card-toggle" onclick="toggleAdminCard(this)">🏆 Resolve Scheduled Matches <span class="collapse-chevron">▾</span></h3>
               <div class="card-body">
                 <p class="small-desc">Select correct match outcome to resolve and award points. (Note: matches are locked automatically after their kickoff time has passed.)</p>
+                <div class="admin-filter-bar">
+                  <label>Show
+                    <select id="adminMatchFilter" onchange="loadAdminMatches()">
+                      <option value="open">Open (to resolve)</option>
+                      <option value="resolved">Resolved</option>
+                      <option value="all">All</option>
+                    </select>
+                  </label>
+                </div>
                 <div id="adminMatchesList" class="admin-matches-list">
                   <!-- Admin matches list will load dynamically -->
                   <div class="loading-state">Loading matches list...</div>
@@ -484,6 +543,7 @@
   </div>
 
   <!-- General Script -->
+  <script src="vendor/html2canvas.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

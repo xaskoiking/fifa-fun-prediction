@@ -42,6 +42,8 @@ const matchesGrid = document.getElementById('matchesGrid');
 const leaderboardBody = document.getElementById('leaderboardBody');
 const leaderboardTableView = document.getElementById('leaderboardTableView');
 const leaderboardRaceView = document.getElementById('leaderboardRaceView');
+const leaderboardCompareView = document.getElementById('leaderboardCompareView');
+const leaderboardClimbView = document.getElementById('leaderboardClimbView');
 const raceFrameLabel = document.getElementById('raceFrameLabel');
 const raceBars = document.getElementById('raceBars');
 const raceEmptyState = document.getElementById('raceEmptyState');
@@ -177,17 +179,17 @@ function getTeamRanking(teamName) {
     'portugal': 5, 'belgium': 9, 'netherlands': 8, 'uruguay': 16,
     'mexico': 14, 'canada': 30, 'croatia': 11, 'morocco': 7,
     'japan': 18, 'senegal': 15, 'switzerland': 19, 'denmark': 21,
-    'colombia': 13, 'iran': 20, 'turkey': 22, 'australia': 27,
+    'colombia': 13, 'iran': 20, 'türkiye': 22, 'australia': 27,
     'ecuador': 23, 'austria': 24, 'south korea': 25, 'nigeria': 26,
     'algeria': 28, 'egypt': 29, 'ukraine': 32, 'norway': 31,
     'ivory coast': 33, 'panama': 34, 'russia': 35, 'poland': 36,
     'wales': 37, 'sweden': 38, 'hungary': 39, 'czechia': 40,
     'paraguay': 41, 'scotland': 42, 'serbia': 43, 'cameroon': 44,
-    'tunisia': 45, 'congo dr': 46, 'slovakia': 47, 'greece': 48,
+    'tunisia': 45, 'dr congo': 46, 'slovakia': 47, 'greece': 48,
     'qatar': 56, 'iraq': 57, 'south africa': 60, 
-    'saudi arabia': 61, 'jordan': 63, 'bosnia and herzegovina': 64,
+    'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64,
     'cape verde': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
-    'new zealand': 85
+    'new zealand': 85, 'uzbekistan': 50
   };
   return ranks[teamName.toLowerCase().trim()] || 0;
 }
@@ -284,18 +286,381 @@ async function loadLeaderboard() {
 function switchLeaderboardView(view) {
   document.getElementById('leaderboardViewTableBtn').classList.toggle('active', view === 'table');
   document.getElementById('leaderboardViewRaceBtn').classList.toggle('active', view === 'race');
+  document.getElementById('leaderboardViewCompareBtn').classList.toggle('active', view === 'compare');
+  document.getElementById('leaderboardViewClimbBtn').classList.toggle('active', view === 'climb');
+
+  // Hide every view first, then show the chosen one
+  leaderboardTableView.style.display = 'none';
+  leaderboardRaceView.style.display = 'none';
+  leaderboardCompareView.style.display = 'none';
+  leaderboardClimbView.style.display = 'none';
+  pauseRacePlayback();
+  pauseClimbPlayback();
 
   if (view === 'table') {
     leaderboardTableView.style.display = '';
-    leaderboardRaceView.style.display = 'none';
-    pauseRacePlayback();
-  } else {
-    leaderboardTableView.style.display = 'none';
+  } else if (view === 'race') {
     leaderboardRaceView.style.display = '';
     if (raceFrames.length === 0) {
       loadLeaderboardHistory();
     }
+  } else if (view === 'compare') {
+    leaderboardCompareView.style.display = '';
+    loadRankingComparison();
+  } else if (view === 'climb') {
+    leaderboardClimbView.style.display = '';
+    loadClimb();
   }
+}
+
+// Export the currently-visible leaderboard view (table / chart / compare) as a PNG
+async function saveLeaderboardImage() {
+  let el, name;
+  if (leaderboardCompareView.style.display !== 'none') { el = leaderboardCompareView; name = 'comparison'; }
+  else if (leaderboardRaceView.style.display !== 'none') { el = leaderboardRaceView; name = 'race-chart'; }
+  else if (leaderboardClimbView.style.display !== 'none') { el = leaderboardClimbView; name = 'climb'; }
+  else { el = leaderboardTableView; name = 'standings'; }
+
+  if (typeof html2canvas !== 'function') {
+    alert('Image tool is still loading — please try again in a moment.');
+    return;
+  }
+
+  const btn = document.getElementById('leaderboardSaveImgBtn');
+  const original = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    const canvas = await html2canvas(el, { backgroundColor: '#07130b', scale: 2, useCORS: true });
+    const link = document.createElement('a');
+    link.download = `fifa-${name}-${new Date().toISOString().slice(0, 10)}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch (err) {
+    console.error('Image export failed:', err);
+    alert('Sorry, could not create the image.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+  }
+}
+
+// ===================== MOUNTAIN CLIMB (animated standings over time) =====================
+let climbFrames = [];
+let climbCurrent = 0;
+let climbMaxPoints = 1;
+let climbPlaying = false;
+let climbTimer = null;
+let climbByName = new Map();
+let climbSelected = new Set(); // when non-empty, only these climbers are shown (head-to-head)
+
+// Stable colour + initials generated from a player's name (no uploads needed)
+function climberColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return `hsl(${h}, 70%, 55%)`;
+}
+function climberInitials(name) {
+  const parts = name.trim().split(/\s+/);
+  const a = parts[0] ? parts[0][0] : '';
+  const b = parts[1] ? parts[1][0] : '';
+  return (a + b).toUpperCase();
+}
+
+async function loadClimb() {
+  try {
+    const res = await fetch('/api/leaderboard/history');
+    if (!res.ok) throw new Error('Failed to load leaderboard history');
+    climbFrames = await res.json();
+
+    climbMaxPoints = 1;
+    climbFrames.forEach(f => f.standings.forEach(p => { if (p.points > climbMaxPoints) climbMaxPoints = p.points; }));
+
+    const scrubber = document.getElementById('climbScrubber');
+    const hasMatches = climbFrames.length > 1;
+    document.getElementById('climbEmptyState').style.display = hasMatches ? 'none' : '';
+    document.getElementById('climbPlayPauseBtn').disabled = !hasMatches;
+    scrubber.disabled = !hasMatches;
+    scrubber.max = String(Math.max(climbFrames.length - 1, 0));
+
+    buildClimbPicker();
+    buildClimbers();
+    climbCurrent = climbFrames.length - 1;
+    scrubber.value = String(climbCurrent);
+    renderClimbFrame(climbCurrent);
+  } catch (err) {
+    console.error('Error loading climb:', err);
+  }
+}
+
+// Build the selectable name chips so users can compare just a few climbers head-to-head
+function buildClimbPicker() {
+  const picker = document.getElementById('climbPicker');
+  if (!picker) return;
+  picker.innerHTML = '';
+  const latest = climbFrames[climbFrames.length - 1];
+  if (!latest) return;
+
+  const allChip = document.createElement('button');
+  allChip.className = 'climb-chip' + (climbSelected.size === 0 ? ' active' : '');
+  allChip.textContent = 'All';
+  allChip.addEventListener('click', () => { climbSelected.clear(); refreshClimb(); });
+  picker.appendChild(allChip);
+
+  latest.standings.forEach(p => {
+    const chip = document.createElement('button');
+    chip.className = 'climb-chip' + (climbSelected.has(p.name) ? ' active' : '');
+    chip.textContent = p.name;
+    chip.addEventListener('click', () => {
+      if (climbSelected.has(p.name)) climbSelected.delete(p.name);
+      else climbSelected.add(p.name);
+      refreshClimb();
+    });
+    picker.appendChild(chip);
+  });
+}
+
+// Rebuild the chips + climbers after a selection change
+function refreshClimb() {
+  buildClimbPicker();
+  buildClimbers();
+  renderClimbFrame(climbCurrent);
+}
+
+// Create one climber per player, using the start frame for stable horizontal lanes
+function buildClimbers() {
+  const mountain = document.getElementById('climbMountain');
+  mountain.querySelectorAll('.climber').forEach(el => el.remove());
+  climbByName = new Map();
+
+  const start = climbFrames[0];
+  if (!start) return;
+
+  let lane;
+  if (climbSelected.size > 0) {
+    // User picked specific climbers to compare head-to-head
+    lane = start.standings.filter(p => climbSelected.has(p.name));
+  } else if (window.matchMedia('(max-width: 600px)').matches) {
+    // Narrow screen: show only the top 10 (by latest standings) to avoid crowding
+    const latest = climbFrames[climbFrames.length - 1];
+    const allowed = new Set(latest.standings.slice(0, 10).map(p => p.name));
+    lane = start.standings.filter(p => allowed.has(p.name));
+  } else {
+    lane = start.standings;
+  }
+
+  const n = lane.length;
+  lane.forEach((p, i) => {
+    const left = n > 1 ? (8 + (i / (n - 1)) * 84) : 50;
+    const el = document.createElement('div');
+    el.className = 'climber';
+    el.style.left = left + '%';
+    el.style.bottom = '5%';
+    el.innerHTML = `
+      <div class="climber-avatar" style="background:${climberColor(p.name)}">${escapeHtml(climberInitials(p.name))}</div>
+      <div class="climber-name">${escapeHtml(p.name)}</div>
+    `;
+    mountain.appendChild(el);
+    climbByName.set(p.name, el);
+  });
+}
+
+// Re-flow the climbers if the screen crosses the mobile/desktop breakpoint (e.g. rotation)
+let climbResizeTimer = null;
+window.addEventListener('resize', () => {
+  if (leaderboardClimbView && leaderboardClimbView.style.display !== 'none' && climbFrames.length) {
+    clearTimeout(climbResizeTimer);
+    climbResizeTimer = setTimeout(() => { buildClimbers(); renderClimbFrame(climbCurrent); }, 250);
+  }
+});
+
+// Position each climber for a given frame; the CSS transition animates the climb
+function renderClimbFrame(index) {
+  const frame = climbFrames[index];
+  if (!frame) return;
+  document.getElementById('climbFrameLabel').textContent = frame.matchNumber
+    ? `Match ${frame.matchNumber}: ${frame.homeTeam} vs ${frame.awayTeam}`
+    : 'Start';
+  document.getElementById('climbDateLabel').textContent = frame.kickoff
+    ? new Date(frame.kickoff).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : '';
+  document.getElementById('climbScrubber').value = String(index);
+
+  frame.standings.forEach(p => {
+    const el = climbByName.get(p.name);
+    if (!el) return;
+    const pct = 5 + (p.points / climbMaxPoints) * 80;
+    el.style.bottom = pct + '%';
+    el.title = `${p.name} — ${p.points} pts`;
+  });
+}
+
+function toggleClimbPlayback() {
+  if (climbPlaying) { pauseClimbPlayback(); return; }
+  if (climbCurrent >= climbFrames.length - 1) { climbCurrent = 0; renderClimbFrame(0); }
+  climbPlaying = true;
+  document.getElementById('climbPlayPauseBtn').innerHTML = '&#10074;&#10074;';
+  climbTimer = setInterval(() => {
+    if (climbCurrent >= climbFrames.length - 1) { pauseClimbPlayback(); return; }
+    climbCurrent++;
+    renderClimbFrame(climbCurrent);
+  }, 1100);
+}
+
+function pauseClimbPlayback() {
+  climbPlaying = false;
+  if (climbTimer) { clearInterval(climbTimer); climbTimer = null; }
+  const btn = document.getElementById('climbPlayPauseBtn');
+  if (btn) btn.innerHTML = '&#9654;';
+}
+
+function onClimbScrubberInput() {
+  pauseClimbPlayback();
+  climbCurrent = parseInt(document.getElementById('climbScrubber').value, 10) || 0;
+  renderClimbFrame(climbCurrent);
+}
+
+// ===================== RANKING COMPARISON (pick any two matches) =====================
+// Uses the same history feed as the race chart. Defaults to the immediate
+// previous match vs the current one, but the user can compare any two snapshots.
+let compareFrames = [];
+
+// Friendly label for a history frame ("Start" or "Match 5: A vs B")
+function compareFrameLabel(frame) {
+  return frame.matchNumber
+    ? `Match ${frame.matchNumber}: ${frame.homeTeam} vs ${frame.awayTeam}`
+    : 'Start';
+}
+
+async function loadRankingComparison() {
+  const header = document.getElementById('compareHeader');
+  const container = document.getElementById('compareBody');
+  const controls = document.getElementById('compareControls');
+  container.innerHTML = '<p class="loading-state">Loading comparison...</p>';
+
+  try {
+    const response = await fetch('/api/leaderboard/history');
+    if (!response.ok) throw new Error('Failed to load leaderboard history');
+    compareFrames = await response.json();
+
+    // frames[0] is the "Start" snapshot; need two snapshots to compare.
+    if (compareFrames.length < 2) {
+      header.textContent = '';
+      controls.style.display = 'none';
+      container.innerHTML = '<tr><td colspan="7" class="loading-state">Not enough resolved matches yet to compare rankings.</td></tr>';
+      return;
+    }
+
+    // Populate both pickers with one option per frame
+    const opts = compareFrames
+      .map((f, i) => `<option value="${i}">${escapeHtml(compareFrameLabel(f))}</option>`)
+      .join('');
+    const fromSel = document.getElementById('compareFrom');
+    const toSel = document.getElementById('compareTo');
+    fromSel.innerHTML = opts;
+    toSel.innerHTML = opts;
+
+    // Default: immediate previous -> current
+    fromSel.value = String(compareFrames.length - 2);
+    toSel.value = String(compareFrames.length - 1);
+    controls.style.display = '';
+
+    renderComparison();
+  } catch (err) {
+    console.error('Error loading ranking comparison:', err);
+    container.innerHTML = '<p class="loading-state error-text">Error loading comparison.</p>';
+  }
+}
+
+// Sort state for the comparison table
+let compareSortKey = 'currRank';
+let compareSortDir = 1; // 1 = ascending, -1 = descending
+
+// Header click: toggle direction if same column, else pick a sensible default
+function sortComparison(key) {
+  if (compareSortKey === key) {
+    compareSortDir = -compareSortDir;
+  } else {
+    compareSortKey = key;
+    // ranks read low->high; points & changes read high->low by default
+    compareSortDir = (key === 'name' || key === 'prevRank' || key === 'currRank') ? 1 : -1;
+  }
+  renderComparison();
+}
+
+// Render the movement between the two currently-selected frames as a sortable table
+function renderComparison() {
+  const header = document.getElementById('compareHeader');
+  const body = document.getElementById('compareBody');
+  let fromIdx = parseInt(document.getElementById('compareFrom').value, 10);
+  let toIdx = parseInt(document.getElementById('compareTo').value, 10);
+  if (isNaN(fromIdx) || isNaN(toIdx)) return;
+
+  // Always read earlier -> later, regardless of which box the user set
+  if (fromIdx > toIdx) { const t = fromIdx; fromIdx = toIdx; toIdx = t; }
+  if (fromIdx === toIdx) {
+    header.innerHTML = 'Pick two different matches to see the movement between them.';
+    body.innerHTML = '<tr><td colspan="7" class="loading-state">—</td></tr>';
+    return;
+  }
+
+  const from = compareFrames[fromIdx];
+  const to = compareFrames[toIdx];
+
+  // standings are already sorted best-first, so the array index gives the rank
+  const fromMap = new Map();
+  from.standings.forEach((p, i) => fromMap.set(p.name, { rank: i + 1, points: p.points }));
+
+  const labelOf = (frame) => frame.matchNumber
+    ? `Match ${frame.matchNumber} (${escapeHtml(frame.homeTeam)} vs ${escapeHtml(frame.awayTeam)})`
+    : 'the start';
+  header.innerHTML = `Movement from <strong>${labelOf(from)}</strong> to <strong>${labelOf(to)}</strong>`;
+
+  // Build one row of data per player
+  const rows = to.standings.map((p, i) => {
+    const prev = fromMap.get(p.name);
+    const prevRank = prev ? prev.rank : null;
+    const prevPoints = prev ? prev.points : 0;
+    const currRank = i + 1;
+    return {
+      name: p.name,
+      prevRank, prevPoints,
+      currRank, currPoints: p.points,
+      deltaPts: p.points - prevPoints,
+      deltaRank: prevRank == null ? null : (prevRank - currRank) // positive = climbed
+    };
+  });
+
+  // Sort by the chosen column (new players with no previous rank sink to the bottom)
+  rows.sort((a, b) => {
+    if (compareSortKey === 'name') return compareSortDir * a.name.localeCompare(b.name);
+    let av = a[compareSortKey], bv = b[compareSortKey];
+    if (av == null) av = -Infinity;
+    if (bv == null) bv = -Infinity;
+    return compareSortDir * (av - bv);
+  });
+
+  body.innerHTML = '';
+  rows.forEach(r => {
+    let move, moveClass;
+    if (r.deltaRank == null) { move = 'NEW'; moveClass = 'move-new'; }
+    else if (r.deltaRank > 0) { move = `▲ ${r.deltaRank}`; moveClass = 'move-up'; }
+    else if (r.deltaRank < 0) { move = `▼ ${Math.abs(r.deltaRank)}`; moveClass = 'move-down'; }
+    else { move = '—'; moveClass = 'move-same'; }
+
+    const gainClass = r.deltaPts > 0 ? 'move-up' : (r.deltaPts < 0 ? 'move-down' : 'move-same');
+    const gainText = r.deltaPts > 0 ? `+${r.deltaPts}` : String(r.deltaPts);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="compare-name">${escapeHtml(r.name)}</td>
+      <td class="sort-num">${r.prevRank == null ? '—' : r.prevRank}</td>
+      <td class="sort-num">${r.prevPoints}</td>
+      <td class="sort-num"><strong>${r.currRank}</strong></td>
+      <td class="sort-num">${r.currPoints}</td>
+      <td class="sort-num ${gainClass}">${gainText}</td>
+      <td class="sort-num compare-move ${moveClass}">${move}</td>
+    `;
+    body.appendChild(tr);
+  });
 }
 
 // Fetch leaderboard history frames and render the initial (start) frame
@@ -1110,9 +1475,29 @@ function loadAdminMatches() {
     return;
   }
 
-  const sorted = [...matches].sort((a, b) => new Date(b.kickoff) - new Date(a.kickoff));
+  // Filter (default: only matches still needing resolution) + sort
+  const filterEl = document.getElementById('adminMatchFilter');
+  const filter = filterEl ? filterEl.value : 'open';
+  let list = [...matches];
+  if (filter === 'open') list = list.filter(m => m.status !== 'resolved');
+  else if (filter === 'resolved') list = list.filter(m => m.status === 'resolved');
 
-  sorted.forEach(match => {
+  // Unresolved group first; within it show soonest kickoff at the top
+  // (chronological, reads top-to-bottom). Resolved group shows most-recent first.
+  list.sort((a, b) => {
+    const ar = a.status === 'resolved' ? 1 : 0;
+    const br = b.status === 'resolved' ? 1 : 0;
+    if (ar !== br) return ar - br;
+    if (ar === 0) return new Date(a.kickoff) - new Date(b.kickoff); // open: soonest first
+    return new Date(b.kickoff) - new Date(a.kickoff);                // resolved: latest first
+  });
+
+  if (list.length === 0) {
+    adminMatchesList.innerHTML = `<div class="loading-state">No matches to show for this filter.</div>`;
+    return;
+  }
+
+  list.forEach(match => {
     const row = document.createElement('div');
     row.className = 'admin-match-row';
     
@@ -1980,9 +2365,6 @@ let _teamTooltipHideTimer = null;
 
 function showTeamTooltipForElement(el, teamName, forcePersist) {
   const tt = createTeamTooltipElement();
-  const rank = getTeamRanking(teamName);
-  const text = rank && rank > 0 ? `FIFA Ranking: #${rank}` : 'FIFA Ranking: Unranked';
-  tt.textContent = text;
 
   // If the passed element is the info button, prefer the .team-name element as anchor
   let anchorEl = el;
@@ -1996,36 +2378,8 @@ function showTeamTooltipForElement(el, teamName, forcePersist) {
     // ignore
   }
 
-  // Position below the element (centered) with fallback above if not enough space
-  const rect = anchorEl.getBoundingClientRect();
-  const margin = 8;
-
-  // Make visible first to measure
-  tt.style.display = '';
-  tt.style.opacity = '1';
-
-  // Measure tooltip
-  const w = tt.offsetWidth;
-  const h = tt.offsetHeight;
-
-  // Center horizontally relative to anchor element
-  let left = rect.left + (rect.width - w) / 2;
-  let top = rect.bottom + margin;
-
-  // If tooltip would overflow bottom, place it above the element
-  if (top + h > window.innerHeight - 8) {
-    top = rect.top - h - margin;
-  }
-
-  // If still overflowing top, clamp vertically
-  if (top < 8) top = 8;
-
-  // Clamp horizontally within viewport
-  if (left < 8) left = 8;
-  if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
-
-  tt.style.left = `${Math.round(left)}px`;
-  tt.style.top = `${Math.round(top)}px`;
+  // Populate full tooltip (ranking + recent matches). This handles content and positioning.
+  populateTeamTooltipWithMatches(anchorEl, teamName || text);
 
   _teamTooltipVisibleFor = anchorEl;
   if (_teamTooltipHideTimer) {
@@ -2112,4 +2466,154 @@ function attachTeamTooltipListeners() {
     });
     window.__teamTooltipDocClickAttached = true;
   }
+
+  // Also hide tooltip on scroll/wheel/touch to mirror hover behavior (use capture so we catch it anywhere)
+  if (!window.__teamTooltipScrollAttached) {
+    document.addEventListener('scroll', () => { hideTeamTooltip(true); }, { passive: true, capture: true });
+    document.addEventListener('wheel', () => { hideTeamTooltip(true); }, { passive: true, capture: true });
+    document.addEventListener('touchstart', () => { hideTeamTooltip(true); }, { passive: true, capture: true });
+    window.__teamTooltipScrollAttached = true;
+  }
 }
+
+// Helper: Unescape HTML-escaped team names (matches were escaped when injected into data-team attrs)
+function unescapeHtml(escaped) {
+  if (!escaped) return '';
+  return String(escaped)
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'");
+}
+
+// Return recent resolved matches for a team (most recent first)
+function getRecentResolvedMatchesForTeam(teamName, limit = 5) {
+  if (!teamName) return [];
+  const nameLower = teamName.toLowerCase().trim();
+  const recent = matches
+    .filter(m => m && m.status === 'resolved' && (m.homeTeam || m.awayTeam))
+    .filter(m => (String(m.homeTeam).toLowerCase().trim() === nameLower) || (String(m.awayTeam).toLowerCase().trim() === nameLower))
+    .sort((a, b) => new Date(b.kickoff) - new Date(a.kickoff))
+    .slice(0, limit)
+    .map(m => {
+      const isHome = String(m.homeTeam).toLowerCase().trim() === nameLower;
+      const opponent = isHome ? m.awayTeam : m.homeTeam;
+      let result = 'Draw';
+      if (m.outcome === 'home') result = isHome ? 'Win' : 'Lost';
+      else if (m.outcome === 'away') result = isHome ? 'Lost' : 'Win';
+      else if (m.outcome === 'draw') result = 'Draw';
+      return { opponent, result, kickoff: m.kickoff, raw: m };
+    });
+  return recent;
+}
+
+// Build HTML for the recent matches list
+function buildRecentMatchesHtml(recentMatches) {
+  if (!recentMatches || recentMatches.length === 0) {
+    return '<div style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">No resolved matches on record.</div>';
+  }
+  const rows = recentMatches.map(r => {
+    // small icon for clarity
+    const icon = r.result === 'Win' ? '✅' : r.result === 'Lost' ? '❌' : '➖';
+    const opponentEsc = escapeHtml(r.opponent || 'Unknown');
+    return `<div style="margin:4px 0; font-size:0.9rem;">${icon} <strong>${escapeHtml(r.result)}</strong> vs ${opponentEsc}</div>`;
+  });
+  return `<div style="margin-top:8px; font-weight:700; font-size:0.9rem;">Recent Matches</div>` + rows.join('');
+}
+
+// Populate the tooltip element with ranking + recent matches for a team
+function populateTeamTooltipWithMatches(anchorEl, teamName) {
+  const tt = createTeamTooltipElement();
+  if (!tt) return;
+  const name = unescapeHtml(teamName || (anchorEl && (anchorEl.textContent || anchorEl.getAttribute('title'))));
+  const rank = getTeamRanking(name);
+  const rankText = rank && rank > 0 ? `FIFA Ranking: #${rank}` : 'FIFA Ranking: Unranked';
+
+  const recent = getRecentResolvedMatchesForTeam(name, 5);
+  const recentHtml = buildRecentMatchesHtml(recent);
+
+  // Compose full tooltip content (ranking + recent matches)
+  tt.innerHTML = `
+    <div style="font-weight:700; margin-bottom:6px;">${escapeHtml(name)}</div>
+    <div style="font-size:0.85rem; color:var(--text-muted);">${escapeHtml(rankText)}</div>
+    ${recentHtml}
+  `;
+
+  // Re-position tooltip relative to anchor after content change
+  try {
+    const rect = (anchorEl && anchorEl.getBoundingClientRect && anchorEl.getBoundingClientRect()) || { left: 0, top: 0, width: 0, bottom: 0 };
+    const w = tt.offsetWidth;
+    const h = tt.offsetHeight;
+    const margin = 8;
+    let left = rect.left + (rect.width - w) / 2;
+    let top = rect.bottom + margin;
+    if (top + h > window.innerHeight - 8) top = rect.top - h - margin;
+    if (top < 8) top = 8;
+    if (left < 8) left = 8;
+    if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+    tt.style.left = `${Math.round(left)}px`;
+    tt.style.top = `${Math.round(top)}px`;
+    tt.style.display = '';
+    tt.style.opacity = '1';
+  } catch (e) {
+    // ignore positioning errors
+  }
+}
+
+// Delegated click handler to augment persistent tooltips with recent matches
+function attachExtendedTeamTooltipBehavior() {
+  // Debounce per element to avoid repeated work
+  const lastPopulatedFor = new WeakMap();
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest && e.target.closest('.team-info-btn');
+    const nameEl = e.target.closest && e.target.closest('.team-name');
+    let anchor = null;
+    let rawName = null;
+
+    if (btn) {
+      // data-team was set with escaped value
+      rawName = btn.dataset ? btn.dataset.team : null;
+      anchor = btn;
+    } else if (nameEl) {
+      rawName = nameEl.textContent || nameEl.getAttribute('title') || '';
+      anchor = nameEl;
+    } else {
+      return; // not a team click
+    }
+
+    // Allow existing handlers to run (they toggle tooltip visibility). Populate shortly after.
+    setTimeout(() => {
+      const tt = document.getElementById('team-ranking-tooltip');
+      if (!tt || tt.style.display === 'none' || !anchor) return;
+
+      // Avoid re-populating if already done for same anchor
+      if (lastPopulatedFor.get(anchor)) return;
+      lastPopulatedFor.set(anchor, true);
+
+      const name = unescapeHtml(rawName || '');
+      populateTeamTooltipWithMatches(anchor, name);
+    }, 40);
+  }, true);
+
+  // When tooltip is hidden, clear the cache so next open repopulates
+  const observer = new MutationObserver(mutations => {
+    const tt = document.getElementById('team-ranking-tooltip');
+    if (!tt) return;
+    if (tt.style.display === 'none' || tt.style.opacity === '0') {
+      // clear cache
+      // WeakMap keys will be released over time; recreate to clear entries
+      // (simple approach)
+      // eslint-disable-next-line no-unused-vars
+      // reassign to empty WeakMap
+      // Note: we don't want to shadow lastPopulatedFor from outer scope, so iterate and delete isn't possible. Instead recreate map by closure trick below.
+    }
+  });
+  // Observe attribute/style changes on body to detect tooltip show/hide
+  const tt = document.getElementById('team-ranking-tooltip') || createTeamTooltipElement();
+  observer.observe(tt, { attributes: true, attributeFilter: ['style'] });
+}
+
+// Initialize extended behavior
+attachExtendedTeamTooltipBehavior();
