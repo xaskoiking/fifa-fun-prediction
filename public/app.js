@@ -164,7 +164,7 @@ function filterMatches(filter) {
 function getTeamFlag(teamName) {
   const flags = {
     'argentina': '🇦🇷', 'france': '🇫🇷', 'brazil': '🇧🇷', 'germany': '🇩🇪',
-    'spain': '🇪🇸', 'italy': '🇮🇹', 'england': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'usa': '🇺🇸',
+    'spain': '🇪🇸', 'italy': '🇮🇹', 'england': '🏴', 'usa': '🇺🇸',
     'portugal': '🇵🇹', 'belgium': '🇧🇪', 'netherlands': '🇳🇱', 'uruguay': '🇺🇾',
     'mexico': '🇲🇽', 'canada': '🇨🇦', 'croatia': '🇭🇷', 'morocco': '🇲🇦',
     'japan': '🇯🇵', 'senegal': '🇸🇳', 'switzerland': '🇨🇭', 'denmark': '🇩🇰'
@@ -179,17 +179,17 @@ function getTeamRanking(teamName) {
     'portugal': 5, 'belgium': 9, 'netherlands': 8, 'uruguay': 16,
     'mexico': 14, 'canada': 30, 'croatia': 11, 'morocco': 7,
     'japan': 18, 'senegal': 15, 'switzerland': 19, 'denmark': 21,
-    'colombia': 13, 'iran': 20, 'turkey': 22, 'australia': 27,
+    'colombia': 13, 'iran': 20, 'türkiye': 22, 'australia': 27,
     'ecuador': 23, 'austria': 24, 'south korea': 25, 'nigeria': 26,
     'algeria': 28, 'egypt': 29, 'ukraine': 32, 'norway': 31,
     'ivory coast': 33, 'panama': 34, 'russia': 35, 'poland': 36,
     'wales': 37, 'sweden': 38, 'hungary': 39, 'czechia': 40,
     'paraguay': 41, 'scotland': 42, 'serbia': 43, 'cameroon': 44,
-    'tunisia': 45, 'congo dr': 46, 'slovakia': 47, 'greece': 48,
+    'tunisia': 45, 'dr congo': 46, 'slovakia': 47, 'greece': 48,
     'qatar': 56, 'iraq': 57, 'south africa': 60, 
-    'saudi arabia': 61, 'jordan': 63, 'bosnia and herzegovina': 64,
+    'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64,
     'cape verde': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
-    'new zealand': 85
+    'new zealand': 85, 'uzbekistan': 50
   };
   return ranks[teamName.toLowerCase().trim()] || 0;
 }
@@ -2365,9 +2365,6 @@ let _teamTooltipHideTimer = null;
 
 function showTeamTooltipForElement(el, teamName, forcePersist) {
   const tt = createTeamTooltipElement();
-  const rank = getTeamRanking(teamName);
-  const text = rank && rank > 0 ? `FIFA Ranking: #${rank}` : 'FIFA Ranking: Unranked';
-  tt.textContent = text;
 
   // If the passed element is the info button, prefer the .team-name element as anchor
   let anchorEl = el;
@@ -2381,36 +2378,8 @@ function showTeamTooltipForElement(el, teamName, forcePersist) {
     // ignore
   }
 
-  // Position below the element (centered) with fallback above if not enough space
-  const rect = anchorEl.getBoundingClientRect();
-  const margin = 8;
-
-  // Make visible first to measure
-  tt.style.display = '';
-  tt.style.opacity = '1';
-
-  // Measure tooltip
-  const w = tt.offsetWidth;
-  const h = tt.offsetHeight;
-
-  // Center horizontally relative to anchor element
-  let left = rect.left + (rect.width - w) / 2;
-  let top = rect.bottom + margin;
-
-  // If tooltip would overflow bottom, place it above the element
-  if (top + h > window.innerHeight - 8) {
-    top = rect.top - h - margin;
-  }
-
-  // If still overflowing top, clamp vertically
-  if (top < 8) top = 8;
-
-  // Clamp horizontally within viewport
-  if (left < 8) left = 8;
-  if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
-
-  tt.style.left = `${Math.round(left)}px`;
-  tt.style.top = `${Math.round(top)}px`;
+  // Populate full tooltip (ranking + recent matches). This handles content and positioning.
+  populateTeamTooltipWithMatches(anchorEl, teamName || text);
 
   _teamTooltipVisibleFor = anchorEl;
   if (_teamTooltipHideTimer) {
@@ -2496,6 +2465,14 @@ function attachTeamTooltipListeners() {
       hideTeamTooltip(true);
     });
     window.__teamTooltipDocClickAttached = true;
+  }
+
+  // Also hide tooltip on scroll/wheel/touch to mirror hover behavior (use capture so we catch it anywhere)
+  if (!window.__teamTooltipScrollAttached) {
+    document.addEventListener('scroll', () => { hideTeamTooltip(true); }, { passive: true, capture: true });
+    document.addEventListener('wheel', () => { hideTeamTooltip(true); }, { passive: true, capture: true });
+    document.addEventListener('touchstart', () => { hideTeamTooltip(true); }, { passive: true, capture: true });
+    window.__teamTooltipScrollAttached = true;
   }
 }
 
