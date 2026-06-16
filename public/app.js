@@ -19,6 +19,10 @@ let pendingVotePrediction = null;
 let fixturesData = [];
 let fixturesCurrentIndex = 0;
 
+// Tournament stages currently open for "Create Match" (admin-configurable)
+let openMatchStages = ['GROUP_STAGE'];
+let availableStages = [];
+
 // Racing leaderboard chart state
 let raceFrames = [];
 let raceCurrentFrame = 0;
@@ -166,6 +170,28 @@ function getTeamFlag(teamName) {
   return flags[teamName.toLowerCase().trim()] || '⚽';
 }
 
+function getTeamRanking(teamName) {
+  const ranks = {
+    'argentina': 1, 'france': 3, 'brazil': 6, 'germany': 10,
+    'spain': 2, 'italy': 12, 'england': 4, 'usa': 17,
+    'portugal': 5, 'belgium': 9, 'netherlands': 8, 'uruguay': 16,
+    'mexico': 14, 'canada': 30, 'croatia': 11, 'morocco': 7,
+    'japan': 18, 'senegal': 15, 'switzerland': 19, 'denmark': 21,
+    'colombia': 13, 'iran': 20, 'turkey': 22, 'australia': 27,
+    'ecuador': 23, 'austria': 24, 'south korea': 25, 'nigeria': 26,
+    'algeria': 28, 'egypt': 29, 'ukraine': 32, 'norway': 31,
+    'ivory coast': 33, 'panama': 34, 'russia': 35, 'poland': 36,
+    'wales': 37, 'sweden': 38, 'hungary': 39, 'czechia': 40,
+    'paraguay': 41, 'scotland': 42, 'serbia': 43, 'cameroon': 44,
+    'tunisia': 45, 'congo dr': 46, 'slovakia': 47, 'greece': 48,
+    'qatar': 56, 'iraq': 57, 'south africa': 60, 
+    'saudi arabia': 61, 'jordan': 63, 'bosnia and herzegovina': 64,
+    'cape verde': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
+    'new zealand': 85
+  };
+  return ranks[teamName.toLowerCase().trim()] || 0;
+}
+
 // Fetch matches (requires passcode header)
 async function loadDashboardData() {
   if (!currentUserSecret) return;
@@ -217,7 +243,7 @@ async function loadLeaderboard() {
     leaderboardBody.innerHTML = '';
     
     if (leaderboard.length === 0) {
-      leaderboardBody.innerHTML = `<tr><td colspan="5" class="loading-state">No players registered yet.</td></tr>`;
+      leaderboardBody.innerHTML = `<tr><td colspan="6" class="loading-state">No players registered yet.</td></tr>`;
       return;
     }
     
@@ -231,6 +257,10 @@ async function loadLeaderboard() {
       const total = player.totalPredictions || 0;
       const correct = player.correct || 0;
       const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+      const pending = player.liveNotVoted || 0;
+      const pendingCell = pending > 0
+        ? `<span class="pending-badge">${pending}</span>`
+        : `<span class="pending-none">0</span>`;
 
       const row = document.createElement('tr');
       row.className = rankClass;
@@ -239,13 +269,14 @@ async function loadLeaderboard() {
         <td class="col-name">${escapeHtml(player.name)}</td>
         <td class="col-predictions">${correct} / ${total}</td>
         <td class="col-accuracy">${accuracy}%</td>
-        <td class="col-points">${player.points} pts</td>
+        <td class="col-pending">${pendingCell}</td>
+        <td class="col-points">${player.points}<span class="unit-label"> pts</span></td>
       `;
       leaderboardBody.appendChild(row);
     });
   } catch (err) {
     console.error('Error getting leaderboard:', err);
-    leaderboardBody.innerHTML = `<tr><td colspan="5" class="loading-state error-text">Error loading standings.</td></tr>`;
+    leaderboardBody.innerHTML = `<tr><td colspan="6" class="loading-state error-text">Error loading standings.</td></tr>`;
   }
 }
 
@@ -414,9 +445,37 @@ function onRaceScrubberInput() {
 }
 
 // Render matches grid (Only open matches + admin-extended matches)
+// Show/update the "you haven't voted on N open matches" banner on the predictions tab.
+function updateNotVotedAlert(count) {
+  const alertBox = document.getElementById('notVotedAlert');
+  if (!alertBox) return;
+  if (count > 0) {
+    const plural = count === 1 ? 'match' : 'matches';
+    alertBox.className = 'not-voted-alert warn';
+    alertBox.innerHTML = `⚠️ You still have <strong>${count}</strong> open ${plural} you haven't voted on. Cast your votes before kickoff!`;
+    alertBox.style.display = 'block';
+  } else {
+    alertBox.className = 'not-voted-alert ok';
+    alertBox.innerHTML = `✅ You're all caught up — you've voted on every open match!`;
+    alertBox.style.display = 'block';
+  }
+}
+
 function renderMatches() {
   matchesGrid.innerHTML = '';
   const now = new Date();
+
+  // Count live, open matches the user hasn't voted on yet (drives the alert banner).
+  // Same definition as the leaderboard "Not Yet Voted" column: not resolved, not
+  // admin-locked, still before kickoff (or extension active), and no vote cast.
+  const notVotedCount = matches.filter(match => {
+    if (match.status === 'resolved') return false;
+    if (match.votingLocked) return false;
+    const started = new Date(match.kickoff) <= now;
+    const open = !started || match.extensionActive;
+    return open && !match.myVote;
+  }).length;
+  updateNotVotedAlert(notVotedCount);
 
   // Filter only scheduled matches whose kickoff is in the future,
   // OR matches with an active voting extension
@@ -506,12 +565,18 @@ function renderMatches() {
       <div class="match-teams">
         <div class="team">
           <span class="team-flag">${getTeamFlag(match.homeTeam)}</span>
-          <span class="team-name" title="${escapeHtml(match.homeTeam)}">${escapeHtml(match.homeTeam)}</span>
+          <span style="display:flex; align-items:center; gap:8px;">
+            <span class="team-name" title="${escapeHtml(match.homeTeam)}">${escapeHtml(match.homeTeam)}</span>
+            <button class="team-info-btn" data-team="${escapeHtml(match.homeTeam)}" title="Team info" aria-label="Team info" style="background:transparent; border:none; color:var(--text-muted); font-size:0.9rem; padding:2px 6px; cursor:pointer;">ℹ️</button>
+          </span>
         </div>
         <div class="vs-divider">VS</div>
         <div class="team">
           <span class="team-flag">${getTeamFlag(match.awayTeam)}</span>
-          <span class="team-name" title="${escapeHtml(match.awayTeam)}">${escapeHtml(match.awayTeam)}</span>
+          <span style="display:flex; align-items:center; gap:8px;">
+            <span class="team-name" title="${escapeHtml(match.awayTeam)}">${escapeHtml(match.awayTeam)}</span>
+            <button class="team-info-btn" data-team="${escapeHtml(match.awayTeam)}" title="Team info" aria-label="Team info" style="background:transparent; border:none; color:var(--text-muted); font-size:0.9rem; padding:2px 6px; cursor:pointer;">ℹ️</button>
+          </span>
         </div>
       </div>
       <div class="match-meta" style="justify-content: center; font-size: 0.75rem;">
@@ -525,6 +590,7 @@ function renderMatches() {
   });
   
   updateAllTimers();
+  attachTeamTooltipListeners();
 }
 
 // Render results table (Live & resolved matches, latest first)
@@ -615,27 +681,27 @@ function renderResults() {
     const row = document.createElement('tr');
     row.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
     row.innerHTML = `
-      <td style="text-align: center; font-weight: 800; font-family: monospace; color: var(--color-accent); font-size: 1.05rem;">
+      <td data-label="Match #" style="text-align: center; font-weight: 800; font-family: monospace; color: var(--color-accent); font-size: 1.05rem;">
         ${match.matchNumber ? '#' + match.matchNumber : '-'}
       </td>
-      <td style="font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px;">
+      <td data-label="Group / Stage" style="font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px;">
         ${escapeHtml(match.group || match.matchType)}
       </td>
-      <td style="font-weight: 700;">
+      <td data-label="Matchup" style="font-weight: 700;">
         <span>${getTeamFlag(match.homeTeam)} ${escapeHtml(match.homeTeam)}</span>
         <span style="color: var(--text-muted); font-size: 0.75rem; padding: 0 4px; font-weight: normal;">vs</span>
         <span>${escapeHtml(match.awayTeam)} ${getTeamFlag(match.awayTeam)}</span>
       </td>
-      <td style="color: var(--text-muted); font-size: 0.8rem;">
+      <td data-label="Kickoff (Local)" style="color: var(--text-muted); font-size: 0.8rem;">
         ${dateStr}
       </td>
-      <td style="text-align: center; font-weight: 800;">
+      <td data-label="Result" style="text-align: center; font-weight: 800;">
         ${outcomeText}
       </td>
-      <td style="text-align: center; font-weight: 700;" class="${pickClass}">
+      <td data-label="Your Pick" style="text-align: center; font-weight: 700;" class="${pickClass}">
         ${pickText}
       </td>
-      <td style="padding-left: 20px;">
+      <td data-label="Group Votes Distribution" style="padding-left: 20px;">
         ${distHtml}
       </td>
     `;
@@ -809,7 +875,35 @@ async function handleUserRegistration(event) {
 
 // =================== ADMIN CONTROL PANEL ===================
 
-function checkAdminState() {
+// Toggle collapse state of an admin panel card (mobile only — see CSS)
+function toggleAdminCard(toggleEl) {
+  const card = toggleEl.closest('.rules-card');
+  if (card) card.classList.toggle('collapsed');
+}
+
+async function checkAdminState() {
+  let sessionExpired = false;
+
+  if (adminPasscode) {
+    // Re-verify the stored passcode — it may be stale if the server's
+    // admin passcode changed since it was saved to sessionStorage.
+    try {
+      const response = await fetch('/api/admin/verify', {
+        headers: {
+          'x-admin-passcode': adminPasscode,
+          'x-user-secret': currentUserSecret
+        }
+      });
+      if (!response.ok) {
+        adminPasscode = '';
+        sessionStorage.removeItem('admin_passcode');
+        sessionExpired = true;
+      }
+    } catch (err) {
+      console.error('Error verifying admin:', err);
+    }
+  }
+
   if (adminPasscode) {
     adminAuthCard.style.display = 'none';
     adminWorkspace.style.display = 'block';
@@ -817,10 +911,14 @@ function checkAdminState() {
     loadAdminPlayers();
     loadAdminHistory();
     loadAdminVotes();
+    loadAdminSettings();
     loadFixtures();
   } else {
     adminAuthCard.style.display = 'block';
     adminWorkspace.style.display = 'none';
+    if (sessionExpired) {
+      adminAuthMessage.textContent = '⚠️ Your admin session expired. Please re-enter the admin passcode.';
+    }
     adminPasscodeInput.focus();
   }
 }
@@ -886,10 +984,10 @@ async function loadAdminPlayers() {
       const toggleBtnClass = p.isAdmin ? 'btn-secondary' : 'btn-primary';
 
       row.innerHTML = `
-        <td style="padding: 8px 6px; font-weight: 600;">${escapeHtml(p.name)}</td>
-        <td style="padding: 8px 6px; text-align: center; font-family: monospace; color: var(--color-accent); font-weight: 700; letter-spacing: 1px;">${p.secret}</td>
-        <td style="padding: 8px 6px; text-align: center;">${roleBadge}</td>
-        <td style="padding: 8px 6px; text-align: right;">
+        <td data-label="Name" style="padding: 8px 6px; font-weight: 600;">${escapeHtml(p.name)}</td>
+        <td data-label="Passcode" style="padding: 8px 6px; text-align: center; font-family: monospace; color: var(--color-accent); font-weight: 700; letter-spacing: 1px;">${p.secret}</td>
+        <td data-label="Role" style="padding: 8px 6px; text-align: center;">${roleBadge}</td>
+        <td data-label="Action" style="padding: 8px 6px; text-align: right;">
           <button class="btn ${toggleBtnClass} btn-sm" style="padding: 3px 8px; font-size: 0.75rem; margin-right: 4px;" onclick="togglePlayerRole('${escapeHtml(p.name)}', ${!!p.isAdmin})">${toggleBtnText}</button>
           <button class="btn btn-danger btn-sm" style="padding: 3px 8px; font-size: 0.75rem;" onclick="deletePlayer('${escapeHtml(p.name)}')">Delete</button>
         </td>
@@ -1466,9 +1564,13 @@ function renderVoteLog(data) {
       row.style.opacity = '0.45';
     }
 
-    const dateStr = v.timestamp
-      ? new Date(v.timestamp).toLocaleString()
-      : '<span style="color: var(--text-muted); font-style: italic;">Legacy (no timestamp)</span>';
+    let dateStr;
+    if (v.timestamp) {
+      const d = new Date(v.timestamp);
+      dateStr = `<span class="ts-full">${d.toLocaleString()}</span><span class="ts-stack">${d.toLocaleDateString()}<br>${d.toLocaleTimeString()}</span>`;
+    } else {
+      dateStr = '<span style="color: var(--text-muted); font-style: italic;">Legacy (no timestamp)</span>';
+    }
 
     const voteColor = v.vote === 'home' ? 'var(--color-accent)'
                     : v.vote === 'away' ? '#64b5f6'
@@ -1477,8 +1579,8 @@ function renderVoteLog(data) {
     const voteLabel = `<span style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); padding: 2px 10px; border-radius: 12px; font-weight: 700; font-size: 0.78rem; color: ${voteColor};">${escapeHtml(v.voteText)}</span>`;
 
     const statusBadge = v.isLatest
-      ? `<span style="color: var(--color-accent); font-size: 0.75rem; font-weight: 700;">✓ Current</span>`
-      : `<span style="color: var(--text-muted); font-size: 0.75rem;">Changed</span>`;
+      ? `<span class="status-full" style="color: var(--color-accent); font-size: 0.75rem; font-weight: 700;">✓ Current</span><span class="status-short" style="color: var(--color-accent); font-size: 0.75rem; font-weight: 700;">✓</span>`
+      : `<span class="status-full" style="color: var(--text-muted); font-size: 0.75rem;">Changed</span><span class="status-short" style="color: var(--text-muted); font-size: 0.75rem;">Old</span>`;
 
     const resolvedBadge = v.matchStatus === 'resolved'
       ? `<span style="color: var(--color-gold); font-size: 0.7rem; margin-left: 4px;">(Resolved)</span>`
@@ -1511,6 +1613,63 @@ function copyRecoveryData(btn, data) {
     console.error('Could not copy text: ', err);
     alert('Recovery Data:\n' + data);
   });
+}
+
+// ===================== MATCH STAGE SETTINGS (which stages allow "Create Match") =====================
+
+async function loadAdminSettings() {
+  try {
+    const response = await fetch('/api/admin/settings', {
+      headers: {
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      }
+    });
+    if (!response.ok) throw new Error('Failed to load settings');
+    const data = await response.json();
+    openMatchStages = data.openMatchStages || [];
+    availableStages = data.availableStages || [];
+    renderStageToggles();
+    if (fixturesData.length) renderMatchLog();
+  } catch (err) {
+    console.error('Error loading admin settings:', err);
+  }
+}
+
+function renderStageToggles() {
+  const container = document.getElementById('matchStageToggles');
+  if (!container) return;
+
+  container.innerHTML = availableStages.map(stage => {
+    const active = openMatchStages.includes(stage.code);
+    return `<button class="stage-toggle ${active ? 'active' : ''}" onclick="toggleMatchStage('${stage.code}')">${escapeHtml(stage.label)}</button>`;
+  }).join('');
+}
+
+async function toggleMatchStage(stageCode) {
+  const next = openMatchStages.includes(stageCode)
+    ? openMatchStages.filter(s => s !== stageCode)
+    : [...openMatchStages, stageCode];
+
+  try {
+    const response = await fetch('/api/admin/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      },
+      body: JSON.stringify({ openMatchStages: next })
+    });
+    if (!response.ok) throw new Error('Failed to update settings');
+    const data = await response.json();
+    openMatchStages = data.openMatchStages || [];
+    availableStages = data.availableStages || availableStages;
+    renderStageToggles();
+    if (fixturesData.length) renderMatchLog();
+  } catch (err) {
+    console.error('Error updating match stage settings:', err);
+  }
 }
 
 // ===================== MATCH LOG (football-data.org fixtures) =====================
@@ -1593,11 +1752,10 @@ function renderMatchLog() {
   const dateStr = kickoffLocal.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const timeStr = kickoffLocal.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
-  const now = new Date();
-  const hoursUntil = (kickoffLocal - now) / (1000 * 60 * 60);
   const isFinished = f.status === 'FINISHED';
   const isLive = f.status === 'IN_PLAY' || f.status === 'PAUSED';
-  const isUpcoming = (f.status === 'SCHEDULED' || f.status === 'TIMED') && hoursUntil >= 0 && hoursUntil <= 24;
+  const isStageOpen = openMatchStages.includes(f.stage);
+  const isUpcoming = (f.status === 'SCHEDULED' || f.status === 'TIMED') && isStageOpen;
   const alreadyAdded = isFixtureAlreadyInDb(f);
 
   // Score block (finished or live)
@@ -1639,7 +1797,7 @@ function renderMatchLog() {
 
   contentEl.innerHTML = `
     <div style="font-size:0.75rem; color:var(--text-muted); text-align:right; margin-bottom:12px;">
-      Match ${fixturesCurrentIndex + 1} of ${total}
+      Match #${escapeHtml(f.matchNumber)} &nbsp;·&nbsp; ${fixturesCurrentIndex + 1} of ${total}
     </div>
 
     <div class="form-row">
@@ -1792,5 +1950,166 @@ async function downloadHistoryCSV() {
   } catch (err) {
     console.error('Error downloading CSV:', err);
     alert('Failed to download CSV: ' + err.message);
+  }
+}
+
+// Tooltip helpers for team ranking display
+function createTeamTooltipElement() {
+  let tt = document.getElementById('team-ranking-tooltip');
+  if (tt) return tt;
+  tt = document.createElement('div');
+  tt.id = 'team-ranking-tooltip';
+  tt.style.position = 'fixed';
+  tt.style.zIndex = 9999;
+  tt.style.padding = '8px 10px';
+  tt.style.background = 'rgba(0,0,0,0.85)';
+  tt.style.color = '#fff';
+  tt.style.borderRadius = '6px';
+  tt.style.fontSize = '0.85rem';
+  tt.style.boxShadow = '0 6px 18px rgba(0,0,0,0.5)';
+  tt.style.transition = 'opacity 120ms ease';
+  tt.style.opacity = '0';
+  tt.style.pointerEvents = 'none';
+  tt.style.display = 'none';
+  document.body.appendChild(tt);
+  return tt;
+}
+
+let _teamTooltipVisibleFor = null;
+let _teamTooltipHideTimer = null;
+
+function showTeamTooltipForElement(el, teamName, forcePersist) {
+  const tt = createTeamTooltipElement();
+  const rank = getTeamRanking(teamName);
+  const text = rank && rank > 0 ? `FIFA Ranking: #${rank}` : 'FIFA Ranking: Unranked';
+  tt.textContent = text;
+
+  // If the passed element is the info button, prefer the .team-name element as anchor
+  let anchorEl = el;
+  try {
+    const possible = el && el.closest ? el.closest('.team') : null;
+    if (possible) {
+      const nameChild = possible.querySelector('.team-name');
+      if (nameChild) anchorEl = nameChild;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Position below the element (centered) with fallback above if not enough space
+  const rect = anchorEl.getBoundingClientRect();
+  const margin = 8;
+
+  // Make visible first to measure
+  tt.style.display = '';
+  tt.style.opacity = '1';
+
+  // Measure tooltip
+  const w = tt.offsetWidth;
+  const h = tt.offsetHeight;
+
+  // Center horizontally relative to anchor element
+  let left = rect.left + (rect.width - w) / 2;
+  let top = rect.bottom + margin;
+
+  // If tooltip would overflow bottom, place it above the element
+  if (top + h > window.innerHeight - 8) {
+    top = rect.top - h - margin;
+  }
+
+  // If still overflowing top, clamp vertically
+  if (top < 8) top = 8;
+
+  // Clamp horizontally within viewport
+  if (left < 8) left = 8;
+  if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+
+  tt.style.left = `${Math.round(left)}px`;
+  tt.style.top = `${Math.round(top)}px`;
+
+  _teamTooltipVisibleFor = anchorEl;
+  if (_teamTooltipHideTimer) {
+    clearTimeout(_teamTooltipHideTimer);
+    _teamTooltipHideTimer = null;
+  }
+
+  // If not forced persist (click), auto-hide shortly after mouse leaves
+  if (!forcePersist) {
+    // The hide will be triggered on mouseleave handler
+  }
+}
+
+function hideTeamTooltip(force) {
+  const tt = document.getElementById('team-ranking-tooltip');
+  if (!tt) return;
+  if (_teamTooltipHideTimer) clearTimeout(_teamTooltipHideTimer);
+  // allow short fade
+  _teamTooltipHideTimer = setTimeout(() => {
+    tt.style.opacity = '0';
+    tt.style.display = 'none';
+    _teamTooltipVisibleFor = null;
+    _teamTooltipHideTimer = null;
+  }, force ? 0 : 120);
+}
+
+function attachTeamTooltipListeners() {
+  // Attach to all .team-name elements and .team-info-btn icons inside match cards
+  const els = document.querySelectorAll('.match-card .team-name, .match-card .team-info-btn');
+  if (!els || els.length === 0) return;
+
+  els.forEach(el => {
+    // Avoid re-attaching
+    if (el.__teamTooltipAttached) return;
+    el.__teamTooltipAttached = true;
+
+    // If this is the info button, treat clicks specially (persistent tooltip for mobile)
+    if (el.classList.contains('team-info-btn')) {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const team = el.dataset.team || '';
+        // Toggle persistent tooltip for this team button
+        const relatedNameEl = el.closest('.team') ? el.closest('.team').querySelector('.team-name') : null;
+        if (_teamTooltipVisibleFor === relatedNameEl) {
+          hideTeamTooltip(true);
+        } else {
+          // Prefer positioning near the button
+          showTeamTooltipForElement(el, team, true);
+        }
+      });
+      return; // do not attach hover handlers to the icon
+    }
+
+    // For team-name elements: show on hover, click toggles persistent tooltip
+    let hoverActive = false;
+
+    el.addEventListener('mouseenter', (e) => {
+      hoverActive = true;
+      const team = el.textContent || el.getAttribute('title') || '';
+      showTeamTooltipForElement(el, team, false);
+    });
+
+    el.addEventListener('mouseleave', (e) => {
+      hoverActive = false;
+      hideTeamTooltip(false);
+    });
+
+    // Click toggles a persistent tooltip (handy on touch devices)
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const team = el.textContent || el.getAttribute('title') || '';
+      if (_teamTooltipVisibleFor === el) {
+        hideTeamTooltip(true);
+      } else {
+        showTeamTooltipForElement(el, team, true);
+      }
+    });
+  });
+
+  // Clicking anywhere else hides persistent tooltip
+  if (!window.__teamTooltipDocClickAttached) {
+    document.addEventListener('click', () => {
+      hideTeamTooltip(true);
+    });
+    window.__teamTooltipDocClickAttached = true;
   }
 }

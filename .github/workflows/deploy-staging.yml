@@ -1,0 +1,57 @@
+name: Deploy to Staging
+
+# Runs automatically whenever code is pushed to the "staging" branch.
+# It builds the app and deploys it to the STAGING Cloud Run service,
+# which uses its OWN data bucket (a copy of the live votes) — so testing
+# here never touches real votes.
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch: {}   # also lets you trigger it manually from the Actions tab
+
+# Required for the keyless (Workload Identity Federation) handshake with Google.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: data-science-1530973235551
+      REGION: us-central1
+      SERVICE: fifa-predictions-staging
+      BUCKET: fifa-predictions-staging-data-data-science-1530973235551
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          # Paste the full provider name from the setup guide (step 6 output).
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: github-deployer@data-science-1530973235551.iam.gserviceaccount.com
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and deploy to Cloud Run (staging)
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --source . \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --max-instances 1 \
+            --set-env-vars GCS_BUCKET_NAME=$BUCKET${FOOTBALL_KEY:+,FOOTBALL_DATA_API_KEY=$FOOTBALL_KEY}
+        env:
+          # Optional: add a repo secret named FOOTBALL_DATA_API_KEY to enable fixtures.
+          FOOTBALL_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+
+      - name: Show the staging URL
+        run: |
+          echo "Staging is live at:"
+          gcloud run services describe "$SERVICE" --project "$PROJECT_ID" \
+            --region "$REGION" --format='value(status.url)'

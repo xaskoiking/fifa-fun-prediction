@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Prediction Arena - FIFA Predictions</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,19 +38,19 @@
       <!-- Tab Navigation -->
       <nav class="tab-nav">
         <button class="tab-btn active" id="tabBtnPredictions" onclick="switchTab('predictions')">
-          <span class="tab-icon">🔮</span> Predictions
+          <span class="tab-icon">🔮</span> <span class="tab-label">Predictions</span>
         </button>
         <button class="tab-btn" id="tabBtnResults" onclick="switchTab('results')">
-          <span class="tab-icon">📅</span> Past Results
+          <span class="tab-icon">📅</span> <span class="tab-label">Past Results</span>
         </button>
         <button class="tab-btn" id="tabBtnLeaderboard" onclick="switchTab('leaderboard')">
-          <span class="tab-icon">🏆</span> Leaderboard
+          <span class="tab-icon">🏆</span> <span class="tab-label">Leaderboard</span>
         </button>
         <button class="tab-btn" id="tabBtnRules" onclick="switchTab('rules')">
-          <span class="tab-icon">📝</span> Points Rules
+          <span class="tab-icon">📝</span> <span class="tab-label">Points Rules</span>
         </button>
         <button class="tab-btn" id="tabBtnAdmin" onclick="switchTab('admin')" style="display: none;">
-          <span class="tab-icon">⚙️</span> Admin Panel
+          <span class="tab-icon">⚙️</span> <span class="tab-label">Admin Panel</span>
         </button>
       </nav>
     </header>
@@ -64,6 +64,8 @@
           <h2>🔮 Open Predictions</h2>
           <p class="section-description">Cast your vote before kickoff starts and locks the match!</p>
         </div>
+
+        <div id="notVotedAlert" class="not-voted-alert" style="display: none;"></div>
 
         <div id="matchesGrid" class="matches-grid">
           <div class="loading-state">Loading matches...</div>
@@ -118,17 +120,18 @@
             <table class="leaderboard-table" id="leaderboardTable">
               <thead>
                 <tr>
-                  <th class="col-rank">Rank</th>
+                  <th class="col-rank"><span class="th-full">Rank</span><span class="th-short">#</span></th>
                   <th class="col-name">Player</th>
-                  <th class="col-predictions">Predictions (Correct/Total)</th>
-                  <th class="col-accuracy">Accuracy</th>
-                  <th class="col-points">Total Points</th>
+                  <th class="col-predictions"><span class="th-full">Predictions (Correct/Resolved)</span><span class="th-short">P/R</span></th>
+                  <th class="col-accuracy"><span class="th-full">Accuracy</span><span class="th-short">Acc</span></th>
+                  <th class="col-pending" title="Live matches still open for voting that this player hasn't voted on yet"><span class="th-full">Not Yet Voted</span><span class="th-short">Pend</span></th>
+                  <th class="col-points"><span class="th-full">Total Points</span><span class="th-short">Pts</span></th>
                 </tr>
               </thead>
               <tbody id="leaderboardBody">
                 <!-- Leaderboard rows will be dynamically inserted here -->
                 <tr>
-                  <td colspan="5" class="loading-state">Loading standings...</td>
+                  <td colspan="6" class="loading-state">Loading standings...</td>
                 </tr>
               </tbody>
             </table>
@@ -249,82 +252,88 @@
             
             <!-- Manage Players Card -->
             <div class="rules-card">
-              <h3>👥 Manage Players & Secrets</h3>
-              <p class="small-desc">Create profiles for your friends. Share their unique 4-character passcodes so they can log in.</p>
-              <form id="addPlayerForm" onsubmit="handleCreatePlayer(event)" style="margin-bottom: 20px;">
-                <div class="form-group inline-form">
-                  <input type="text" id="playerNameInput" required placeholder="Friend's Name" class="form-control">
-                  <button type="submit" class="btn btn-success">Add</button>
+              <h3 class="card-toggle" onclick="toggleAdminCard(this)">👥 Manage Players & Secrets <span class="collapse-chevron">▾</span></h3>
+              <div class="card-body">
+                <p class="small-desc">Create profiles for your friends. Share their unique 4-character passcodes so they can log in.</p>
+                <form id="addPlayerForm" onsubmit="handleCreatePlayer(event)" style="margin-bottom: 20px;">
+                  <div class="form-group inline-form">
+                    <input type="text" id="playerNameInput" required placeholder="Friend's Name" class="form-control">
+                    <button type="submit" class="btn btn-success">Add</button>
+                  </div>
+                </form>
+                <div id="addPlayerMessage" class="feedback-message"></div>
+
+                <div style="max-height: 250px; overflow-y: auto; margin-top: 10px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;" id="adminPlayersTable">
+                    <thead>
+                      <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); text-align: left;">
+                        <th style="padding: 8px 6px; color: var(--text-muted);">Name</th>
+                        <th style="padding: 8px 6px; color: var(--text-muted); text-align: center;">Passcode</th>
+                        <th style="padding: 8px 6px; color: var(--text-muted); text-align: center;">Role</th>
+                        <th style="padding: 8px 6px; color: var(--text-muted); text-align: right;">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="adminPlayersList">
+                      <tr>
+                        <td colspan="4" class="loading-state" style="padding: 10px 0;">Loading players...</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-              </form>
-              <div id="addPlayerMessage" class="feedback-message"></div>
-              
-              <div style="max-height: 250px; overflow-y: auto; margin-top: 10px;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;" id="adminPlayersTable">
-                  <thead>
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); text-align: left;">
-                      <th style="padding: 8px 6px; color: var(--text-muted);">Name</th>
-                      <th style="padding: 8px 6px; color: var(--text-muted); text-align: center;">Passcode</th>
-                      <th style="padding: 8px 6px; color: var(--text-muted); text-align: center;">Role</th>
-                      <th style="padding: 8px 6px; color: var(--text-muted); text-align: right;">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody id="adminPlayersList">
-                    <tr>
-                      <td colspan="4" class="loading-state" style="padding: 10px 0;">Loading players...</td>
-                    </tr>
-                  </tbody>
-                </table>
               </div>
             </div>
-            
+
             <!-- Add Match Card -->
             <div class="rules-card">
-              <h3>➕ Add New Match</h3>
-              <form id="addMatchForm" onsubmit="handleCreateMatch(event)">
-                 <div class="form-group">
-                   <label for="homeTeamInput">Home Team</label>
-                   <input type="text" id="homeTeamInput" required placeholder="e.g. Argentina" class="form-control">
-                 </div>
-                 <div class="form-group">
-                   <label for="awayTeamInput">Away Team</label>
-                   <input type="text" id="awayTeamInput" required placeholder="e.g. France" class="form-control">
-                 </div>
-                 <div class="form-row">
+              <h3 class="card-toggle" onclick="toggleAdminCard(this)">➕ Add New Match <span class="collapse-chevron">▾</span></h3>
+              <div class="card-body">
+                <form id="addMatchForm" onsubmit="handleCreateMatch(event)">
                    <div class="form-group">
-                     <label for="matchNumberInput">Match Number (Optional)</label>
-                     <input type="text" id="matchNumberInput" placeholder="e.g. 5" class="form-control">
+                     <label for="homeTeamInput">Home Team</label>
+                     <input type="text" id="homeTeamInput" required placeholder="e.g. Argentina" class="form-control">
                    </div>
                    <div class="form-group">
-                     <label for="groupInput">Group / Stage (Optional)</label>
-                     <input type="text" id="groupInput" placeholder="e.g. Group A" class="form-control">
+                     <label for="awayTeamInput">Away Team</label>
+                     <input type="text" id="awayTeamInput" required placeholder="e.g. France" class="form-control">
                    </div>
-                 </div>
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="matchTypeSelect">Match Type</label>
-                    <select id="matchTypeSelect" class="form-control">
-                      <option value="League">League Match (3-way)</option>
-                      <option value="KO">Knockout Match (2-way)</option>
-                    </select>
+                   <div class="form-row">
+                     <div class="form-group">
+                       <label for="matchNumberInput">Match Number (Optional)</label>
+                       <input type="text" id="matchNumberInput" placeholder="e.g. 5" class="form-control">
+                     </div>
+                     <div class="form-group">
+                       <label for="groupInput">Group / Stage (Optional)</label>
+                       <input type="text" id="groupInput" placeholder="e.g. Group A" class="form-control">
+                     </div>
+                   </div>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="matchTypeSelect">Match Type</label>
+                      <select id="matchTypeSelect" class="form-control">
+                        <option value="League">League Match (3-way)</option>
+                        <option value="KO">Knockout Match (2-way)</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="kickoffInput">Kickoff Time (Local)</label>
+                      <input type="datetime-local" id="kickoffInput" required class="form-control">
+                    </div>
                   </div>
-                  <div class="form-group">
-                    <label for="kickoffInput">Kickoff Time (Local)</label>
-                    <input type="datetime-local" id="kickoffInput" required class="form-control">
-                  </div>
-                </div>
-                <button type="submit" class="btn btn-success btn-full">Create Match</button>
-              </form>
-              <div id="addMatchMessage" class="feedback-message"></div>
+                  <button type="submit" class="btn btn-success btn-full">Create Match</button>
+                </form>
+                <div id="addMatchMessage" class="feedback-message"></div>
+              </div>
             </div>
 
             <!-- Lock / Manage Matches Card -->
             <div class="rules-card">
-              <h3>🏆 Resolve Scheduled Matches</h3>
-              <p class="small-desc">Select correct match outcome to resolve and award points. (Note: matches are locked automatically after their kickoff time has passed.)</p>
-              <div id="adminMatchesList" class="admin-matches-list">
-                <!-- Admin matches list will load dynamically -->
-                <div class="loading-state">Loading matches list...</div>
+              <h3 class="card-toggle" onclick="toggleAdminCard(this)">🏆 Resolve Scheduled Matches <span class="collapse-chevron">▾</span></h3>
+              <div class="card-body">
+                <p class="small-desc">Select correct match outcome to resolve and award points. (Note: matches are locked automatically after their kickoff time has passed.)</p>
+                <div id="adminMatchesList" class="admin-matches-list">
+                  <!-- Admin matches list will load dynamically -->
+                  <div class="loading-state">Loading matches list...</div>
+                </div>
               </div>
             </div>
 
@@ -333,7 +342,7 @@
           <!-- Match Log Card -->
           <div class="rules-card" style="margin-top: 20px;" id="matchLogCard">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 16px;">
-              <h3 style="margin: 0; border: none; padding: 0;">📋 Match Log — FIFA World Cup</h3>
+              <h3 class="card-toggle" onclick="toggleAdminCard(this)" style="margin: 0; border: none; padding: 0;">📋 Match Log — FIFA World Cup <span class="collapse-chevron">▾</span></h3>
               <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
                 <button class="btn btn-secondary btn-sm" id="fixturesRefreshBtn" onclick="refreshFixtures()" title="Refresh fixtures" style="padding: 4px 10px;">↻</button>
                 <button class="btn btn-secondary btn-sm" onclick="matchLogPrev()" title="Previous match" style="padding: 4px 10px;">◀</button>
@@ -342,15 +351,21 @@
                 <button class="btn btn-secondary btn-sm" onclick="matchLogNext()" title="Next match" style="padding: 4px 10px;">▶</button>
               </div>
             </div>
-            <div id="matchLogContent">
-              <div class="loading-state">Loading fixtures from football-data.org…</div>
+            <div class="card-body">
+              <div class="stage-toggles-row">
+                <span class="stage-toggles-label">Open stages for "Create Match":</span>
+                <div id="matchStageToggles" class="stage-toggles"></div>
+              </div>
+              <div id="matchLogContent">
+                <div class="loading-state">Loading fixtures from football-data.org…</div>
+              </div>
             </div>
           </div>
 
           <!-- Vote Log Card -->
           <div class="rules-card" style="margin-top: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 12px;">
-              <h3 style="margin: 0; border: none; padding: 0;">🗳️ Vote Log — Who Voted When</h3>
+              <h3 class="card-toggle" onclick="toggleAdminCard(this)" style="margin: 0; border: none; padding: 0;">🗳️ Vote Log — Who Voted When <span class="collapse-chevron">▾</span></h3>
               <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                 <select id="voteLogMatchFilter" class="form-control" style="width: auto; padding: 4px 10px; font-size: 0.8rem;" onchange="filterVoteLog()">
                   <option value="all">All Matches</option>
@@ -358,18 +373,19 @@
                 <button class="btn btn-secondary btn-sm" onclick="loadAdminVotes()" style="font-size: 0.8rem; padding: 4px 12px;">↻ Refresh</button>
               </div>
             </div>
+            <div class="card-body">
             <p class="small-desc" style="margin-top: 0; margin-bottom: 15px;">Timestamped record of every vote cast. Changed votes show the full history — latest vote is highlighted. Existing votes without timestamps are marked as legacy.</p>
-            
+
             <div class="results-table-container">
               <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;" id="adminVoteLogTable">
                   <thead>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.08); text-align: left; position: sticky; top: 0; background: #0d2416; z-index: 1;">
-                      <th style="padding: 10px 8px; color: var(--text-muted); width: 170px;">Timestamp</th>
+                      <th style="padding: 10px 8px; color: var(--text-muted); width: 170px;"><span class="th-full">Timestamp</span><span class="th-short">Time</span></th>
                       <th style="padding: 10px 8px; color: var(--text-muted); width: 120px;">Player</th>
                       <th style="padding: 10px 8px; color: var(--text-muted);">Match</th>
                       <th style="padding: 10px 8px; color: var(--text-muted); width: 130px; text-align: center;">Vote</th>
-                      <th style="padding: 10px 8px; color: var(--text-muted); width: 80px; text-align: center;">Status</th>
+                      <th style="padding: 10px 8px; color: var(--text-muted); width: 80px; text-align: center;"><span class="th-full">Status</span><span class="th-short">St.</span></th>
                     </tr>
                   </thead>
                   <tbody id="adminVoteLogList">
@@ -380,16 +396,18 @@
                 </table>
               </div>
             </div>
+            </div>
           </div>
 
           <!-- History Log Card -->
           <div class="rules-card" style="margin-top: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 12px;">
-              <h3 style="margin: 0; border: none; padding: 0;">📜 System History & Audit Log</h3>
+              <h3 class="card-toggle" onclick="toggleAdminCard(this)" style="margin: 0; border: none; padding: 0;">📜 System History & Audit Log <span class="collapse-chevron">▾</span></h3>
               <button class="btn btn-primary btn-sm" onclick="downloadHistoryCSV()" style="font-size: 0.8rem; padding: 4px 12px;">Download CSV</button>
             </div>
+            <div class="card-body">
             <p class="small-desc" style="margin-top: 0; margin-bottom: 15px;">Complete timestamped history of predictions, players, and match actions. System recovery data can be copied directly from here.</p>
-            
+
             <div class="results-table-container">
               <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;" id="adminHistoryTable">

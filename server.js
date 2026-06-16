@@ -1,4 +1,5 @@
 // server.js
+require('dotenv').config();
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -551,48 +552,65 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
 // Leaderboard calculation
 app.get('/api/leaderboard', (req, res) => {
   const db = readData();
-  
+  const now = new Date();
+
+  // A match is "live" (open for voting) when it isn't resolved, isn't admin-locked,
+  // and either hasn't kicked off yet or has an active voting extension.
+  const isLive = (match) => {
+    if (match.status === 'resolved') return false;
+    if (match.votingLocked) return false;
+    const kickoff = new Date(match.kickoff);
+    const extendedUntil = match.votingExtendedUntil ? new Date(match.votingExtendedUntil) : null;
+    const extensionActive = extendedUntil && extendedUntil > now;
+    return kickoff > now || extensionActive;
+  };
+  const liveMatches = db.matches.filter(isLive);
+
+  const votedIn = (match, user) => {
+    return (match.votes.home || []).includes(user)
+      || (match.votes.away || []).includes(user)
+      || (match.votes.draw || []).includes(user);
+  };
+
   // Initialize scoreboard for all registered users
   const standings = {};
-  db.users.forEach(user => {
-    standings[user.name] = {
-      name: user.name,
-      points: 0,
-      correct: 0,
-      totalPredictions: 0
-    };
-  });
+  const ensureStanding = (name) => {
+    if (!standings[name]) {
+      standings[name] = { name, points: 0, correct: 0, totalPredictions: 0, liveNotVoted: 0 };
+    }
+    return standings[name];
+  };
+  db.users.forEach(user => ensureStanding(user.name));
 
-  // Calculate scores for all resolved matches
+  // Calculate scores. totalPredictions now counts ONLY resolved matches the user voted on.
   db.matches.forEach(match => {
     const isResolved = match.status === 'resolved';
+    if (!isResolved) return;
 
-    const homeVoters = match.votes.home || [];
-    const awayVoters = match.votes.away || [];
-    const drawVoters = match.votes.draw || [];
-
-    const votersInMatch = [...homeVoters, ...awayVoters, ...drawVoters];
+    const votersInMatch = [
+      ...(match.votes.home || []),
+      ...(match.votes.away || []),
+      ...(match.votes.draw || [])
+    ];
     votersInMatch.forEach(user => {
-      // If user isn't in players database (e.g. deleted or legacy), make sure they have a standing entry
-      if (!standings[user]) {
-        standings[user] = { name: user, points: 0, correct: 0, totalPredictions: 0 };
-      }
-      standings[user].totalPredictions += 1;
+      ensureStanding(user).totalPredictions += 1;
     });
 
-    if (isResolved) {
-      const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
-      Object.keys(pointsAllocated).forEach(user => {
-        if (!standings[user]) {
-          standings[user] = { name: user, points: 0, correct: 0, totalPredictions: 0 };
-        }
-        const pts = pointsAllocated[user];
-        if (pts > 0) {
-          standings[user].points += pts;
-          standings[user].correct += 1;
-        }
-      });
-    }
+    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
+    Object.keys(pointsAllocated).forEach(user => {
+      const pts = pointsAllocated[user];
+      if (pts > 0) {
+        ensureStanding(user).points += pts;
+        ensureStanding(user).correct += 1;
+      }
+    });
+  });
+
+  // Count how many currently-live matches each player has NOT voted on yet.
+  Object.keys(standings).forEach(name => {
+    standings[name].liveNotVoted = liveMatches.reduce(
+      (count, match) => count + (votedIn(match, name) ? 0 : 1), 0
+    );
   });
 
   // Convert map to list and sort
@@ -648,7 +666,7 @@ app.post('/api/admin/users/toggle-admin', verifyAdmin, (req, res) => {
   }
 
   user.isAdmin = !!isAdmin;
-  logAuditAction(db, 'TOGGLE_ADMIN', `Admin role for user "${name}" set to ${user.isAdmin}`, JSON.stringify(user));
+  logAuditAction(db, 'TOGGLE_ADMIN', `Admin ${req.adminUsername} set admin role for user "${name}" to ${user.isAdmin}`, JSON.stringify(user));
   writeData(db);
 
   res.json({ success: true, user });
@@ -679,7 +697,7 @@ app.post('/api/admin/users', verifyAdmin, (req, res) => {
   const secret = generateUniqueSecret(db.users);
   const newUser = { name: cleanName, secret, isAdmin: false };
   
-  logAuditAction(db, 'CREATE_PLAYER', `Admin created player "${newUser.name}" with passcode "${newUser.secret}"`);
+  logAuditAction(db, 'CREATE_PLAYER', `Admin ${req.adminUsername} created player "${newUser.name}" with passcode "${newUser.secret}"`);
   db.users.push(newUser);
   writeData(db);
 
@@ -701,7 +719,7 @@ app.post('/api/admin/users/delete', verifyAdmin, (req, res) => {
     return res.status(404).json({ error: 'Player not found.' });
   }
 
-  logAuditAction(db, 'DELETE_PLAYER', `Admin deleted player "${name}"`, JSON.stringify(deletedUser));
+  logAuditAction(db, 'DELETE_PLAYER', `Admin ${req.adminUsername} deleted player "${name}"`, JSON.stringify(deletedUser));
   db.users = db.users.filter(u => u.name !== name);
   writeData(db);
 
@@ -745,7 +763,7 @@ app.post('/api/admin/match', verifyAdmin, (req, res) => {
     }
   };
 
-  logAuditAction(db, 'CREATE_MATCH', `Admin created Match #${newMatch.matchNumber} [${newMatch.group}]: ${newMatch.homeTeam} vs ${newMatch.awayTeam}`);
+  logAuditAction(db, 'CREATE_MATCH', `Admin ${req.adminUsername} created Match #${newMatch.matchNumber} [${newMatch.group}]: ${newMatch.homeTeam} vs ${newMatch.awayTeam}`);
   db.matches.push(newMatch);
   writeData(db);
 
@@ -773,7 +791,7 @@ app.post('/api/admin/lock', verifyAdmin, (req, res) => {
   match.votingLocked = locked;
   const action = locked ? 'LOCK_VOTING' : 'UNLOCK_VOTING';
   const actionText = locked ? 'locked' : 'unlocked';
-  logAuditAction(db, action, `Admin ${actionText} voting for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
+  logAuditAction(db, action, `Admin ${req.adminUsername} ${actionText} voting for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
   writeData(db);
 
   res.json({ success: true, match });
@@ -809,7 +827,7 @@ app.post('/api/admin/extend-voting', verifyAdmin, (req, res) => {
   // Also ensure it's not manually locked
   match.votingLocked = false;
 
-  logAuditAction(db, 'EXTEND_VOTING', `Admin extended voting for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam}) by ${minutes} minute(s) until ${expiresAt.toLocaleTimeString()}`);
+  logAuditAction(db, 'EXTEND_VOTING', `Admin ${req.adminUsername} extended voting for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam}) by ${minutes} minute(s) until ${expiresAt.toLocaleTimeString()}`);
   writeData(db);
 
   res.json({ success: true, match, expiresAt: expiresAt.toISOString() });
@@ -911,7 +929,7 @@ app.post('/api/admin/resolve', verifyAdmin, (req, res) => {
   const winnerText = outcome === 'home' ? match.homeTeam 
                    : outcome === 'away' ? match.awayTeam 
                    : 'Draw';
-  logAuditAction(db, 'RESOLVE_MATCH', `Admin resolved Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam}) as ${winnerText.toUpperCase()}`);
+  logAuditAction(db, 'RESOLVE_MATCH', `Admin ${req.adminUsername} resolved Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam}) as ${winnerText.toUpperCase()}`);
   writeData(db);
 
   res.json({ success: true, match });
@@ -934,7 +952,7 @@ app.post('/api/admin/unresolve', verifyAdmin, (req, res) => {
   match.status = 'scheduled';
   match.outcome = null;
 
-  logAuditAction(db, 'UNDO_RESOLUTION', `Admin undid resolution for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
+  logAuditAction(db, 'UNDO_RESOLUTION', `Admin ${req.adminUsername} undid resolution for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
   writeData(db);
 
   res.json({ success: true, match });
@@ -955,7 +973,7 @@ app.post('/api/admin/delete', verifyAdmin, (req, res) => {
     return res.status(404).json({ error: 'Match not found.' });
   }
 
-  logAuditAction(db, 'DELETE_MATCH', `Admin deleted Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`, JSON.stringify(match));
+  logAuditAction(db, 'DELETE_MATCH', `Admin ${req.adminUsername} deleted Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`, JSON.stringify(match));
   db.matches = db.matches.filter(m => m.id !== matchId);
   writeData(db);
 
@@ -969,14 +987,61 @@ let _fixturesCache = null;
 let _fixturesCacheTime = 0;
 const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 
-const STAGE_LABELS = {
-  'ROUND_OF_32':        'Round of 32',
-  'ROUND_OF_16':        'Round of 16',
-  'QUARTER_FINAL':      'Quarter-final',
-  'SEMI_FINAL':         'Semi-final',
-  '3RD_PLACE_PLAY_OFF': 'Third Place',
-  'FINAL':              'Final'
-};
+// Tournament stages in order. Used to label fixtures and to let admins control
+// which stages are currently open for the "Create Match" button (see
+// /api/admin/settings) without requiring a code change/deploy as the
+// tournament progresses.
+const TOURNAMENT_STAGES = [
+  { code: 'GROUP_STAGE',    label: 'Group Stage' },
+  { code: 'LAST_32',        label: 'Round of 32' },
+  { code: 'LAST_16',        label: 'Round of 16' },
+  { code: 'QUARTER_FINALS', label: 'Quarter-finals' },
+  { code: 'SEMI_FINALS',    label: 'Semi-finals' },
+  { code: 'THIRD_PLACE',    label: 'Third Place' },
+  { code: 'FINAL',          label: 'Final' }
+];
+
+const STAGE_LABELS = TOURNAMENT_STAGES.reduce((acc, s) => {
+  if (s.code !== 'GROUP_STAGE') acc[s.code] = s.label;
+  return acc;
+}, {});
+
+// Ensure db.settings.openMatchStages exists, defaulting to Group Stage only.
+function ensureSettings(db) {
+  if (!db.settings || typeof db.settings !== 'object') {
+    db.settings = {};
+  }
+  if (!Array.isArray(db.settings.openMatchStages)) {
+    db.settings.openMatchStages = ['GROUP_STAGE'];
+  }
+  return db.settings;
+}
+
+// Get which tournament stages are currently open for "Create Match"
+app.get('/api/admin/settings', verifyAdmin, (req, res) => {
+  const db = readData();
+  const settings = ensureSettings(db);
+  res.json({ openMatchStages: settings.openMatchStages, availableStages: TOURNAMENT_STAGES });
+});
+
+// Update which tournament stages are open for "Create Match"
+app.post('/api/admin/settings', verifyAdmin, (req, res) => {
+  const { openMatchStages } = req.body;
+  if (!Array.isArray(openMatchStages) || !openMatchStages.every(s => typeof s === 'string')) {
+    return res.status(400).json({ error: 'openMatchStages must be an array of stage codes.' });
+  }
+
+  const validCodes = new Set(TOURNAMENT_STAGES.map(s => s.code));
+  const filtered = openMatchStages.filter(s => validCodes.has(s));
+
+  const db = readData();
+  const settings = ensureSettings(db);
+  settings.openMatchStages = filtered;
+  logAuditAction(db, 'Update Match Stage Settings', `Admin ${req.adminUsername} set open stages for Create Match: ${filtered.join(', ') || 'none'}`);
+  writeData(db);
+
+  res.json({ openMatchStages: filtered, availableStages: TOURNAMENT_STAGES });
+});
 
 app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
   const apiKey = process.env.FOOTBALL_DATA_API_KEY;
@@ -1018,6 +1083,7 @@ app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
           awayTeam: m.awayTeam?.name || 'TBD',
           matchType,
           group,
+          stage: m.stage,
           kickoff: m.utcDate,
           status: m.status,
           scoreHome: (finished || live) ? ft.home : null,
