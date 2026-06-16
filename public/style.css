@@ -705,6 +705,213 @@ body {
   text-align: right;
 }
 
+/* ===================== Ranking comparison (prev vs current) ===================== */
+.compare-card { padding: 18px 20px; }
+.compare-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.compare-ctl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.compare-ctl select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  max-width: 240px;
+}
+.compare-ctl select option { background: var(--bg-secondary); color: #fff; }
+.compare-arrow { color: var(--text-muted); font-size: 1.2rem; align-self: flex-end; padding-bottom: 6px; }
+
+/* Sortable comparison table */
+.compare-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.compare-table th.sortable:hover { color: var(--color-accent); }
+.compare-table .sort-num { text-align: center; }
+.compare-table td.compare-name { font-weight: 700; }
+
+/* Admin: resolve-matches filter dropdown */
+.admin-filter-bar { margin: 0 0 12px; }
+.admin-filter-bar label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+.admin-filter-bar select {
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 600;
+}
+.admin-filter-bar select option { background: var(--bg-secondary); color: #fff; }
+
+/* Save-as-image button sits to the right of the leaderboard view toggles */
+.save-img-btn { margin-left: auto; }
+
+/* Mobile: keep the new leaderboard pieces usable on a narrow screen */
+@media (max-width: 600px) {
+  /* Toggles share the top row; "Save image" drops to its own full-width row */
+  .filter-bar { flex-wrap: wrap; }
+  .save-img-btn { flex: 1 0 100%; margin-left: 0; }
+
+  /* Compact the comparison table so more columns fit before sideways-scrolling */
+  .compare-table th, .compare-table td { padding: 10px 8px; font-size: 0.82rem; }
+  .compare-card { padding: 14px 12px; }
+  .compare-controls { gap: 8px; }
+  .compare-ctl select { max-width: 150px; font-size: 0.82rem; }
+}
+
+/* ===================== Mountain climb view ===================== */
+.climb-card { padding: 18px 20px; }
+.climb-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+  max-height: 96px;
+  overflow-y: auto;
+}
+.climb-chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.climb-chip.active {
+  background: var(--color-accent);
+  color: #03130b;
+  border-color: var(--color-accent);
+}
+.climb-frame-label {
+  text-align: center;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  font-size: 0.95rem;
+}
+.climb-mountain {
+  position: relative;
+  height: 440px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(to top, #06140d 0%, #0a2233 55%, #0b3a52 100%);
+}
+.climb-slope {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, #14532d, #1f7a45);
+  clip-path: polygon(50% 6%, 100% 100%, 0% 100%);
+}
+.climb-snow {
+  position: absolute;
+  inset: 0;
+  background: #eaf6ff;
+  clip-path: polygon(50% 6%, 63% 28%, 50% 24%, 37% 28%);
+}
+.climb-peak {
+  position: absolute;
+  top: 2%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.4rem;
+  z-index: 3;
+}
+.climber {
+  position: absolute;
+  transform: translateX(-50%);
+  transition: bottom 0.9s cubic-bezier(0.25, 0.1, 0.25, 1);
+  text-align: center;
+  z-index: 2;
+  width: 54px;
+}
+.climber-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.7rem;
+  color: #03130b;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.climber-name {
+  font-size: 0.6rem;
+  color: #fff;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px #000;
+}
+@media (max-width: 600px) {
+  .climb-mountain { height: 360px; }
+  .climber { width: 40px; }
+  .climber-avatar { width: 24px; height: 24px; font-size: 0.6rem; }
+  .climber-name { font-size: 0.5rem; }
+}
+.compare-header { font-size: 0.98rem; margin-bottom: 14px; color: var(--text-muted); line-height: 1.5; }
+.compare-header strong { color: #fff; }
+.compare-header .compare-sub { font-size: 0.85rem; }
+.compare-list { display: flex; flex-direction: column; gap: 8px; }
+.compare-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+.compare-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.compare-name { font-weight: 700; }
+.compare-move { font-weight: 800; font-size: 0.95rem; text-align: right; }
+.move-up { color: var(--color-accent); }
+.move-down { color: #ff5b5b; }
+.move-same { color: var(--text-muted); }
+.move-new { color: var(--color-gold); font-size: 0.8rem; }
+.compare-points { font-weight: 700; color: var(--text-muted); text-align: right; white-space: nowrap; }
+.compare-gain { color: var(--color-accent); font-weight: 800; }
+
 @media (max-width: 480px) {
   .race-name {
     width: 64px;

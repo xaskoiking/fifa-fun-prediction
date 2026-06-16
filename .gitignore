@@ -8,6 +8,10 @@ node_modules/
 # Runtime data — the app writes votes/players here at runtime.
 # The committed template is data.example.json. Do not commit live data.
 data.json
+# Local backups/snapshots of live data (may contain real secrets)
+data.localbak.json
+data.local*.json
+data.*-backup-*.json
 
 # Legacy/runtime artifacts
 backups/
