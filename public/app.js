@@ -164,7 +164,7 @@ function filterMatches(filter) {
 function getTeamFlag(teamName) {
   const flags = {
     'argentina': '🇦🇷', 'france': '🇫🇷', 'brazil': '🇧🇷', 'germany': '🇩🇪',
-    'spain': '🇪🇸', 'italy': '🇮🇹', 'england': '🏴', 'usa': '🇺🇸',
+    'spain': '🇪🇸', 'italy': '🇮🇹', 'england': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'usa': '🇺🇸',
     'portugal': '🇵🇹', 'belgium': '🇧🇪', 'netherlands': '🇳🇱', 'uruguay': '🇺🇾',
     'mexico': '🇲🇽', 'canada': '🇨🇦', 'croatia': '🇭🇷', 'morocco': '🇲🇦',
     'japan': '🇯🇵', 'senegal': '🇸🇳', 'switzerland': '🇨🇭', 'denmark': '🇩🇰'
