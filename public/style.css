@@ -885,6 +885,47 @@ body {
   .climber-avatar { width: 24px; height: 24px; font-size: 0.6rem; }
   .climber-name { font-size: 0.5rem; }
 }
+
+/* ===================== Daily Report view ===================== */
+.reports-card { padding: 18px 20px; }
+.report-section { margin-bottom: 24px; }
+.report-section:last-child { margin-bottom: 4px; }
+.report-h { font-size: 1.05rem; margin: 0 0 12px; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
+.report-sub { color: var(--text-muted); font-size: 0.8rem; font-weight: 500; }
+
+.podium { display: flex; gap: 12px; }
+.podium-card { flex: 1; text-align: center; padding: 14px 8px; border-radius: 12px; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); }
+.podium-card.p1 { border-color: var(--color-gold); background: rgba(255,179,0,0.10); }
+.podium-card.p2 { border-color: #c0c7cf; }
+.podium-card.p3 { border-color: #cd7f32; }
+.podium-medal { font-size: 1.8rem; line-height: 1; }
+.podium-name { font-weight: 800; margin-top: 6px; font-size: 0.98rem; }
+.podium-pts { color: var(--color-accent); font-weight: 700; font-size: 0.9rem; margin-top: 2px; }
+
+.stage-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.stage-block { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px 14px; }
+.stage-title { font-weight: 700; margin-bottom: 8px; }
+.stage-sub { color: var(--text-muted); font-size: 0.75rem; font-weight: 500; }
+.stage-row { display: flex; align-items: center; gap: 9px; padding: 4px 0; font-size: 0.9rem; }
+.stage-rank { display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.7rem; font-weight: 800; background: rgba(255,255,255,0.1); color: #fff; flex-shrink: 0; }
+.stage-rank.r1 { background: var(--color-gold); color: #000; }
+.stage-rank.r2 { background: #c0c7cf; color: #000; }
+.stage-rank.r3 { background: #cd7f32; color: #fff; }
+.stage-name { flex: 1; font-weight: 600; }
+.stage-pts { color: var(--color-accent); font-weight: 700; }
+.stage-upcoming { color: var(--text-muted); font-style: italic; padding: 6px 0; }
+
+.report-intro { font-size: 0.85rem; color: var(--text-muted); font-style: italic; margin: 0 0 18px; padding: 9px 13px; background: rgba(255,255,255,0.03); border-left: 3px solid var(--color-accent); border-radius: 6px; }
+.stage-state { display: inline-block; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.3px; padding: 2px 9px; border-radius: 10px; margin-bottom: 9px; }
+.state-upcoming { color: var(--text-muted); background: rgba(255,255,255,0.06); font-style: italic; }
+.state-live { color: #07130b; background: var(--color-gold); }
+.state-done { color: #07130b; background: var(--color-accent); }
+
+@media (max-width: 600px) {
+  .stage-grid { grid-template-columns: 1fr; }
+  .podium-medal { font-size: 1.4rem; }
+  .podium-name { font-size: 0.85rem; }
+}
 .compare-header { font-size: 0.98rem; margin-bottom: 14px; color: var(--text-muted); line-height: 1.5; }
 .compare-header strong { color: #fff; }
 .compare-header .compare-sub { font-size: 0.85rem; }

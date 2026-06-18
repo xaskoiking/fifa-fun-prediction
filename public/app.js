@@ -44,6 +44,7 @@ const leaderboardTableView = document.getElementById('leaderboardTableView');
 const leaderboardRaceView = document.getElementById('leaderboardRaceView');
 const leaderboardCompareView = document.getElementById('leaderboardCompareView');
 const leaderboardClimbView = document.getElementById('leaderboardClimbView');
+const leaderboardReportsView = document.getElementById('leaderboardReportsView');
 const raceFrameLabel = document.getElementById('raceFrameLabel');
 const raceBars = document.getElementById('raceBars');
 const raceEmptyState = document.getElementById('raceEmptyState');
@@ -288,12 +289,14 @@ function switchLeaderboardView(view) {
   document.getElementById('leaderboardViewRaceBtn').classList.toggle('active', view === 'race');
   document.getElementById('leaderboardViewCompareBtn').classList.toggle('active', view === 'compare');
   document.getElementById('leaderboardViewClimbBtn').classList.toggle('active', view === 'climb');
+  document.getElementById('leaderboardViewReportsBtn').classList.toggle('active', view === 'reports');
 
   // Hide every view first, then show the chosen one
   leaderboardTableView.style.display = 'none';
   leaderboardRaceView.style.display = 'none';
   leaderboardCompareView.style.display = 'none';
   leaderboardClimbView.style.display = 'none';
+  leaderboardReportsView.style.display = 'none';
   pauseRacePlayback();
   pauseClimbPlayback();
 
@@ -310,7 +313,112 @@ function switchLeaderboardView(view) {
   } else if (view === 'climb') {
     leaderboardClimbView.style.display = '';
     loadClimb();
+  } else if (view === 'reports') {
+    leaderboardReportsView.style.display = '';
+    loadReports();
   }
+}
+
+// ===================== DAILY REPORT (latest match day · by stage · overall) =====================
+let reportsFrames = [];
+
+async function loadReports() {
+  try {
+    if (reportsFrames.length === 0) {
+      const res = await fetch('/api/leaderboard/history');
+      if (!res.ok) throw new Error('Failed to load leaderboard history');
+      reportsFrames = await res.json();
+    }
+    renderReports();
+  } catch (err) {
+    console.error('Error loading reports:', err);
+  }
+}
+
+function renderReports() {
+  const frames = reportsFrames;
+  if (!frames || frames.length === 0) return;
+
+  const mapOf = (f) => { const m = {}; if (f) f.standings.forEach(s => { m[s.name] = s.points; }); return m; };
+  const dayOf = (f) => new Date(f.kickoff).toISOString().slice(0, 10);
+  // cumulative points through match number n (last resolved frame with matchNumber <= n)
+  const cumAfter = (n) => { let last = null; for (const f of frames) { if (f.matchNumber != null && parseInt(f.matchNumber, 10) <= n) last = f; } return mapOf(last); };
+  const top3 = (map) => Object.entries(map)
+    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
+    .slice(0, 3)
+    .map(([name, pts]) => ({ name, pts }));
+  const anyInRange = (lo, hi) => frames.some(f => f.matchNumber != null && parseInt(f.matchNumber, 10) >= lo && parseInt(f.matchNumber, 10) <= hi);
+
+  // ---- Overall ----
+  renderPodium('reportOverall', top3(mapOf(frames[frames.length - 1])));
+
+  // ---- Latest match day ----
+  let latest = null;
+  frames.forEach(f => { if (f.matchNumber != null) { const d = dayOf(f); if (!latest || d > latest) latest = d; } });
+  const pd = {};
+  if (latest) {
+    for (let i = 1; i < frames.length; i++) {
+      if (frames[i].matchNumber != null && dayOf(frames[i]) === latest) {
+        const cur = mapOf(frames[i]), prev = mapOf(frames[i - 1]);
+        Object.keys(cur).forEach(k => { pd[k] = (pd[k] || 0) + (cur[k] - (prev[k] || 0)); });
+      }
+    }
+  }
+  document.getElementById('reportPrevDate').textContent = latest
+    ? '· ' + new Date(latest + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+    : '';
+  renderPodium('reportPrevDay', top3(pd));
+
+  // ---- Intro context line ----
+  const lastN = frames[frames.length - 1].matchNumber;
+  const introDate = latest ? new Date(latest + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  document.getElementById('reportIntro').textContent =
+    `Standings after the previous day's completed matches — through Match #${lastN}${introDate ? ' (' + introDate + ')' : ''}.`;
+
+  // ---- By stage ----
+  const stages = [
+    { label: 'League — Round 1', sub: 'Matches 1–24', lo: 1, hi: 24 },
+    { label: 'League — Round 2', sub: 'Matches 25–48', lo: 25, hi: 48 },
+    { label: 'League — Round 3', sub: 'Matches 49–72', lo: 49, hi: 72 },
+    { label: 'Round of 32', sub: 'Matches 73–88', lo: 73, hi: 88 },
+    { label: 'Round of 16', sub: 'Matches 89–96', lo: 89, hi: 96 },
+    { label: 'QF to Finals', sub: 'Matches 97–104', lo: 97, hi: 104 },
+  ];
+  const wrap = document.getElementById('reportStages');
+  wrap.innerHTML = '';
+  stages.forEach(st => {
+    const block = document.createElement('div');
+    block.className = 'stage-block';
+    const resolvedCount = frames.filter(f => f.matchNumber != null && parseInt(f.matchNumber, 10) >= st.lo && parseInt(f.matchNumber, 10) <= st.hi).length;
+    const expected = st.hi - st.lo + 1;
+    let badge, rows = '';
+    if (resolvedCount === 0) {
+      badge = '<span class="stage-state state-upcoming">⏳ Upcoming</span>';
+    } else {
+      const hiM = cumAfter(st.hi), loM = cumAfter(st.lo - 1);
+      const delta = {};
+      Object.keys(hiM).forEach(k => { delta[k] = hiM[k] - (loM[k] || 0); });
+      rows = top3(delta).map((p, i) => `<div class="stage-row"><span class="stage-rank r${i + 1}">${i + 1}</span><span class="stage-name">${escapeHtml(p.name)}</span><span class="stage-pts">${p.pts} pts</span></div>`).join('');
+      badge = resolvedCount >= expected
+        ? '<span class="stage-state state-done">✓ Complete</span>'
+        : `<span class="stage-state state-live">🔄 In progress (${resolvedCount}/${expected})</span>`;
+    }
+    block.innerHTML = `<div class="stage-title">${st.label} <span class="stage-sub">${st.sub}</span></div>${badge}${rows}`;
+    wrap.appendChild(block);
+  });
+}
+
+function renderPodium(elId, arr) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '';
+  if (!arr || arr.length === 0) { el.innerHTML = '<div class="stage-upcoming">No points yet</div>'; return; }
+  const medals = ['🥇', '🥈', '🥉'];
+  arr.forEach((p, i) => {
+    const c = document.createElement('div');
+    c.className = 'podium-card p' + (i + 1);
+    c.innerHTML = `<div class="podium-medal">${medals[i]}</div><div class="podium-name">${escapeHtml(p.name)}</div><div class="podium-pts">${p.pts} pts</div>`;
+    el.appendChild(c);
+  });
 }
 
 // Export the currently-visible leaderboard view (table / chart / compare) as a PNG
