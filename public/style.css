@@ -1809,7 +1809,7 @@ body {
   margin-bottom: 10px;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #92400e;
+  color: #f59e0b;
 }
 
 .live-dot {
@@ -1831,8 +1831,8 @@ body {
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--border-color, #e5e7eb);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 8px;
   font-size: 0.88rem;
@@ -1872,14 +1872,14 @@ body {
   font-size: 1.1rem;
   font-weight: 800;
   letter-spacing: 0.06em;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary);
 }
 
 .live-pts-badge {
   display: inline-block;
   font-size: 0.72rem;
   font-weight: 700;
-  color: #92400e;
+  color: #f59e0b;
   background: rgba(245, 158, 11, 0.15);
   border: 1px solid rgba(245, 158, 11, 0.35);
   border-radius: 99px;
@@ -1892,4 +1892,8 @@ body {
 /* Amber outline on the leaderboard card when in live mode */
 .leaderboard-card.live-mode {
   border-color: rgba(245, 158, 11, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
 }
