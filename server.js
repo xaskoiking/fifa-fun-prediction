@@ -662,6 +662,23 @@ app.get('/api/leaderboard/history', (req, res) => {
   res.json(buildLeaderboardHistory(db));
 });
 
+// Public endpoint: live matches that are currently affecting the provisional leaderboard
+app.get('/api/live-matches', (req, res) => {
+  const db = readData();
+  const unresolvedMatches = db.matches.filter(m => m.status !== 'resolved');
+
+  const matched = _liveScoresCache.filter(live => {
+    const liveHome = live.homeTeam.trim().toLowerCase();
+    const liveAway = live.awayTeam.trim().toLowerCase();
+    return unresolvedMatches.some(m =>
+      m.homeTeam.trim().toLowerCase() === liveHome &&
+      m.awayTeam.trim().toLowerCase() === liveAway
+    );
+  });
+
+  res.json(matched);
+});
+
 // =================== ADMIN ENDPOINTS ===================
 
 // Validate Admin Passcode
