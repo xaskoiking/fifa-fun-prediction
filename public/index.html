@@ -203,20 +203,54 @@
         </div>
 
         <div class="leaderboard-card reports-card" id="leaderboardReportsView" style="display: none;">
-          <div class="report-brand">Sports Unlimited &#183; FIFA 2026 Fun Prediction</div>
-          <div class="report-board-title">&#127941; Hall of Fame Board</div>
-          <p class="report-intro" id="reportIntro"></p>
-          <div class="report-section">
-            <h3 class="report-h">&#128197; Previous Day &#8212; Top 3 <span class="report-sub" id="reportPrevDate"></span></h3>
-            <div class="podium" id="reportPrevDay"></div>
+          <div class="report-subtabs">
+            <button class="report-subtab active" id="reportSubHofBtn" onclick="switchReportSub('hof')">&#127941; Hall of Fame</button>
+            <button class="report-subtab" id="reportSubJourneyBtn" onclick="switchReportSub('journey')">&#129501; Journey</button>
+            <button class="report-subtab" id="reportSubStreaksBtn" onclick="switchReportSub('streaks')">&#128293; Streaks</button>
           </div>
-          <div class="report-section">
-            <h3 class="report-h">&#127967; Top 3 by Stage</h3>
-            <div id="reportStages" class="stage-grid"></div>
+
+          <div id="reportHofView" class="report-snap">
+            <div class="report-brand">
+              <div class="report-brand-eyebrow">Sports Unlimited</div>
+              <div class="report-brand-title">&#9917; FIFA 2026 &#183; Fun Prediction Game</div>
+            </div>
+            <div class="report-board-title">&#127941; Hall of Fame Board</div>
+            <p class="report-intro" id="reportIntro"></p>
+            <div class="report-section">
+              <h3 class="report-h">&#128197; Previous Day &#8212; Top 3 <span class="report-sub" id="reportPrevDate"></span></h3>
+              <div class="podium" id="reportPrevDay"></div>
+            </div>
+            <div class="report-section">
+              <h3 class="report-h">&#127967; Top 3 by Stage</h3>
+              <div id="reportStages" class="stage-grid"></div>
+            </div>
+            <div class="report-section">
+              <h3 class="report-h">&#127942; Overall &#8212; Top 3</h3>
+              <div class="podium" id="reportOverall"></div>
+            </div>
+            <div class="report-footer snap-footer"></div>
           </div>
-          <div class="report-section">
-            <h3 class="report-h">&#127942; Overall &#8212; Top 3</h3>
-            <div class="podium" id="reportOverall"></div>
+
+          <div id="reportJourneyView" class="report-snap" style="display: none;">
+            <div class="report-brand">
+              <div class="report-brand-eyebrow">Sports Unlimited</div>
+              <div class="report-brand-title">&#9917; FIFA 2026 &#183; Fun Prediction Game</div>
+            </div>
+            <div class="report-board-title">&#129501; The Journey</div>
+            <p class="report-intro" id="journeyIntro"></p>
+            <div class="journey-timeline" id="journeyTimeline"></div>
+            <div class="report-footer snap-footer"></div>
+          </div>
+
+          <div id="reportStreaksView" class="report-snap" style="display: none;">
+            <div class="report-brand">
+              <div class="report-brand-eyebrow">Sports Unlimited</div>
+              <div class="report-brand-title">&#9917; FIFA 2026 &#183; Fun Prediction Game</div>
+            </div>
+            <div class="report-board-title">&#128293; Hot Streaks</div>
+            <p class="report-intro" id="streaksIntro"></p>
+            <div id="streaksBody"></div>
+            <div class="report-footer snap-footer"></div>
           </div>
         </div>
       </section>
