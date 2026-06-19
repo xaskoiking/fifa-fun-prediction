@@ -330,9 +330,99 @@ async function loadReports() {
       reportsFrames = await res.json();
     }
     renderReports();
+    renderJourney();
+    renderStreaks();
+    const stamp = `Sports Unlimited · FIFA 2026 Fun Prediction · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`;
+    document.querySelectorAll('.snap-footer').forEach(f => { f.textContent = stamp; });
   } catch (err) {
     console.error('Error loading reports:', err);
   }
+}
+
+// Top 10 longest winning streaks (consecutive matches a player scored on / predicted correctly)
+function renderStreaks() {
+  const frames = reportsFrames;
+  const el = document.getElementById('streaksBody');
+  if (!frames || frames.length < 2) { el.innerHTML = '<div class="stage-upcoming">No matches resolved yet.</div>'; return; }
+
+  const maps = frames.map(f => { const m = {}; if (f) f.standings.forEach(s => { m[s.name] = s.points; }); return m; });
+  const names = new Set();
+  frames.forEach(f => f.standings.forEach(s => names.add(s.name)));
+
+  const results = [];
+  names.forEach(name => {
+    let cur = 0, curStart = null, best = 0, bestStart = null, bestEnd = null;
+    for (let i = 1; i < frames.length; i++) {
+      const scored = (maps[i][name] || 0) > (maps[i - 1][name] || 0); // gained points => correct pick
+      if (scored) {
+        if (cur === 0) curStart = frames[i].matchNumber;
+        cur++;
+        if (cur > best) { best = cur; bestStart = curStart; bestEnd = frames[i].matchNumber; }
+      } else { cur = 0; }
+    }
+    results.push({ name, streak: best, from: bestStart, to: bestEnd });
+  });
+  results.sort((a, b) => (b.streak - a.streak) || a.name.localeCompare(b.name));
+  const top = results.filter(r => r.streak > 0).slice(0, 10);
+
+  document.getElementById('streaksIntro').textContent = 'Longest runs of consecutive correct predictions (in match order). Top 10.';
+  if (top.length === 0) { el.innerHTML = '<div class="stage-upcoming">No streaks yet.</div>'; return; }
+  el.innerHTML = top.map((r, idx) => `<div class="streak-row${idx === 0 ? ' top1' : ''}"><span class="streak-rank">${idx + 1}</span><span class="streak-name">${escapeHtml(r.name)}</span><span class="streak-len">🔥 ${r.streak} in a row</span><span class="streak-range">#${r.from}–#${r.to}</span></div>`).join('');
+}
+
+// Switch between the Reports sub-tabs (Hall of Fame / Journey)
+function switchReportSub(sub) {
+  document.getElementById('reportSubHofBtn').classList.toggle('active', sub === 'hof');
+  document.getElementById('reportSubJourneyBtn').classList.toggle('active', sub === 'journey');
+  document.getElementById('reportSubStreaksBtn').classList.toggle('active', sub === 'streaks');
+  document.getElementById('reportHofView').style.display = sub === 'hof' ? '' : 'none';
+  document.getElementById('reportJourneyView').style.display = sub === 'journey' ? '' : 'none';
+  document.getElementById('reportStreaksView').style.display = sub === 'streaks' ? '' : 'none';
+}
+
+// Journey: who was FIRST to reach each points milestone (50, 100, 150, …)
+function renderJourney() {
+  const frames = reportsFrames;
+  const el = document.getElementById('journeyTimeline');
+  if (!frames || frames.length === 0) { el.innerHTML = ''; return; }
+  const mapOf = (f) => { const m = {}; if (f) f.standings.forEach(s => { m[s.name] = s.points; }); return m; };
+
+  const STEP = 50;
+  const maxPts = Object.values(mapOf(frames[frames.length - 1])).reduce((a, b) => Math.max(a, b), 0);
+  const milestones = [];
+  for (let t = STEP; t <= maxPts + STEP; t += STEP) milestones.push(t); // reached ones + the next (upcoming)
+
+  // First THREE players to cross each threshold, in the order they did it.
+  const achieved = {};
+  milestones.forEach(t => { achieved[t] = []; });
+  for (let i = 1; i < frames.length; i++) {
+    const before = mapOf(frames[i - 1]), after = mapOf(frames[i]);
+    Object.keys(after).forEach(name => {
+      const b = before[name] || 0, a = after[name];
+      milestones.forEach(t => {
+        if (b < t && a >= t && achieved[t].length < 3) achieved[t].push({ name, matchNumber: frames[i].matchNumber, kickoff: frames[i].kickoff });
+      });
+    });
+  }
+
+  document.getElementById('journeyIntro').textContent = `The first three players to reach each ${STEP}-point milestone — and when.`;
+  const medals = ['🥇', '🥈', '🥉'];
+  el.innerHTML = '';
+  milestones.forEach(t => {
+    const crossers = achieved[t];
+    const item = document.createElement('div');
+    item.className = 'journey-item' + (crossers.length ? '' : ' journey-upcoming');
+    if (crossers.length) {
+      const list = crossers.map((c, idx) => {
+        const date = c.kickoff ? new Date(c.kickoff).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+        return `<div class="journey-crosser"><span class="jc-medal">${medals[idx]}</span><span class="jc-name">${escapeHtml(c.name)}</span><span class="jc-meta">Match #${c.matchNumber}${date ? ' · ' + date : ''}</span></div>`;
+      }).join('');
+      item.innerHTML = `<div class="journey-dot">🏁</div><div class="journey-body"><div class="journey-ms">${t} pts</div>${list}</div>`;
+    } else {
+      item.innerHTML = `<div class="journey-dot">⏳</div><div class="journey-body"><div class="journey-ms">${t} pts</div><div class="journey-pending">Not reached yet</div></div>`;
+    }
+    el.appendChild(item);
+  });
 }
 
 function renderReports() {
@@ -449,7 +539,14 @@ async function saveLeaderboardImage() {
   if (leaderboardCompareView.style.display !== 'none') { el = leaderboardCompareView; name = 'comparison'; }
   else if (leaderboardRaceView.style.display !== 'none') { el = leaderboardRaceView; name = 'race-chart'; }
   else if (leaderboardClimbView.style.display !== 'none') { el = leaderboardClimbView; name = 'climb'; }
-  else if (leaderboardReportsView.style.display !== 'none') { el = leaderboardReportsView; name = 'hall-of-fame'; }
+  else if (leaderboardReportsView.style.display !== 'none') {
+    // Capture only the active sub-view (so the sub-tab bar / other tab isn't in the image)
+    const journeyView = document.getElementById('reportJourneyView');
+    const streaksView = document.getElementById('reportStreaksView');
+    if (journeyView.style.display !== 'none') { el = journeyView; name = 'journey'; }
+    else if (streaksView.style.display !== 'none') { el = streaksView; name = 'streaks'; }
+    else { el = document.getElementById('reportHofView'); name = 'hall-of-fame'; }
+  }
   else { el = leaderboardTableView; name = 'standings'; }
 
   if (typeof html2canvas !== 'function') {

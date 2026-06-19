@@ -893,8 +893,42 @@ body {
 .report-h { font-size: 1.05rem; margin: 0 0 12px; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
 .report-sub { color: var(--text-muted); font-size: 0.8rem; font-weight: 500; }
 
-.report-brand { text-align: center; font-size: 0.8rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--color-accent); margin: 0 0 2px; }
+.report-brand { text-align: center; background: rgba(0, 230, 118, 0.06); border: 1px solid rgba(0, 230, 118, 0.25); border-radius: 10px; padding: 10px 12px; margin: 0 0 14px; }
+.report-brand-eyebrow { font-size: 0.72rem; letter-spacing: 3px; text-transform: uppercase; color: var(--color-accent); font-weight: 800; }
+.report-brand-title { font-size: 1.15rem; font-weight: 800; color: #fff; letter-spacing: 0.5px; margin-top: 2px; }
+
+/* Snapshot frame — makes each saved board a clean, shareable card */
+.report-snap { background: linear-gradient(165deg, #0c2316 0%, #07130b 72%); border: 2px solid rgba(0, 230, 118, 0.30); border-radius: 16px; padding: 22px 22px 14px; }
+.snap-footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1); text-align: center; font-size: 0.78rem; color: var(--text-muted); letter-spacing: 0.4px; }
 .report-board-title { text-align: center; font-size: 1.7rem; font-weight: 800; color: var(--color-gold); letter-spacing: 0.5px; margin: 0 0 6px; }
+
+/* Reports sub-tabs */
+.report-subtabs { display: flex; gap: 8px; justify-content: center; margin: 10px 0 16px; flex-wrap: wrap; }
+.report-subtab { padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-muted); font-weight: 700; font-size: 0.9rem; cursor: pointer; }
+.report-subtab.active { background: var(--color-accent); color: #07130b; border-color: var(--color-accent); }
+
+/* Journey timeline */
+.journey-timeline { margin: 8px 0 4px; padding-left: 14px; }
+.journey-item { position: relative; display: flex; gap: 12px; padding: 12px 0 12px 24px; border-left: 2px solid rgba(255,255,255,0.14); margin-left: 13px; }
+.journey-item:last-child { border-left-color: transparent; }
+.journey-dot { position: absolute; left: -14px; top: 10px; width: 28px; height: 28px; border-radius: 50%; background: var(--bg-secondary); border: 2px solid var(--color-accent); display: flex; align-items: center; justify-content: center; font-size: 0.85rem; }
+.journey-upcoming .journey-dot { border-color: rgba(255,255,255,0.25); }
+.journey-ms { font-size: 1.25rem; font-weight: 800; color: var(--color-gold); line-height: 1.1; }
+.journey-who { font-size: 0.95rem; margin-top: 3px; }
+.journey-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+.journey-pending { color: var(--text-muted); font-style: italic; }
+.journey-crosser { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 0.92rem; }
+.jc-medal { width: 22px; text-align: center; }
+.jc-name { font-weight: 700; }
+.jc-meta { color: var(--text-muted); font-size: 0.8rem; margin-left: auto; white-space: nowrap; }
+
+/* Streaks */
+.streak-row { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 8px; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); margin-bottom: 7px; }
+.streak-row.top1 { border-color: var(--color-gold); background: rgba(255,179,0,0.08); }
+.streak-rank { width: 24px; text-align: center; font-weight: 800; color: var(--text-muted); }
+.streak-name { flex: 1; font-weight: 700; }
+.streak-len { font-weight: 800; color: #ff7a18; white-space: nowrap; }
+.streak-range { color: var(--text-muted); font-size: 0.82rem; white-space: nowrap; min-width: 78px; text-align: right; }
 
 .podium { display: flex; flex-wrap: wrap; gap: 12px; }
 .podium-card { flex: 1 1 150px; text-align: center; padding: 14px 8px; border-radius: 12px; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); }
