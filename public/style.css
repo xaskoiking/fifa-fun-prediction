@@ -893,8 +893,12 @@ body {
 .report-h { font-size: 1.05rem; margin: 0 0 12px; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; }
 .report-sub { color: var(--text-muted); font-size: 0.8rem; font-weight: 500; }
 
-.podium { display: flex; gap: 12px; }
-.podium-card { flex: 1; text-align: center; padding: 14px 8px; border-radius: 12px; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); }
+.report-brand { text-align: center; font-size: 0.8rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--color-accent); margin: 0 0 2px; }
+.report-board-title { text-align: center; font-size: 1.7rem; font-weight: 800; color: var(--color-gold); letter-spacing: 0.5px; margin: 0 0 6px; }
+
+.podium { display: flex; flex-wrap: wrap; gap: 12px; }
+.podium-card { flex: 1 1 150px; text-align: center; padding: 14px 8px; border-radius: 12px; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); }
+.podium-rank { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-top: 2px; }
 .podium-card.p1 { border-color: var(--color-gold); background: rgba(255,179,0,0.10); }
 .podium-card.p2 { border-color: #c0c7cf; }
 .podium-card.p3 { border-color: #cd7f32; }
