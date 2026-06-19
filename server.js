@@ -988,6 +988,7 @@ let _fixturesCacheTime = 0;
 const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 
 let _liveScoresCache = [];
+const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED', 'FINISHED']);
 
 // Tournament stages in order. Used to label fixtures and to let admins control
 // which stages are currently open for the "Create Match" button (see
@@ -1031,7 +1032,6 @@ async function pollLiveScores() {
       return;
     }
     const data = await res.json();
-    const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED', 'FINISHED']);
     _liveScoresCache = (data.matches || [])
       .filter(m => LIVE_STATUSES.has(m.status))
       .map(m => {
