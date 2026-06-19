@@ -613,6 +613,35 @@ app.get('/api/leaderboard', (req, res) => {
     );
   });
 
+  // Provisional points from live/finished-unresolved matches
+  db.matches.forEach(match => {
+    if (match.status === 'resolved') return;
+    const homeNorm = match.homeTeam.trim().toLowerCase();
+    const awayNorm = match.awayTeam.trim().toLowerCase();
+    const liveEntry = _liveScoresCache.find(c =>
+      c.homeTeam.trim().toLowerCase() === homeNorm &&
+      c.awayTeam.trim().toLowerCase() === awayNorm
+    );
+    if (!liveEntry || liveEntry.scoreHome === null || liveEntry.scoreAway === null) return;
+
+    let provisionalOutcome;
+    if (liveEntry.scoreHome > liveEntry.scoreAway) provisionalOutcome = 'home';
+    else if (liveEntry.scoreAway > liveEntry.scoreHome) provisionalOutcome = 'away';
+    else provisionalOutcome = 'draw';
+
+    const pts = calculatePointsForMatch(match.votes, provisionalOutcome, match.matchType);
+    Object.keys(pts).forEach(user => {
+      if (!standings[user]) ensureStanding(user);
+      standings[user].provisionalDelta = (standings[user].provisionalDelta || 0) + pts[user];
+    });
+  });
+
+  // Finalize livePoints for all standings (provisionalDelta defaults to 0)
+  Object.values(standings).forEach(s => {
+    s.provisionalDelta = s.provisionalDelta || 0;
+    s.livePoints = s.points + s.provisionalDelta;
+  });
+
   // Convert map to list and sort
   const leaderboard = Object.values(standings).sort((a, b) => {
     if (b.points !== a.points) {
