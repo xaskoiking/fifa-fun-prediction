@@ -987,6 +987,8 @@ let _fixturesCache = null;
 let _fixturesCacheTime = 0;
 const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 
+let _liveScoresCache = [];
+
 // Tournament stages in order. Used to label fixtures and to let admins control
 // which stages are currently open for the "Create Match" button (see
 // /api/admin/settings) without requiring a code change/deploy as the
@@ -1015,6 +1017,37 @@ function ensureSettings(db) {
     db.settings.openMatchStages = ['GROUP_STAGE'];
   }
   return db.settings;
+}
+
+async function pollLiveScores() {
+  const apiKey = process.env.FOOTBALL_DATA_API_KEY;
+  if (!apiKey) return;
+  try {
+    const res = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
+      headers: { 'X-Auth-Token': apiKey }
+    });
+    if (!res.ok) {
+      console.warn(`[LIVE] Poll returned ${res.status}`);
+      return;
+    }
+    const data = await res.json();
+    const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED', 'FINISHED']);
+    _liveScoresCache = (data.matches || [])
+      .filter(m => LIVE_STATUSES.has(m.status))
+      .map(m => {
+        const ft = (m.score || {}).fullTime || {};
+        return {
+          homeTeam: m.homeTeam?.name || '',
+          awayTeam: m.awayTeam?.name || '',
+          scoreHome: ft.home ?? null,
+          scoreAway: ft.away ?? null,
+          status: m.status
+        };
+      });
+    console.log(`[LIVE] Cache updated: ${_liveScoresCache.length} live/finished match(es)`);
+  } catch (err) {
+    console.error('[LIVE] Poll failed:', err.message);
+  }
 }
 
 // Get which tournament stages are currently open for "Create Match"
@@ -1123,6 +1156,8 @@ async function startServer() {
     if (GCS_BUCKET_NAME) {
       console.log(`[GCS] Persistence enabled: gs://${GCS_BUCKET_NAME}/${GCS_OBJECT_NAME}`);
     }
+    pollLiveScores();
+    setInterval(pollLiveScores, 60 * 1000);
   });
 }
 
