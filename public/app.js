@@ -336,46 +336,68 @@ async function loadReports() {
 }
 
 function renderReports() {
-  const frames = reportsFrames;
-  if (!frames || frames.length === 0) return;
+  const allFrames = reportsFrames;
+  if (!allFrames || allFrames.length === 0) return;
 
   const mapOf = (f) => { const m = {}; if (f) f.standings.forEach(s => { m[s.name] = s.points; }); return m; };
-  const dayOf = (f) => new Date(f.kickoff).toISOString().slice(0, 10);
-  // cumulative points through match number n (last resolved frame with matchNumber <= n)
+
+  // A "match day" runs 6 AM -> 6 AM (local), so late-night / just-after-midnight
+  // games count toward the night before. Kickoffs are stored in UTC; shifting by
+  // the local-time -6h and reading the local date handles both tz and the cutoff.
+  const DAY_START_HOUR = 6;
+  const dayKey = (when) => { const d = new Date(new Date(when).getTime() - DAY_START_HOUR * 3600 * 1000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  const dayOf = (f) => dayKey(f.kickoff);
+
+  // "Previous day" = the most recent match day strictly before today's match day.
+  const todayKey = dayKey(new Date());
+  const matchDays = [...new Set(allFrames.filter(f => f.matchNumber != null).map(dayOf))].sort();
+  const previousDay = [...matchDays].reverse().find(d => d < todayKey) || (matchDays.length ? matchDays[matchDays.length - 1] : null);
+
+  // Freeze the board "as of the previous day": ignore any current-day matches,
+  // so it doesn't change as today's games come in.
+  const frames = allFrames.filter(f => f.matchNumber == null || dayOf(f) <= previousDay);
+
   const cumAfter = (n) => { let last = null; for (const f of frames) { if (f.matchNumber != null && parseInt(f.matchNumber, 10) <= n) last = f; } return mapOf(last); };
-  const top3 = (map) => Object.entries(map)
-    .sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]))
-    .slice(0, 3)
-    .map(([name, pts]) => ({ name, pts }));
-  const anyInRange = (lo, hi) => frames.some(f => f.matchNumber != null && parseInt(f.matchNumber, 10) >= lo && parseInt(f.matchNumber, 10) <= hi);
 
-  // ---- Overall ----
-  renderPodium('reportOverall', top3(mapOf(frames[frames.length - 1])));
+  // Dense ranking: tied points share a rank; the next distinct score is the next
+  // rank (e.g. 12,12,10 -> ranks 1,1,2). Keep entries up to maxRank.
+  const rankedTop = (map, maxRank) => {
+    const arr = Object.entries(map).map(([name, pts]) => ({ name, pts })).sort((a, b) => (b.pts - a.pts) || a.name.localeCompare(b.name));
+    const out = []; let rank = 0, prev = null;
+    for (const e of arr) { if (e.pts !== prev) { rank++; prev = e.pts; } if (rank > maxRank) break; out.push({ name: e.name, pts: e.pts, rank }); }
+    return out;
+  };
+  // Group tied players (same rank) into one entry: { rank, pts, names: [...] }
+  const groupedTop = (map, maxRank) => {
+    const byRank = {};
+    rankedTop(map, maxRank).forEach(e => { if (!byRank[e.rank]) byRank[e.rank] = { rank: e.rank, pts: e.pts, names: [] }; byRank[e.rank].names.push(e.name); });
+    return Object.values(byRank).sort((a, b) => a.rank - b.rank);
+  };
 
-  // ---- Latest match day ----
-  let latest = null;
-  frames.forEach(f => { if (f.matchNumber != null) { const d = dayOf(f); if (!latest || d > latest) latest = d; } });
+  // ---- Overall (as of previous day) ----
+  renderPodium('reportOverall', groupedTop(mapOf(frames[frames.length - 1]), 3));
+
+  // ---- Previous day ----
   const pd = {};
-  if (latest) {
+  if (previousDay) {
     for (let i = 1; i < frames.length; i++) {
-      if (frames[i].matchNumber != null && dayOf(frames[i]) === latest) {
+      if (frames[i].matchNumber != null && dayOf(frames[i]) === previousDay) {
         const cur = mapOf(frames[i]), prev = mapOf(frames[i - 1]);
         Object.keys(cur).forEach(k => { pd[k] = (pd[k] || 0) + (cur[k] - (prev[k] || 0)); });
       }
     }
   }
-  document.getElementById('reportPrevDate').textContent = latest
-    ? '· ' + new Date(latest + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  document.getElementById('reportPrevDate').textContent = previousDay
+    ? '· ' + new Date(previousDay + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
     : '';
-  renderPodium('reportPrevDay', top3(pd));
+  renderPodium('reportPrevDay', groupedTop(pd, 3));
 
   // ---- Intro context line ----
-  const lastN = frames[frames.length - 1].matchNumber;
-  const introDate = latest ? new Date(latest + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+  const lastN = frames.length ? frames[frames.length - 1].matchNumber : null;
   document.getElementById('reportIntro').textContent =
-    `Standings after the previous day's completed matches — through Match #${lastN}${introDate ? ' (' + introDate + ')' : ''}.`;
+    `Standings as of the previous day's completed matches${lastN ? ' — through Match #' + lastN : ''}. Current-day matches are not counted until the day is over.`;
 
-  // ---- By stage ----
+  // ---- By stage (as of previous day) ----
   const stages = [
     { label: 'League — Round 1', sub: 'Matches 1–24', lo: 1, hi: 24 },
     { label: 'League — Round 2', sub: 'Matches 25–48', lo: 25, hi: 48 },
@@ -398,7 +420,7 @@ function renderReports() {
       const hiM = cumAfter(st.hi), loM = cumAfter(st.lo - 1);
       const delta = {};
       Object.keys(hiM).forEach(k => { delta[k] = hiM[k] - (loM[k] || 0); });
-      rows = top3(delta).map((p, i) => `<div class="stage-row"><span class="stage-rank r${i + 1}">${i + 1}</span><span class="stage-name">${escapeHtml(p.name)}</span><span class="stage-pts">${p.pts} pts</span></div>`).join('');
+      rows = groupedTop(delta, 3).map(g => `<div class="stage-row"><span class="stage-rank r${g.rank}">${g.rank}</span><span class="stage-name">${escapeHtml(g.names.join(', '))}</span><span class="stage-pts">${g.pts} pts</span></div>`).join('');
       badge = resolvedCount >= expected
         ? '<span class="stage-state state-done">✓ Complete</span>'
         : `<span class="stage-state state-live">🔄 In progress (${resolvedCount}/${expected})</span>`;
@@ -408,15 +430,15 @@ function renderReports() {
   });
 }
 
-function renderPodium(elId, arr) {
+function renderPodium(elId, groups) {
   const el = document.getElementById(elId);
   el.innerHTML = '';
-  if (!arr || arr.length === 0) { el.innerHTML = '<div class="stage-upcoming">No points yet</div>'; return; }
+  if (!groups || groups.length === 0) { el.innerHTML = '<div class="stage-upcoming">No points yet</div>'; return; }
   const medals = ['🥇', '🥈', '🥉'];
-  arr.forEach((p, i) => {
+  groups.forEach(g => {
     const c = document.createElement('div');
-    c.className = 'podium-card p' + (i + 1);
-    c.innerHTML = `<div class="podium-medal">${medals[i]}</div><div class="podium-name">${escapeHtml(p.name)}</div><div class="podium-pts">${p.pts} pts</div>`;
+    c.className = 'podium-card p' + g.rank;
+    c.innerHTML = `<div class="podium-medal">${medals[g.rank - 1] || '🎖️'}</div><div class="podium-rank">Rank ${g.rank}</div><div class="podium-name">${escapeHtml(g.names.join(', '))}</div><div class="podium-pts">${g.pts} pts</div>`;
     el.appendChild(c);
   });
 }
@@ -427,6 +449,7 @@ async function saveLeaderboardImage() {
   if (leaderboardCompareView.style.display !== 'none') { el = leaderboardCompareView; name = 'comparison'; }
   else if (leaderboardRaceView.style.display !== 'none') { el = leaderboardRaceView; name = 'race-chart'; }
   else if (leaderboardClimbView.style.display !== 'none') { el = leaderboardClimbView; name = 'climb'; }
+  else if (leaderboardReportsView.style.display !== 'none') { el = leaderboardReportsView; name = 'hall-of-fame'; }
   else { el = leaderboardTableView; name = 'standings'; }
 
   if (typeof html2canvas !== 'function') {
