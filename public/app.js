@@ -332,7 +332,7 @@ async function loadLeaderboard() {
         : `<span class="pending-none">0</span>`;
 
       const delta      = player.provisionalDelta || 0;
-      const displayPts = isLiveMode ? player.livePoints : player.points;
+      const displayPts = isLiveMode ? (player.livePoints ?? player.points) : player.points;
       const liveBadge  = isLiveMode && delta > 0
         ? `<span class="live-pts-badge">+${delta}&#9889;</span>`
         : '';
