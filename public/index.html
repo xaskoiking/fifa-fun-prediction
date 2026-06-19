@@ -115,6 +115,7 @@
           <button class="filter-btn" id="leaderboardViewRaceBtn" onclick="switchLeaderboardView('race')">Chart</button>
           <button class="filter-btn" id="leaderboardViewCompareBtn" onclick="switchLeaderboardView('compare')">Compare</button>
           <button class="filter-btn" id="leaderboardViewClimbBtn" onclick="switchLeaderboardView('climb')">&#127956; Climb</button>
+          <button class="filter-btn" id="leaderboardViewReportsBtn" onclick="switchLeaderboardView('reports')">&#128202; Reports</button>
           <button class="filter-btn save-img-btn" id="leaderboardSaveImgBtn" onclick="saveLeaderboardImage()">&#128247; Save image</button>
         </div>
 
@@ -198,6 +199,22 @@
             <button class="btn btn-secondary btn-sm" id="climbPlayPauseBtn" onclick="toggleClimbPlayback()">&#9654;</button>
             <input type="range" class="race-scrubber" id="climbScrubber" min="0" max="0" value="0" step="1" oninput="onClimbScrubberInput()">
             <span class="race-date" id="climbDateLabel"></span>
+          </div>
+        </div>
+
+        <div class="leaderboard-card reports-card" id="leaderboardReportsView" style="display: none;">
+          <p class="report-intro" id="reportIntro"></p>
+          <div class="report-section">
+            <h3 class="report-h">&#128197; Previous Day &#8212; Top 3 <span class="report-sub" id="reportPrevDate"></span></h3>
+            <div class="podium" id="reportPrevDay"></div>
+          </div>
+          <div class="report-section">
+            <h3 class="report-h">&#127967; Top 3 by Stage</h3>
+            <div id="reportStages" class="stage-grid"></div>
+          </div>
+          <div class="report-section">
+            <h3 class="report-h">&#127942; Overall &#8212; Top 3</h3>
+            <div class="podium" id="reportOverall"></div>
           </div>
         </div>
       </section>
