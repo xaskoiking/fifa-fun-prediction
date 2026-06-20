@@ -306,13 +306,14 @@ function calculatePointsForMatch(votes, outcome, matchType) {
 function buildLeaderboardHistory(db) {
   const standings = {};
   db.users.forEach(user => {
-    standings[user.name] = { name: user.name, points: 0 };
+    standings[user.name] = { name: user.name, points: 0, correct: 0 };
   });
 
   const snapshot = () => Object.values(standings)
-    .map(s => ({ name: s.name, points: s.points }))
+    .map(s => ({ name: s.name, points: s.points, correct: s.correct }))
     .sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
+      if (b.correct !== a.correct) return b.correct - a.correct;
       return a.name.localeCompare(b.name);
     });
 
@@ -333,9 +334,12 @@ function buildLeaderboardHistory(db) {
     const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
     Object.keys(pointsAllocated).forEach(user => {
       if (!standings[user]) {
-        standings[user] = { name: user, points: 0 };
+        standings[user] = { name: user, points: 0, correct: 0 };
       }
-      standings[user].points += pointsAllocated[user];
+      if (pointsAllocated[user] > 0) {
+        standings[user].points += pointsAllocated[user];
+        standings[user].correct += 1;
+      }
     });
 
     frames.push({
@@ -613,6 +617,35 @@ app.get('/api/leaderboard', (req, res) => {
     );
   });
 
+  // Provisional points from live/finished-unresolved matches
+  db.matches.forEach(match => {
+    if (match.status === 'resolved') return;
+    const homeNorm = normalizeTeam(match.homeTeam);
+    const awayNorm = normalizeTeam(match.awayTeam);
+    const liveEntry = _liveScoresCache.find(c =>
+      normalizeTeam(c.homeTeam) === homeNorm &&
+      normalizeTeam(c.awayTeam) === awayNorm
+    );
+    if (!liveEntry || liveEntry.scoreHome === null || liveEntry.scoreAway === null) return;
+
+    let provisionalOutcome;
+    if (liveEntry.scoreHome > liveEntry.scoreAway) provisionalOutcome = 'home';
+    else if (liveEntry.scoreAway > liveEntry.scoreHome) provisionalOutcome = 'away';
+    else provisionalOutcome = 'draw';
+
+    const pts = calculatePointsForMatch(match.votes, provisionalOutcome, match.matchType);
+    Object.keys(pts).forEach(user => {
+      if (!standings[user]) ensureStanding(user);
+      standings[user].provisionalDelta = (standings[user].provisionalDelta || 0) + pts[user];
+    });
+  });
+
+  // Finalize livePoints for all standings (provisionalDelta defaults to 0)
+  Object.values(standings).forEach(s => {
+    s.provisionalDelta = s.provisionalDelta || 0;
+    s.livePoints = s.points + s.provisionalDelta;
+  });
+
   // Convert map to list and sort
   const leaderboard = Object.values(standings).sort((a, b) => {
     if (b.points !== a.points) {
@@ -624,6 +657,17 @@ app.get('/api/leaderboard', (req, res) => {
     return a.name.localeCompare(b.name); // Tiebreaker 2: alphabetical
   });
 
+  // Add prevRank: each player's rank in the snapshot before the last resolved match.
+  // Used by the client to render the MOVED column.
+  const history = buildLeaderboardHistory(db);
+  if (history.length >= 2) {
+    const prevFrame = history[history.length - 2];
+    const prevRankMap = new Map(prevFrame.standings.map((p, i) => [p.name, i + 1]));
+    leaderboard.forEach(p => { p.prevRank = prevRankMap.get(p.name) ?? null; });
+  } else {
+    leaderboard.forEach(p => { p.prevRank = null; });
+  }
+
   res.json(leaderboard);
 });
 
@@ -631,6 +675,23 @@ app.get('/api/leaderboard', (req, res) => {
 app.get('/api/leaderboard/history', (req, res) => {
   const db = readData();
   res.json(buildLeaderboardHistory(db));
+});
+
+// Public endpoint: live matches that are currently affecting the provisional leaderboard
+app.get('/api/live-matches', (req, res) => {
+  const db = readData();
+  const unresolvedMatches = db.matches.filter(m => m.status !== 'resolved');
+
+  const matched = _liveScoresCache.filter(live => {
+    const liveHome = normalizeTeam(live.homeTeam);
+    const liveAway = normalizeTeam(live.awayTeam);
+    return unresolvedMatches.some(m =>
+      normalizeTeam(m.homeTeam) === liveHome &&
+      normalizeTeam(m.awayTeam) === liveAway
+    );
+  });
+
+  res.json(matched);
 });
 
 // =================== ADMIN ENDPOINTS ===================
@@ -987,6 +1048,20 @@ let _fixturesCache = null;
 let _fixturesCacheTime = 0;
 const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 
+let _liveScoresCache = [];
+const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED', 'FINISHED']);
+
+// Aliases from DB names → canonical API names (all lowercase)
+const TEAM_NAME_ALIASES = {
+  'usa':        'united states',
+  'türkiye':    'turkey',
+  'cape verde': 'cape verde islands',
+};
+function normalizeTeam(name) {
+  const lower = name.trim().toLowerCase();
+  return TEAM_NAME_ALIASES[lower] || lower;
+}
+
 // Tournament stages in order. Used to label fixtures and to let admins control
 // which stages are currently open for the "Create Match" button (see
 // /api/admin/settings) without requiring a code change/deploy as the
@@ -1015,6 +1090,36 @@ function ensureSettings(db) {
     db.settings.openMatchStages = ['GROUP_STAGE'];
   }
   return db.settings;
+}
+
+async function pollLiveScores() {
+  const apiKey = process.env.FOOTBALL_DATA_API_KEY;
+  if (!apiKey) return;
+  try {
+    const res = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
+      headers: { 'X-Auth-Token': apiKey }
+    });
+    if (!res.ok) {
+      console.warn(`[LIVE] Poll returned ${res.status}`);
+      return;
+    }
+    const data = await res.json();
+    _liveScoresCache = (data.matches || [])
+      .filter(m => LIVE_STATUSES.has(m.status))
+      .map(m => {
+        const ft = (m.score || {}).fullTime || {};
+        return {
+          homeTeam: m.homeTeam?.name || '',
+          awayTeam: m.awayTeam?.name || '',
+          scoreHome: ft.home ?? null,
+          scoreAway: ft.away ?? null,
+          status: m.status
+        };
+      });
+    console.log(`[LIVE] Cache updated: ${_liveScoresCache.length} live/finished match(es)`);
+  } catch (err) {
+    console.error('[LIVE] Poll failed:', err.message);
+  }
 }
 
 // Get which tournament stages are currently open for "Create Match"
@@ -1123,6 +1228,8 @@ async function startServer() {
     if (GCS_BUCKET_NAME) {
       console.log(`[GCS] Persistence enabled: gs://${GCS_BUCKET_NAME}/${GCS_OBJECT_NAME}`);
     }
+    pollLiveScores();
+    setInterval(pollLiveScores, 60 * 1000);
   });
 }
 

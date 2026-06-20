@@ -35,6 +35,9 @@
         </div>
       </div>
       
+      <!-- Live match panel — above tab nav, visible on all tabs -->
+      <div id="liveMatchesPanel" style="display: none;"></div>
+
       <!-- Tab Navigation -->
       <nav class="tab-nav">
         <button class="tab-btn active" id="tabBtnPredictions" onclick="switchTab('predictions')">
@@ -128,6 +131,7 @@
                   <th class="col-name">Player</th>
                   <th class="col-predictions"><span class="th-full">Predictions (Correct/Resolved)</span><span class="th-short">P/R</span></th>
                   <th class="col-accuracy"><span class="th-full">Accuracy</span><span class="th-short">Acc</span></th>
+                  <th class="col-moved" title="Position change since last completed match"><span class="th-full">Moved</span><span class="th-short">Mvd</span></th>
                   <th class="col-pending" title="Live matches still open for voting that this player hasn't voted on yet"><span class="th-full">Not Yet Voted</span><span class="th-short">Pend</span></th>
                   <th class="col-points"><span class="th-full">Total Points</span><span class="th-short">Pts</span></th>
                 </tr>
@@ -135,7 +139,7 @@
               <tbody id="leaderboardBody">
                 <!-- Leaderboard rows will be dynamically inserted here -->
                 <tr>
-                  <td colspan="6" class="loading-state">Loading standings...</td>
+                  <td colspan="7" class="loading-state">Loading standings...</td>
                 </tr>
               </tbody>
             </table>

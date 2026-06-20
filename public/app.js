@@ -231,39 +231,136 @@ async function loadDashboardData() {
       loadAdminHistory();
       loadAdminVotes();
     }
+
+    if (activeTab === 'leaderboard') {
+      loadLeaderboard();
+    }
+    loadLiveMatches();
   } catch (err) {
     console.error('Error getting match data:', err);
   }
 }
 
-// Fetch standings
+// Fetch and render the live match info panel above the leaderboard table
+async function loadLiveMatches() {
+  const panel = document.getElementById('liveMatchesPanel');
+  if (!panel) return;
+  try {
+    const res = await fetch('/api/live-matches');
+    if (!res.ok) { panel.style.display = 'none'; return; }
+    const liveMatches = await res.json();
+    if (liveMatches.length === 0) { panel.style.display = 'none'; return; }
+
+    const statusTag = (status) => {
+      if (status === 'IN_PLAY') return '<span class="live-match-status in-play"><span class="live-dot"></span>LIVE</span>';
+      if (status === 'PAUSED')  return '<span class="live-match-status paused">HT</span>';
+      return '<span class="live-match-status finished">FT</span>';
+    };
+
+    panel.style.display = '';
+    panel.innerHTML = liveMatches.map(m => `
+      <div class="live-match-card">
+        <svg class="chase-border-svg" aria-hidden="true">
+          <rect class="chase-rect" x="1" y="1" rx="7"/>
+        </svg>
+        <div class="live-match-inner">
+          ${statusTag(m.status)}
+          <div class="live-match-teams">
+            <span>${escapeHtml(m.homeTeam)}</span>
+            <span class="live-match-score">${m.scoreHome ?? '&ndash;'} &mdash; ${m.scoreAway ?? '&ndash;'}</span>
+            <span>${escapeHtml(m.awayTeam)}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch (_) {
+    panel.style.display = 'none';
+  }
+}
+
+// Fetch standings (includes provisional livePoints when matches are live)
 async function loadLeaderboard() {
   try {
     const response = await fetch('/api/leaderboard');
     if (!response.ok) throw new Error('Failed to load leaderboard');
     const leaderboard = await response.json();
-    
+
+    const isLiveMode = leaderboard.some(p => (p.provisionalDelta || 0) > 0);
+
+    // In live mode sort by livePoints; otherwise use the server-sorted order
+    const sorted = isLiveMode
+      ? [...leaderboard].sort((a, b) => {
+          if (b.livePoints !== a.livePoints) return b.livePoints - a.livePoints;
+          if (b.correct !== a.correct)       return b.correct - a.correct;
+          return a.name.localeCompare(b.name);
+        })
+      : leaderboard;
+
+    // Toggle live-mode styling on the table card
+    const card = document.getElementById('leaderboardTableView');
+    if (card) card.classList.toggle('live-mode', isLiveMode);
+
+    // Update column header
+    const ptsHeader = document.querySelector('#leaderboardTable th.col-points');
+    if (ptsHeader) {
+      ptsHeader.innerHTML = isLiveMode
+        ? `<span class="th-full">Points (Live)</span><span class="th-short">Pts</span>`
+        : `<span class="th-full">Total Points</span><span class="th-short">Pts</span>`;
+    }
+
     leaderboardBody.innerHTML = '';
-    
-    if (leaderboard.length === 0) {
-      leaderboardBody.innerHTML = `<tr><td colspan="6" class="loading-state">No players registered yet.</td></tr>`;
+
+    if (sorted.length === 0) {
+      leaderboardBody.innerHTML = `<tr><td colspan="7" class="loading-state">No players registered yet.</td></tr>`;
       return;
     }
-    
-    leaderboard.forEach((player, index) => {
+
+    // Baseline rank: sorted purely by points (no live delta), used in live mode
+    // to compute how many spots each player has provisionally moved.
+    const baseRanks = new Map(
+      [...leaderboard].sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.correct !== a.correct) return b.correct - a.correct;
+        return a.name.localeCompare(b.name);
+      }).map((p, i) => [p.name, i + 1])
+    );
+
+    sorted.forEach((player, index) => {
       const rank = index + 1;
       let rankClass = 'rank-other';
       if (rank === 1) rankClass = 'rank-1';
       else if (rank === 2) rankClass = 'rank-2';
       else if (rank === 3) rankClass = 'rank-3';
 
-      const total = player.totalPredictions || 0;
-      const correct = player.correct || 0;
+      const total    = player.totalPredictions || 0;
+      const correct  = player.correct || 0;
       const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
-      const pending = player.liveNotVoted || 0;
+      const pending  = player.liveNotVoted || 0;
       const pendingCell = pending > 0
         ? `<span class="pending-badge">${pending}</span>`
         : `<span class="pending-none">0</span>`;
+
+      const delta      = player.provisionalDelta || 0;
+      const displayPts = isLiveMode ? (player.livePoints ?? player.points) : player.points;
+      const liveBadge  = isLiveMode && delta > 0
+        ? `<span class="live-pts-badge">+${delta}&#9889;</span>`
+        : '';
+
+      let deltaRank;
+      if (isLiveMode) {
+        const baseRank = baseRanks.get(player.name);
+        deltaRank = baseRank != null ? baseRank - (index + 1) : null;
+      } else {
+        deltaRank = player.prevRank != null ? player.prevRank - rank : null;
+      }
+
+      let movedText, movedClass;
+      if (deltaRank === null)     { movedText = 'NEW';                      movedClass = 'move-new'; }
+      else if (deltaRank > 0)     { movedText = `&#9650; ${deltaRank}`;     movedClass = 'move-up'; }
+      else if (deltaRank < 0)     { movedText = `&#9660; ${Math.abs(deltaRank)}`; movedClass = 'move-down'; }
+      else                        { movedText = '&#8212;';                  movedClass = 'move-same'; }
+
+      const movedCell = `<span class="${movedClass}">${movedText}</span>`;
 
       const row = document.createElement('tr');
       row.className = rankClass;
@@ -272,14 +369,15 @@ async function loadLeaderboard() {
         <td class="col-name">${escapeHtml(player.name)}</td>
         <td class="col-predictions">${correct} / ${total}</td>
         <td class="col-accuracy">${accuracy}%</td>
+        <td class="col-moved">${movedCell}</td>
         <td class="col-pending">${pendingCell}</td>
-        <td class="col-points">${player.points}<span class="unit-label"> pts</span></td>
+        <td class="col-points">${delta > 0 ? `<span class="pts-cell-inner">${liveBadge}<span class="pts-live">${displayPts}</span></span>` : displayPts}<span class="unit-label"> pts</span></td>
       `;
       leaderboardBody.appendChild(row);
     });
   } catch (err) {
     console.error('Error getting leaderboard:', err);
-    leaderboardBody.innerHTML = `<tr><td colspan="6" class="loading-state error-text">Error loading standings.</td></tr>`;
+    leaderboardBody.innerHTML = `<tr><td colspan="7" class="loading-state error-text">Error loading standings.</td></tr>`;
   }
 }
 
