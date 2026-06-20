@@ -430,6 +430,7 @@ async function loadReports() {
     renderReports();
     renderJourney();
     renderStreaks();
+    renderDailyWinners();
     const stamp = `Sports Unlimited · FIFA 2026 Fun Prediction · ${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}`;
     document.querySelectorAll('.snap-footer').forEach(f => { f.textContent = stamp; });
   } catch (err) {
@@ -473,9 +474,144 @@ function switchReportSub(sub) {
   document.getElementById('reportSubHofBtn').classList.toggle('active', sub === 'hof');
   document.getElementById('reportSubJourneyBtn').classList.toggle('active', sub === 'journey');
   document.getElementById('reportSubStreaksBtn').classList.toggle('active', sub === 'streaks');
+  document.getElementById('reportSubDailyBtn').classList.toggle('active', sub === 'daily');
   document.getElementById('reportHofView').style.display = sub === 'hof' ? '' : 'none';
   document.getElementById('reportJourneyView').style.display = sub === 'journey' ? '' : 'none';
   document.getElementById('reportStreaksView').style.display = sub === 'streaks' ? '' : 'none';
+  document.getElementById('reportDailyView').style.display = sub === 'daily' ? '' : 'none';
+}
+
+// Daily Winners: top 3 point gainers for each completed match day
+function renderDailyWinners() {
+  const allFrames = reportsFrames;
+  const el = document.getElementById('dailyWinnersBody');
+  const intro = document.getElementById('dailyIntro');
+  if (!allFrames || allFrames.length === 0) {
+    intro.textContent = 'Daily winners will appear once matches start resolving.';
+    el.innerHTML = '<tr><td colspan="4" class="stage-upcoming">No matches resolved yet.</td></tr>';
+    return;
+  }
+
+  const validFrames = allFrames.filter(f => f.matchNumber != null).slice().sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+  if (validFrames.length === 0) {
+    intro.textContent = 'Daily winners will appear once matches start resolving.';
+    el.innerHTML = '<tr><td colspan="4" class="stage-upcoming">No matches resolved yet.</td></tr>';
+    return;
+  }
+
+  const dayKey = (when) => {
+    const DAY_START_HOUR = 6;
+    const d = new Date(new Date(when).getTime() - DAY_START_HOUR * 3600 * 1000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const dayLabel = (day) => new Date(day + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const mapOf = (f) => { const m = {}; if (f) f.standings.forEach(s => { m[s.name] = s.points; }); return m; };
+
+  const grouped = {};
+  validFrames.forEach((frame) => {
+    const key = dayKey(frame.kickoff);
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(frame);
+  });
+
+  const dayKeys = Object.keys(grouped).sort().reverse();
+  const rows = [];
+
+  const formatPlace = (group) => {
+    if (!group || group.players.length === 0) return '—';
+    const names = group.players.map(escapeHtml).join(', ');
+    return `${names} (${group.pts} pts)`;
+  };
+
+  const tally = (group, counts) => {
+    if (!group || group.players.length === 0) return;
+    group.players.forEach((name) => {
+      counts[name] = (counts[name] || 0) + 1;
+    });
+  };
+
+  const placeCounts = [{}, {}, {}];
+
+  dayKeys.forEach((day) => {
+    const framesForDay = grouped[day];
+    const firstFrame = framesForDay[0];
+    const lastFrame = framesForDay[framesForDay.length - 1];
+    const firstIndex = validFrames.indexOf(firstFrame);
+    const prevMap = firstIndex > 0 ? mapOf(validFrames[firstIndex - 1]) : {};
+    const dayMap = mapOf(lastFrame);
+    const gains = Object.entries(dayMap).map(([name, pts]) => ({ name, pts: pts - (prevMap[name] || 0) }));
+    const ranked = gains
+      .filter(r => r.pts > 0)
+      .sort((a, b) => (b.pts - a.pts) || a.name.localeCompare(b.name));
+
+    const groups = [];
+    ranked.forEach((entry) => {
+      if (!groups.length || groups[groups.length - 1].pts !== entry.pts) {
+        if (groups.length < 3) {
+          groups.push({ pts: entry.pts, players: [entry.name] });
+        }
+      } else {
+        groups[groups.length - 1].players.push(entry.name);
+      }
+    });
+
+    const place1 = groups[0] || null;
+    const place2 = groups[1] || null;
+    const place3 = groups[2] || null;
+
+    tally(place1, placeCounts[0]);
+    tally(place2, placeCounts[1]);
+    tally(place3, placeCounts[2]);
+
+    rows.push(`
+      <tr>
+        <td>${dayLabel(day)}</td>
+        <td>${formatPlace(place1)}</td>
+        <td>${formatPlace(place2)}</td>
+        <td>${formatPlace(place3)}</td>
+      </tr>
+    `);
+  });
+
+  const formatTopCount = (counts) => {
+    const entries = Object.entries(counts);
+    if (entries.length === 0) return { names: 'None yet.', count: 0 };
+    entries.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const top = entries[0][1];
+    const winners = entries.filter(([, cnt]) => cnt === top).map(([name]) => escapeHtml(name));
+    return { names: winners.join(', '), count: top };
+  };
+
+  const renderAggregateCards = (placeCounts) => {
+    const places = [
+      { title: 'Most 1sts', rank: '1st Place', icon: '🥇', style: 'p1', data: formatTopCount(placeCounts[0]) },
+      { title: 'Most 2nds', rank: '2nd Place', icon: '🥈', style: 'p2', data: formatTopCount(placeCounts[1]) },
+      { title: 'Most 3rds', rank: '3rd Place', icon: '🥉', style: 'p3', data: formatTopCount(placeCounts[2]) }
+    ];
+
+    return places.map(place => {
+      const countText = place.data.count ? `${place.data.count} ${place.data.count === 1 ? 'day' : 'days'}` : 'No days yet';
+      return `
+        <div class="podium-card ${place.style}">
+          <div class="podium-medal">${place.icon}</div>
+          <div class="podium-rank">${place.rank}</div>
+          <div class="podium-name">${place.title}</div>
+          <div class="podium-name" style="margin-top: 6px; font-size: 0.95rem; color: var(--text-muted);">${place.data.names}</div>
+          <div class="podium-pts">${countText}</div>
+        </div>
+      `;
+    }).join('');
+  };
+
+  const aggregateEl = document.getElementById('dailyAggregate');
+  aggregateEl.innerHTML = renderAggregateCards(placeCounts);
+
+  intro.textContent = 'Daily top gainers by completed match day. One row per day with the top three ranks in separate columns.';
+  if (rows.length === 0) {
+    el.innerHTML = '<tr><td colspan="4" class="stage-upcoming">No winning days yet.</td></tr>';
+  } else {
+    el.innerHTML = rows.join('');
+  }
 }
 
 // Journey: who was FIRST to reach each points milestone (50, 100, 150, …)

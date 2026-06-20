@@ -211,6 +211,7 @@
             <button class="report-subtab active" id="reportSubHofBtn" onclick="switchReportSub('hof')">&#127941; Hall of Fame</button>
             <button class="report-subtab" id="reportSubJourneyBtn" onclick="switchReportSub('journey')">&#129501; Journey</button>
             <button class="report-subtab" id="reportSubStreaksBtn" onclick="switchReportSub('streaks')">&#128293; Streaks</button>
+            <button class="report-subtab" id="reportSubDailyBtn" onclick="switchReportSub('daily')">&#128198; Daily Winners</button>
           </div>
 
           <div id="reportHofView" class="report-snap">
@@ -254,6 +255,51 @@
             <div class="report-board-title">&#128293; Hot Streaks</div>
             <p class="report-intro" id="streaksIntro"></p>
             <div id="streaksBody"></div>
+            <div class="report-footer snap-footer"></div>
+          </div>
+
+          <div id="reportDailyView" class="report-snap" style="display: none;">
+            <div class="report-brand">
+              <div class="report-brand-eyebrow">Sports Unlimited</div>
+              <div class="report-brand-title">&#9917; FIFA 2026 &#183; Fun Prediction Game</div>
+            </div>
+            <div class="report-board-title">&#128198; Daily Winners</div>
+            <p class="report-intro" id="dailyIntro"></p>
+            <div class="podium" id="dailyAggregate" style="margin-bottom: 14px;">
+              <div class="podium-card p1">
+                <div class="podium-medal">🥇</div>
+                <div class="podium-rank">1st Place</div>
+                <div class="podium-name">Most 1sts</div>
+                <div class="podium-pts">Loading…</div>
+              </div>
+              <div class="podium-card p2">
+                <div class="podium-medal">🥈</div>
+                <div class="podium-rank">2nd Place</div>
+                <div class="podium-name">Most 2nds</div>
+                <div class="podium-pts">Loading…</div>
+              </div>
+              <div class="podium-card p3">
+                <div class="podium-medal">🥉</div>
+                <div class="podium-rank">3rd Place</div>
+                <div class="podium-name">Most 3rds</div>
+                <div class="podium-pts">Loading…</div>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="leaderboard-table report-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>1st</th>
+                    <th>2nd</th>
+                    <th>3rd</th>
+                  </tr>
+                </thead>
+                <tbody id="dailyWinnersBody">
+                  <tr><td colspan="4" class="loading-state">Loading daily winners...</td></tr>
+                </tbody>
+              </table>
+            </div>
             <div class="report-footer snap-footer"></div>
           </div>
         </div>
