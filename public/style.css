@@ -913,6 +913,12 @@ body {
 .report-subtab { padding: 7px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); color: var(--text-muted); font-weight: 700; font-size: 0.9rem; cursor: pointer; }
 .report-subtab.active { background: var(--color-accent); color: #07130b; border-color: var(--color-accent); }
 
+.report-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.report-table th, .report-table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.92rem; }
+.report-table th { text-align: left; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+.report-table td { color: #fff; }
+.report-table tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
+
 /* Journey timeline */
 .journey-timeline { margin: 8px 0 4px; padding-left: 14px; }
 .journey-item { position: relative; display: flex; gap: 12px; padding: 12px 0 12px 24px; border-left: 2px solid rgba(255,255,255,0.14); margin-left: 13px; }
@@ -937,14 +943,18 @@ body {
 .streak-range { color: var(--text-muted); font-size: 0.82rem; white-space: nowrap; min-width: 78px; text-align: right; }
 
 .podium { display: flex; flex-wrap: wrap; gap: 12px; }
-.podium-card { flex: 1 1 150px; text-align: center; padding: 14px 8px; border-radius: 12px; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); }
-.podium-rank { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-top: 2px; }
+.podium-card { flex: 1 1 180px; min-width: 180px; text-align: center; padding: 18px 14px; border-radius: 16px; background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); }
+.podium-rank { font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-top: 10px; }
 .podium-card.p1 { border-color: var(--color-gold); background: rgba(255,179,0,0.10); }
-.podium-card.p2 { border-color: #c0c7cf; }
-.podium-card.p3 { border-color: #cd7f32; }
-.podium-medal { font-size: 1.8rem; line-height: 1; }
-.podium-name { font-weight: 800; margin-top: 6px; font-size: 0.98rem; }
-.podium-pts { color: var(--color-accent); font-weight: 700; font-size: 0.9rem; margin-top: 2px; }
+.podium-card.p2 { border-color: #c0c7cf; background: rgba(192,199,207,0.08); }
+.podium-card.p3 { border-color: #cd7f32; background: rgba(205,127,50,0.08); }
+.podium-medal { font-size: 2.4rem; line-height: 1; }
+.podium-name { font-weight: 800; margin-top: 8px; font-size: 1rem; }
+.podium-pts { color: var(--color-accent); font-weight: 700; font-size: 0.95rem; margin-top: 8px; }
+.report-table th, .report-table td { padding: 14px 16px; }
+.report-table td { vertical-align: top; }
+.report-table thead th { background: rgba(255,255,255,0.04); }
+.report-table tbody tr:hover { background: rgba(255,255,255,0.04); }
 
 .stage-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .stage-block { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px 14px; }
