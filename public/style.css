@@ -21,6 +21,7 @@
   --color-bronze: #ab5a2b;   /* Bronze Third-place */
   --color-danger: #ff5252;
   --color-warning: #ffd600;
+  --color-review: #7c4dff;
   
   /* Shading */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -121,6 +122,13 @@ body {
   50% { transform: translateY(-8px) rotate(15deg); }
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .logo-area h1 {
   font-weight: 800;
   font-size: 2rem;
@@ -128,6 +136,29 @@ body {
   background: linear-gradient(135deg, #ffffff 30%, var(--color-accent) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.env-pill {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.env-pill--staging {
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+  background: rgba(255, 214, 0, 0.12);
+}
+
+.env-pill--review {
+  color: var(--color-review);
+  border-color: var(--color-review);
+  background: rgba(124, 77, 255, 0.12);
 }
 
 .logo-area .subtitle {
