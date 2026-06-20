@@ -23,6 +23,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
 
+// ── Environment identification (drives the staging/review pill in the UI) ────
+const APP_ENV = process.env.APP_ENV || 'prod';
+const PR_NUMBER = process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null;
+
 // ── Admin / default-credential configuration ─────────────────────────────────
 // For production, set ADMIN_PASSCODE in the environment. When set, it overrides
 // the adminPasscode stored in data.json (which ships as the placeholder below).
@@ -64,6 +68,11 @@ function logAuditAction(db, action, details, recoveryData = '') {
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Public endpoint: tells the frontend which environment it's running in
+app.get('/api/env', (req, res) => {
+  res.json({ env: APP_ENV, pr: PR_NUMBER });
+});
 
 // Helper to generate a unique 4-character passcode (avoiding easily confused chars like I, O, 1, 0)
 function generateSecret() {
