@@ -92,7 +92,7 @@ function loadEnvBadge() {
         pill.textContent = 'STAGING';
         pill.classList.add('env-pill--staging');
       } else if (data.env === 'review') {
-        pill.textContent = `REVIEW · PR #${data.pr}`;
+        pill.textContent = data.pr ? `REVIEW · PR #${data.pr}` : 'REVIEW';
         pill.classList.add('env-pill--review');
       } else {
         return; // prod (or unknown) — leave hidden
