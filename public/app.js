@@ -140,7 +140,6 @@ function switchTab(tabName) {
     renderResults();
   } else if (tabName === 'leaderboard') {
     loadLeaderboard();
-    loadLiveMatches();
   } else if (tabName === 'admin') {
     checkAdminState();
     initializeDefaultKickoff();
@@ -234,8 +233,8 @@ async function loadDashboardData() {
 
     if (activeTab === 'leaderboard') {
       loadLeaderboard();
-      loadLiveMatches();
     }
+    loadLiveMatches();
   } catch (err) {
     console.error('Error getting match data:', err);
   }
@@ -252,19 +251,18 @@ async function loadLiveMatches() {
     if (liveMatches.length === 0) { panel.style.display = 'none'; return; }
 
     const statusTag = (status) => {
-      if (status === 'IN_PLAY') return '<span class="live-match-status in-play">In Play</span>';
-      if (status === 'PAUSED')  return '<span class="live-match-status paused">Paused</span>';
-      return '<span class="live-match-status finished">Finished &middot; awaiting resolution</span>';
+      if (status === 'IN_PLAY') return '<span class="live-match-status in-play"><span class="live-dot"></span>LIVE</span>';
+      if (status === 'PAUSED')  return '<span class="live-match-status paused">HT</span>';
+      return '<span class="live-match-status finished">FT</span>';
     };
 
     panel.style.display = '';
-    panel.innerHTML = `
-      <div class="live-banner">
-        <span class="live-dot"></span>
-        LIVE &middot; provisional standings &middot; may change as matches progress
-      </div>
-      ${liveMatches.map(m => `
-        <div class="live-match-card">
+    panel.innerHTML = liveMatches.map(m => `
+      <div class="live-match-card">
+        <svg class="chase-border-svg" aria-hidden="true">
+          <rect class="chase-rect" x="1" y="1" rx="7"/>
+        </svg>
+        <div class="live-match-inner">
           ${statusTag(m.status)}
           <div class="live-match-teams">
             <span>${escapeHtml(m.homeTeam)}</span>
@@ -272,8 +270,8 @@ async function loadLiveMatches() {
             <span>${escapeHtml(m.awayTeam)}</span>
           </div>
         </div>
-      `).join('')}
-    `;
+      </div>
+    `).join('');
   } catch (_) {
     panel.style.display = 'none';
   }
@@ -312,9 +310,19 @@ async function loadLeaderboard() {
     leaderboardBody.innerHTML = '';
 
     if (sorted.length === 0) {
-      leaderboardBody.innerHTML = `<tr><td colspan="6" class="loading-state">No players registered yet.</td></tr>`;
+      leaderboardBody.innerHTML = `<tr><td colspan="7" class="loading-state">No players registered yet.</td></tr>`;
       return;
     }
+
+    // Baseline rank: sorted purely by points (no live delta), used in live mode
+    // to compute how many spots each player has provisionally moved.
+    const baseRanks = new Map(
+      [...leaderboard].sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.correct !== a.correct) return b.correct - a.correct;
+        return a.name.localeCompare(b.name);
+      }).map((p, i) => [p.name, i + 1])
+    );
 
     sorted.forEach((player, index) => {
       const rank = index + 1;
@@ -334,8 +342,24 @@ async function loadLeaderboard() {
       const delta      = player.provisionalDelta || 0;
       const displayPts = isLiveMode ? (player.livePoints ?? player.points) : player.points;
       const liveBadge  = isLiveMode && delta > 0
-        ? `<span class="live-pts-badge">+${delta}&#9889;</span>`
+        ? `<span class="live-pts-badge">${delta}&#9889;</span>`
         : '';
+
+      let deltaRank;
+      if (isLiveMode) {
+        const baseRank = baseRanks.get(player.name);
+        deltaRank = baseRank != null ? baseRank - (index + 1) : null;
+      } else {
+        deltaRank = player.prevRank != null ? player.prevRank - rank : null;
+      }
+
+      let movedText, movedClass;
+      if (deltaRank === null)     { movedText = 'NEW';                      movedClass = 'move-new'; }
+      else if (deltaRank > 0)     { movedText = `&#9650; ${deltaRank}`;     movedClass = 'move-up'; }
+      else if (deltaRank < 0)     { movedText = `&#9660; ${Math.abs(deltaRank)}`; movedClass = 'move-down'; }
+      else                        { movedText = '&#8212;';                  movedClass = 'move-same'; }
+
+      const movedCell = `<span class="${movedClass}">${movedText}</span>`;
 
       const row = document.createElement('tr');
       row.className = rankClass;
@@ -344,14 +368,15 @@ async function loadLeaderboard() {
         <td class="col-name">${escapeHtml(player.name)}</td>
         <td class="col-predictions">${correct} / ${total}</td>
         <td class="col-accuracy">${accuracy}%</td>
+        <td class="col-moved">${movedCell}</td>
         <td class="col-pending">${pendingCell}</td>
-        <td class="col-points">${displayPts}<span class="unit-label"> pts</span>${liveBadge}</td>
+        <td class="col-points">${delta > 0 ? `<span class="pts-cell-inner">${liveBadge}<span class="pts-live">${displayPts}</span></span>` : displayPts}<span class="unit-label"> pts</span></td>
       `;
       leaderboardBody.appendChild(row);
     });
   } catch (err) {
     console.error('Error getting leaderboard:', err);
-    leaderboardBody.innerHTML = `<tr><td colspan="6" class="loading-state error-text">Error loading standings.</td></tr>`;
+    leaderboardBody.innerHTML = `<tr><td colspan="7" class="loading-state error-text">Error loading standings.</td></tr>`;
   }
 }
 
