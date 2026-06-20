@@ -306,13 +306,14 @@ function calculatePointsForMatch(votes, outcome, matchType) {
 function buildLeaderboardHistory(db) {
   const standings = {};
   db.users.forEach(user => {
-    standings[user.name] = { name: user.name, points: 0 };
+    standings[user.name] = { name: user.name, points: 0, correct: 0 };
   });
 
   const snapshot = () => Object.values(standings)
-    .map(s => ({ name: s.name, points: s.points }))
+    .map(s => ({ name: s.name, points: s.points, correct: s.correct }))
     .sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
+      if (b.correct !== a.correct) return b.correct - a.correct;
       return a.name.localeCompare(b.name);
     });
 
@@ -333,9 +334,12 @@ function buildLeaderboardHistory(db) {
     const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
     Object.keys(pointsAllocated).forEach(user => {
       if (!standings[user]) {
-        standings[user] = { name: user, points: 0 };
+        standings[user] = { name: user, points: 0, correct: 0 };
       }
-      standings[user].points += pointsAllocated[user];
+      if (pointsAllocated[user] > 0) {
+        standings[user].points += pointsAllocated[user];
+        standings[user].correct += 1;
+      }
     });
 
     frames.push({
