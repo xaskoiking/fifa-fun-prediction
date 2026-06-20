@@ -358,7 +358,10 @@ function buildLeaderboardHistory(db) {
       if (pointsAllocated[user] > 0) {
         standings[user].points += pointsAllocated[user];
         standings[user].correct += 1;
+<<<<<<< HEAD
         matchPoints[user] = pointsAllocated[user];
+=======
+>>>>>>> a56136e (dynamic leaderboards  (#18))
       }
     });
 
@@ -722,6 +725,7 @@ app.get('/api/live-matches', (req, res) => {
   res.json(matched);
 });
 
+<<<<<<< HEAD
 const TEAM_NAME_OVERRIDES = {
   'korea republic': 'south korea',
   "côte d'ivoire": 'ivory coast',
@@ -788,6 +792,8 @@ app.get('/api/ranking', async (req, res) => {
   }
 });
 
+=======
+>>>>>>> a56136e (dynamic leaderboards  (#18))
 // =================== ADMIN ENDPOINTS ===================
 
 // Validate Admin Passcode
@@ -1143,6 +1149,7 @@ let _fixturesCacheTime = 0;
 const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 
 let _liveScoresCache = [];
+<<<<<<< HEAD
 // football-data.org has been observed returning 'LIVE' as well as the
 // documented 'IN_PLAY' for an in-progress match — treat them as equivalent.
 const LIVE_STATUSES = new Set(['IN_PLAY', 'LIVE', 'PAUSED', 'FINISHED']);
@@ -1154,6 +1161,15 @@ const TEAM_NAME_ALIASES = {
   'cape verde':           'cape verde islands',
   'dr congo':             'congo dr',
   'bosnia & herzegovina': 'bosnia-herzegovina',
+=======
+const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED', 'FINISHED']);
+
+// Aliases from DB names → canonical API names (all lowercase)
+const TEAM_NAME_ALIASES = {
+  'usa':        'united states',
+  'türkiye':    'turkey',
+  'cape verde': 'cape verde islands',
+>>>>>>> a56136e (dynamic leaderboards  (#18))
 };
 function normalizeTeam(name) {
   const lower = name.trim().toLowerCase();
@@ -1211,8 +1227,12 @@ async function pollLiveScores() {
           awayTeam: m.awayTeam?.name || '',
           scoreHome: ft.home ?? null,
           scoreAway: ft.away ?? null,
+<<<<<<< HEAD
           status: m.status,
           utcDate: m.utcDate
+=======
+          status: m.status
+>>>>>>> a56136e (dynamic leaderboards  (#18))
         };
       });
     console.log(`[LIVE] Cache updated: ${_liveScoresCache.length} live/finished match(es)`);
@@ -1221,6 +1241,7 @@ async function pollLiveScores() {
   }
 }
 
+<<<<<<< HEAD
 function getRecentForm(teamName, limit = 3) {
   const normalized = normalizeTeam(teamName);
   return _liveScoresCache
@@ -1256,6 +1277,8 @@ function getMatchScore(homeTeam, awayTeam) {
   return { scoreHome: entry.scoreHome, scoreAway: entry.scoreAway };
 }
 
+=======
+>>>>>>> a56136e (dynamic leaderboards  (#18))
 // Get which tournament stages are currently open for "Create Match"
 app.get('/api/admin/settings', verifyAdmin, (req, res) => {
   const db = readData();
