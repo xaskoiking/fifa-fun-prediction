@@ -616,11 +616,11 @@ app.get('/api/leaderboard', (req, res) => {
   // Provisional points from live/finished-unresolved matches
   db.matches.forEach(match => {
     if (match.status === 'resolved') return;
-    const homeNorm = match.homeTeam.trim().toLowerCase();
-    const awayNorm = match.awayTeam.trim().toLowerCase();
+    const homeNorm = normalizeTeam(match.homeTeam);
+    const awayNorm = normalizeTeam(match.awayTeam);
     const liveEntry = _liveScoresCache.find(c =>
-      c.homeTeam.trim().toLowerCase() === homeNorm &&
-      c.awayTeam.trim().toLowerCase() === awayNorm
+      normalizeTeam(c.homeTeam) === homeNorm &&
+      normalizeTeam(c.awayTeam) === awayNorm
     );
     if (!liveEntry || liveEntry.scoreHome === null || liveEntry.scoreAway === null) return;
 
@@ -653,6 +653,17 @@ app.get('/api/leaderboard', (req, res) => {
     return a.name.localeCompare(b.name); // Tiebreaker 2: alphabetical
   });
 
+  // Add prevRank: each player's rank in the snapshot before the last resolved match.
+  // Used by the client to render the MOVED column.
+  const history = buildLeaderboardHistory(db);
+  if (history.length >= 2) {
+    const prevFrame = history[history.length - 2];
+    const prevRankMap = new Map(prevFrame.standings.map((p, i) => [p.name, i + 1]));
+    leaderboard.forEach(p => { p.prevRank = prevRankMap.get(p.name) ?? null; });
+  } else {
+    leaderboard.forEach(p => { p.prevRank = null; });
+  }
+
   res.json(leaderboard);
 });
 
@@ -668,11 +679,11 @@ app.get('/api/live-matches', (req, res) => {
   const unresolvedMatches = db.matches.filter(m => m.status !== 'resolved');
 
   const matched = _liveScoresCache.filter(live => {
-    const liveHome = live.homeTeam.trim().toLowerCase();
-    const liveAway = live.awayTeam.trim().toLowerCase();
+    const liveHome = normalizeTeam(live.homeTeam);
+    const liveAway = normalizeTeam(live.awayTeam);
     return unresolvedMatches.some(m =>
-      m.homeTeam.trim().toLowerCase() === liveHome &&
-      m.awayTeam.trim().toLowerCase() === liveAway
+      normalizeTeam(m.homeTeam) === liveHome &&
+      normalizeTeam(m.awayTeam) === liveAway
     );
   });
 
@@ -1035,6 +1046,17 @@ const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 
 let _liveScoresCache = [];
 const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED', 'FINISHED']);
+
+// Aliases from DB names → canonical API names (all lowercase)
+const TEAM_NAME_ALIASES = {
+  'usa':        'united states',
+  'türkiye':    'turkey',
+  'cape verde': 'cape verde islands',
+};
+function normalizeTeam(name) {
+  const lower = name.trim().toLowerCase();
+  return TEAM_NAME_ALIASES[lower] || lower;
+}
 
 // Tournament stages in order. Used to label fixtures and to let admins control
 // which stages are currently open for the "Create Match" button (see
