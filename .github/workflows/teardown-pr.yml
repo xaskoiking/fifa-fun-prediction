@@ -1,0 +1,46 @@
+name: Teardown PR Review App
+
+# Deletes the Cloud Run service and GCS bucket created for a PR when it closes
+# (merged or abandoned). Errors are suppressed so a missing resource never
+# blocks the cleanup step.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  teardown:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: data-science-1530973235551
+      REGION: us-central1
+
+    steps:
+      - name: Authenticate to Google Cloud (keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: github-deployer@data-science-1530973235551.iam.gserviceaccount.com
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set PR-scoped resource names
+        run: |
+          echo "SERVICE=fifa-predictions-pr-${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
+          echo "BUCKET=fifa-pr-${{ github.event.pull_request.number }}-data-$PROJECT_ID" >> "$GITHUB_ENV"
+
+      - name: Delete Cloud Run service
+        run: |
+          gcloud run services delete "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --quiet 2>/dev/null || echo "Service $SERVICE not found — skipping"
+
+      - name: Delete GCS bucket and all contents
+        run: |
+          gcloud storage rm --recursive "gs://$BUCKET" 2>/dev/null \
+            || echo "Bucket gs://$BUCKET not found — skipping"

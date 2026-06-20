@@ -1,0 +1,92 @@
+name: Deploy PR Review App
+
+# Spins up a dedicated Cloud Run service + GCS bucket for each PR.
+# The bucket is seeded from the staging snapshot so you get realistic data.
+# Re-runs on every push to the PR branch, updating the same service.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write   # needed to post the URL comment
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: data-science-1530973235551
+      REGION: us-central1
+      STAGING_BUCKET: fifa-predictions-staging-data-data-science-1530973235551
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: github-deployer@data-science-1530973235551.iam.gserviceaccount.com
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set PR-scoped resource names
+        run: |
+          echo "SERVICE=fifa-predictions-pr-${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
+          echo "BUCKET=fifa-pr-${{ github.event.pull_request.number }}-data-$PROJECT_ID" >> "$GITHUB_ENV"
+
+      - name: Create bucket and seed from staging (skipped if bucket already exists)
+        run: |
+          if ! gcloud storage buckets describe "gs://$BUCKET" --project "$PROJECT_ID" &>/dev/null; then
+            gcloud storage buckets create "gs://$BUCKET" \
+              --project "$PROJECT_ID" \
+              --location "$REGION" \
+              --uniform-bucket-level-access
+            gcloud storage rsync "gs://$STAGING_BUCKET" "gs://$BUCKET" --recursive
+          fi
+
+      - name: Build and deploy to Cloud Run (review app)
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --source . \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --max-instances 1 \
+            --set-env-vars GCS_BUCKET_NAME=$BUCKET${FOOTBALL_KEY:+,FOOTBALL_DATA_API_KEY=$FOOTBALL_KEY}
+        env:
+          FOOTBALL_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+
+      - name: Get review app URL
+        id: url
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" \
+            --project "$PROJECT_ID" \
+            --region "$REGION" \
+            --format='value(status.url)')
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Post or update PR comment with review app URL
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          APP_URL: ${{ steps.url.outputs.url }}
+        run: |
+          MARKER="<!-- pr-review-app -->"
+          BODY="${MARKER}
+          🚀 **Review app:** ${APP_URL}
+          Built from \`${GITHUB_SHA::7}\` — refreshes on every push to this PR."
+
+          EXISTING=$(gh api "repos/$GITHUB_REPOSITORY/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" | head -1)
+
+          if [ -n "$EXISTING" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/issues/comments/$EXISTING" \
+              -X PATCH -f body="$BODY"
+          else
+            gh pr comment "$PR_NUMBER" --body "$BODY"
+          fi
