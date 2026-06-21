@@ -1113,13 +1113,37 @@ async function pollLiveScores() {
           awayTeam: m.awayTeam?.name || '',
           scoreHome: ft.home ?? null,
           scoreAway: ft.away ?? null,
-          status: m.status
+          status: m.status,
+          utcDate: m.utcDate
         };
       });
     console.log(`[LIVE] Cache updated: ${_liveScoresCache.length} live/finished match(es)`);
   } catch (err) {
     console.error('[LIVE] Poll failed:', err.message);
   }
+}
+
+function getRecentForm(teamName, limit = 3) {
+  const normalized = normalizeTeam(teamName);
+  return _liveScoresCache
+    .filter(m => m.status === 'FINISHED')
+    .filter(m => normalizeTeam(m.homeTeam) === normalized || normalizeTeam(m.awayTeam) === normalized)
+    .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))
+    .slice(0, limit)
+    .map(m => {
+      const isHome = normalizeTeam(m.homeTeam) === normalized;
+      const scoreFor = isHome ? m.scoreHome : m.scoreAway;
+      const scoreAgainst = isHome ? m.scoreAway : m.scoreHome;
+      let result = 'D';
+      if (scoreFor > scoreAgainst) result = 'W';
+      else if (scoreFor < scoreAgainst) result = 'L';
+      return {
+        opponent: isHome ? m.awayTeam : m.homeTeam,
+        result,
+        scoreFor,
+        scoreAgainst
+      };
+    });
 }
 
 // Get which tournament stages are currently open for "Create Match"
