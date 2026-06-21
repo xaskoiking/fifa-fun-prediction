@@ -27,7 +27,7 @@
 | `public/vendor/flag-icons/flags/4x3/*.svg` | New — vendored SVGs, only the ~60 codes this app uses |
 | `public/index.html` | Add one `<link>` tag |
 | `server.js` | Extend `pollLiveScores` cache shape; add `getRecentForm()`; attach `homeTeamForm`/`awayTeamForm` to `GET /api/matches` |
-| `public/app.js` | Add `TEAM_COUNTRY_CODES`/`getTeamCountryCode()`; rewrite match-card team header + add form rows; add click-to-reveal flag label; delete dead tooltip code |
+| `public/app.js` | Add `TEAM_COUNTRY_CODES`/`getTeamCountryCode()`; rewrite match-card team header + form rows; add click-to-reveal flag label; delete dead tooltip code |
 | `public/style.css` | Add `.flag-circle`, `.team-rank`, `.team-form`, `.form-row`, `.form-score`, `.flag-name-label`; adjust `.team-flag` sizing |
 
 ---
@@ -199,7 +199,7 @@ git commit -m "feat: derive team recent-form from existing live-score poll cache
 
 **Interfaces:**
 - Consumes: `getRecentForm(teamName, limit)` from Task 2.
-- Produces: every object in the `GET /api/matches` JSON array gains `homeTeamForm` and `awayTeamForm` fields (same array shape as `getRecentForm`'s return value). Task 6 (client) consumes these exact field names.
+- Produces: every object in the `GET /api/matches` JSON array gains `homeTeamForm` and `awayTeamForm` fields (same array shape as `getRecentForm`'s return value). Task 5 (client) consumes these exact field names.
 
 - [ ] **Step 1: Attach the fields in the "started/resolved" branch**
 
@@ -284,7 +284,7 @@ git commit -m "feat: include recent-form data in /api/matches response"
 - Modify: `public/app.js` (new function, placed directly after `getTeamRanking`, i.e. after line 196)
 
 **Interfaces:**
-- Produces: `getTeamCountryCode(teamName)` → `string | null`. Tasks 5, 6, 7 consume this.
+- Produces: `getTeamCountryCode(teamName)` → `string | null`. Task 5 consumes this.
 
 - [ ] **Step 1: Add the table and lookup function**
 
@@ -332,15 +332,17 @@ git commit -m "feat: add team name to country-code lookup for flag rendering"
 
 ---
 
-### Task 5: Rewrite the match-card team header (ranking inline, circular flag, no info button)
+### Task 5: Render match-card team header with inline ranking, circular flag, and recent-form rows
 
 **Files:**
 - Modify: `public/app.js:1256-1272` (the `.match-teams` block inside `renderMatches()`)
+- Modify: `public/app.js` (two new helper functions: `buildFlagSpan`, `buildTeamFormHtml`, placed directly above `renderMatches()`, i.e. before app.js:1155)
 
 **Interfaces:**
-- Consumes: `getTeamCountryCode(teamName)` (Task 4), existing `getTeamRanking(teamName)` (app.js:176), existing `escapeHtml`.
+- Consumes: `getTeamCountryCode(teamName)` (Task 4), existing `getTeamRanking(teamName)` (app.js:176), existing `escapeHtml`, `match.homeTeamForm`/`match.awayTeamForm` (Task 3's shape: `Array<{opponent, result, scoreFor, scoreAgainst}>`), existing `getRecentResolvedMatchesForTeam(teamName, limit)` (app.js:2817, kept as the fallback data source).
+- Produces: `buildFlagSpan(teamName, extraClass)` → HTML string; `buildTeamFormHtml(teamName, apiForm)` → HTML string. Neither is consumed outside this task.
 
-- [ ] **Step 1: Add a small helper to build one team's flag span**
+- [ ] **Step 1: Add `buildFlagSpan` and `buildTeamFormHtml`**
 
 Insert directly above `function renderMatches()` (before app.js:1155):
 
@@ -349,6 +351,31 @@ function buildFlagSpan(teamName, extraClass) {
   const code = getTeamCountryCode(teamName);
   const fiClass = code ? `fi fi-${code}` : '';
   return `<span class="flag-circle ${extraClass} ${fiClass}" data-team="${escapeHtml(teamName)}"></span>`;
+}
+
+function buildTeamFormHtml(teamName, apiForm) {
+  let rows;
+  if (apiForm && apiForm.length > 0) {
+    rows = apiForm.map(f => ({
+      opponent: f.opponent,
+      middle: `${f.scoreFor}-${f.scoreAgainst}`
+    }));
+  } else {
+    const local = getRecentResolvedMatchesForTeam(teamName, 3);
+    rows = local.map(r => ({
+      opponent: r.opponent,
+      middle: r.result === 'Win' ? 'W' : r.result === 'Lost' ? 'L' : 'D'
+    }));
+  }
+  if (rows.length === 0) return '';
+  const rowsHtml = rows.map(r => `
+    <div class="form-row">
+      ${buildFlagSpan(teamName, 'form-flag')}
+      <span class="form-score">${escapeHtml(r.middle)}</span>
+      ${buildFlagSpan(r.opponent, 'form-flag')}
+    </div>
+  `).join('');
+  return `<div class="team-form">${rowsHtml}</div>`;
 }
 ```
 
@@ -400,92 +427,34 @@ with:
       </div>
 ```
 
-(`buildTeamFormHtml` is added in Task 6 — this task will not yet be syntactically runnable end-to-end until Task 6 lands, but `node -c` only checks syntax, not that every referenced function exists, so this is fine to commit as an incremental step.)
-
 - [ ] **Step 3: Verify syntax**
 
 Run: `node -c public/app.js`
 Expected: no output (exit code 0).
 
-- [ ] **Step 4: Manual trace**
+- [ ] **Step 4: Manual trace through both rendering paths**
 
-Confirm: the `ℹ️` button and its inline `team-info-btn` styling are gone; `buildFlagSpan` is called with the raw (non-escaped) team name and escapes it internally for the `data-team` attribute; `getTeamRanking(match.homeTeam) || '-'` renders `-` for an unranked team (since `getTeamRanking` returns `0` for unranked, and `0 || '-'` evaluates to `'-'`).
+API branch — given `match.homeTeamForm = [{ opponent: 'Brazil', result: 'W', scoreFor: 2, scoreAgainst: 1 }]` and `match.homeTeam = 'Mexico'`, confirm `buildTeamFormHtml` outputs one `.form-row` with a Mexico flag, the text `2-1`, and a Brazil flag.
+
+Fallback branch — given `match.homeTeamForm = []` and a local resolved match where Mexico beat Japan, confirm `getRecentResolvedMatchesForTeam('Mexico', 3)` (existing function, app.js:2817) returns `[{ opponent: 'Japan', result: 'Win', kickoff: ..., raw: ... }]`, which maps to `middle: 'W'`, producing one `.form-row` with a Mexico flag, the text `W`, and a Japan flag.
+
+Empty branch — given both `match.homeTeamForm = []` and no local resolved matches, confirm `rows.length === 0` returns `''` from `buildTeamFormHtml`, so nothing extra renders for that team (no empty-state text).
+
+Header — confirm the `ℹ️` button and its inline `team-info-btn` styling are gone; `buildFlagSpan` is called with the raw (non-escaped) team name and escapes it internally for the `data-team` attribute; `getTeamRanking(match.homeTeam) || '-'` renders `-` for an unranked team (since `getTeamRanking` returns `0` for unranked, and `0 || '-'` evaluates to `'-'`).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add public/app.js
-git commit -m "feat: render inline flag and ranking on match-card team headers"
+git commit -m "feat: render inline flag, ranking, and recent-form rows on match cards"
 ```
 
 ---
 
-### Task 6: Render recent-form rows (API data + local fallback)
+### Task 6: Click-to-reveal team name on flag tap
 
 **Files:**
-- Modify: `public/app.js` (new `buildTeamFormHtml` function, placed near `buildFlagSpan` from Task 5)
-
-**Interfaces:**
-- Consumes: `match.homeTeamForm`/`match.awayTeamForm` (Task 3's shape: `Array<{opponent, result, scoreFor, scoreAgainst}>`), existing `getRecentResolvedMatchesForTeam(teamName, limit)` (app.js:2817) as fallback, `getTeamCountryCode` (Task 4).
-- Produces: `buildTeamFormHtml(teamName, apiForm)` → HTML string, called from Task 5's template.
-
-- [ ] **Step 1: Add `buildTeamFormHtml`**
-
-Insert directly after `buildFlagSpan` (added in Task 5):
-
-```js
-function buildTeamFormHtml(teamName, apiForm) {
-  let rows;
-  if (apiForm && apiForm.length > 0) {
-    rows = apiForm.map(f => ({
-      opponent: f.opponent,
-      middle: `${f.scoreFor}-${f.scoreAgainst}`
-    }));
-  } else {
-    const local = getRecentResolvedMatchesForTeam(teamName, 3);
-    rows = local.map(r => ({
-      opponent: r.opponent,
-      middle: r.result === 'Win' ? 'W' : r.result === 'Lost' ? 'L' : 'D'
-    }));
-  }
-  if (rows.length === 0) return '';
-  const rowsHtml = rows.map(r => `
-    <div class="form-row">
-      ${buildFlagSpan(teamName, 'form-flag')}
-      <span class="form-score">${escapeHtml(r.middle)}</span>
-      ${buildFlagSpan(r.opponent, 'form-flag')}
-    </div>
-  `).join('');
-  return `<div class="team-form">${rowsHtml}</div>`;
-}
-```
-
-- [ ] **Step 2: Verify syntax**
-
-Run: `node -c public/app.js`
-Expected: no output (exit code 0).
-
-- [ ] **Step 3: Manual trace through both branches**
-
-API branch — given `apiForm = [{ opponent: 'Brazil', result: 'W', scoreFor: 2, scoreAgainst: 1 }]` and `teamName = 'Mexico'`, confirm the output is one `.form-row` with a Mexico flag, the text `2-1`, and a Brazil flag.
-
-Fallback branch — given `apiForm = []` and a local resolved match where Mexico beat Japan, confirm `getRecentResolvedMatchesForTeam('Mexico', 3)` (existing function, app.js:2817) returns `[{ opponent: 'Japan', result: 'Win', kickoff: ..., raw: ... }]`, which maps to `middle: 'W'`, producing one `.form-row` with a Mexico flag, the text `W`, and a Japan flag.
-
-Empty branch — given both `apiForm = []` and no local resolved matches, confirm `rows.length === 0` returns `''`, so `buildTeamFormHtml`'s caller renders nothing extra for that team (matches spec: omit the block entirely, no empty-state text).
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add public/app.js
-git commit -m "feat: render recent-form score rows under each team on match cards"
-```
-
----
-
-### Task 7: Click-to-reveal team name on flag tap
-
-**Files:**
-- Modify: `public/app.js` (new code, placed where the old tooltip listener attachment used to be called, i.e. near the end of the file)
+- Modify: `public/app.js` (new code, placed near the end of the file)
 
 **Interfaces:**
 - Consumes: `data-team` attribute already emitted by `buildFlagSpan` (Task 5).
@@ -493,7 +462,7 @@ git commit -m "feat: render recent-form score rows under each team on match card
 
 - [ ] **Step 1: Add the label element helper and click handler**
 
-Add near the bottom of `public/app.js` (this replaces the tooltip-related code that Task 8 will delete — for now, add it independently so it can be verified on its own):
+Add near the bottom of `public/app.js` (this replaces the tooltip-related code that Task 7 will delete — for now, add it independently so it can be verified on its own):
 
 ```js
 function getFlagNameLabel() {
@@ -552,13 +521,13 @@ git commit -m "feat: add click-to-reveal team name label on flag tap"
 
 ---
 
-### Task 8: Remove the old tooltip system (dead code)
+### Task 7: Remove the old tooltip system (dead code)
 
 **Files:**
 - Modify: `public/app.js` — delete the functions listed below and their call sites.
 
 **Interfaces:**
-- Nothing downstream depends on any of these — confirmed in Task analysis (`unescapeHtml` has no callers outside this block).
+- Nothing downstream depends on any of these — confirmed in plan analysis (`unescapeHtml` has no callers outside this block).
 
 - [ ] **Step 1: Delete the tooltip functions and DOM element creation**
 
@@ -568,7 +537,7 @@ Delete from `public/app.js`, in full:
 - `hideTeamTooltip` (app.js:2722-2733)
 - `attachTeamTooltipListeners` (app.js:2735-2803)
 - `unescapeHtml` (app.js:2806-2814)
-- `getRecentResolvedMatchesForTeam` is **kept** (it's the fallback data source used by Task 6's `buildTeamFormHtml` — do not delete)
+- `getRecentResolvedMatchesForTeam` is **kept** (it's the fallback data source used by Task 5's `buildTeamFormHtml` — do not delete)
 - `buildRecentMatchesHtml` (app.js:2838-2849)
 - `populateTeamTooltipWithMatches` (app.js:2852-2888)
 - `attachExtendedTeamTooltipBehavior` (app.js:2891-2935, including its trailing `MutationObserver` block)
@@ -601,13 +570,13 @@ git commit -m "refactor: remove dead hover/click team-info tooltip code"
 
 ---
 
-### Task 9: CSS for flags, ranking, form rows, and the name label
+### Task 8: CSS for flags, ranking, form rows, and the name label
 
 **Files:**
 - Modify: `public/style.css` (add new rules near the existing `.team`/`.team-name`/`.team-flag` rules, i.e. after line ~368)
 
 **Interfaces:**
-- Consumes: class names emitted by Tasks 5-7 (`flag-circle`, `team-flag`, `form-flag`, `team-rank`, `team-form`, `form-row`, `form-score`, `flag-name-label`).
+- Consumes: class names emitted by Tasks 5-6 (`flag-circle`, `team-flag`, `form-flag`, `team-rank`, `team-form`, `form-row`, `form-score`, `flag-name-label`).
 
 - [ ] **Step 1: Replace the `.team-flag` rule and add the new rules**
 
@@ -697,6 +666,6 @@ git commit -m "style: add circular flag, ranking, and recent-form row styles"
 
 ## Self-Review Notes
 
-- **Spec coverage:** §1 (server cache + helper) → Tasks 2-3. §2 (flag vendoring + lookup table) → Tasks 1, 4. §3.1-3.2 (header + form rows) → Tasks 5-6. §3.3 (fallback) → Task 6. §3.4 (click-to-reveal) → Task 7. §3.5 (removal) → Task 8. §4 (CSS) → Task 9.
-- **Type consistency:** `getRecentForm` (Task 2) returns `{opponent, result, scoreFor, scoreAgainst}` — Task 6's `buildTeamFormHtml` destructures exactly those four fields. `buildFlagSpan(teamName, extraClass)` (Task 5) is called identically in Tasks 5 and 6 with `'team-flag'`/`'form-flag'` as the second argument, matching the CSS classes Task 9 defines.
-- **Ordering dependency:** Task 5 references `buildTeamFormHtml` before Task 6 defines it — called out explicitly in Task 5 Step 2 as an expected, harmless intermediate state (syntax-valid, just not runtime-complete until Task 6 lands). If executing tasks out of order, do Tasks 5 and 6 back-to-back.
+- **Spec coverage:** §1 (server cache + helper) → Tasks 2-3. §2 (flag vendoring + lookup table) → Tasks 1, 4. §3.1-3.2 (header + form rows) → Task 5. §3.3 (fallback) → Task 5. §3.4 (click-to-reveal) → Task 6. §3.5 (removal) → Task 7. §4 (CSS) → Task 8.
+- **Type consistency:** `getRecentForm` (Task 2) returns `{opponent, result, scoreFor, scoreAgainst}` — Task 5's `buildTeamFormHtml` destructures exactly those four fields. `buildFlagSpan(teamName, extraClass)` (Task 5) is called with `'team-flag'`/`'form-flag'` as the second argument, matching the CSS classes Task 8 defines.
+- **Task boundary fix:** the original draft split the header rewrite and the form-row rendering into separate tasks; merged into one Task 5 because the header markup calls `buildTeamFormHtml`, making the two inseparable for review purposes (a reviewer could not approve one without the other existing).
