@@ -3,9 +3,12 @@ name: Deploy PR Review App
 # Spins up a dedicated Cloud Run service + GCS bucket for each PR.
 # The bucket is seeded from the staging snapshot so you get realistic data.
 # Re-runs on every push to the PR branch, updating the same service.
+# Only runs for PRs targeting staging — not main (e.g. the staging->main
+# promotion PR never gets a review app).
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    branches: [staging]
 
 permissions:
   contents: read
@@ -57,7 +60,7 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --max-instances 1 \
-            --set-env-vars GCS_BUCKET_NAME=$BUCKET${FOOTBALL_KEY:+,FOOTBALL_DATA_API_KEY=$FOOTBALL_KEY}
+            --set-env-vars GCS_BUCKET_NAME=$BUCKET,APP_ENV=review,PR_NUMBER=${{ github.event.pull_request.number }}${FOOTBALL_KEY:+,FOOTBALL_DATA_API_KEY=$FOOTBALL_KEY}
         env:
           FOOTBALL_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
 

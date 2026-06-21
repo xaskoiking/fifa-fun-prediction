@@ -63,7 +63,8 @@ const addMatchMessage = document.getElementById('addMatchMessage');
 document.addEventListener('DOMContentLoaded', () => {
   setupUser();
   startIntervals();
-  
+  loadEnvBadge();
+
   // Switch/Change User button listener (logs out current session)
   changeUserBtn.addEventListener('click', () => {
     localStorage.removeItem('soccer_prediction_username');
@@ -78,6 +79,29 @@ document.addEventListener('DOMContentLoaded', () => {
     usernameInput.focus();
   });
 });
+
+// Fetch environment info and show a STAGING/REVIEW pill in the header (no-op on prod)
+function loadEnvBadge() {
+  fetch('/api/env')
+    .then(res => res.json())
+    .then(data => {
+      const pill = document.getElementById('envPill');
+      if (!pill || !data) return;
+
+      if (data.env === 'staging') {
+        pill.textContent = 'STAGING';
+        pill.classList.add('env-pill--staging');
+      } else if (data.env === 'review') {
+        pill.textContent = data.pr ? `REVIEW · PR #${data.pr}` : 'REVIEW';
+        pill.classList.add('env-pill--review');
+      } else {
+        return; // prod (or unknown) — leave hidden
+      }
+
+      pill.style.display = 'inline-flex';
+    })
+    .catch(() => {}); // fetch failure is treated the same as prod — pill stays hidden
+}
 
 // Setup User Identification
 function setupUser() {
