@@ -450,7 +450,9 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
           away: match.votes.away.length,
           draw: match.votes.draw ? match.votes.draw.length : 0
         },
-        voters: match.votes
+        voters: match.votes,
+        homeTeamForm: getRecentForm(match.homeTeam),
+        awayTeamForm: getRecentForm(match.awayTeam)
       };
     } else {
       // Hide details before kickoff
@@ -474,7 +476,9 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
           away: null,
           draw: null
         },
-        voters: null
+        voters: null,
+        homeTeamForm: getRecentForm(match.homeTeam),
+        awayTeamForm: getRecentForm(match.awayTeam)
       };
     }
   });
