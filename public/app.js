@@ -1198,7 +1198,7 @@ function buildTeamFormHtml(teamName, apiForm) {
   if (rows.length === 0) return '';
   const resultClass = { W: 'form-score-win', L: 'form-score-loss', D: 'form-score-draw' };
   const rowsHtml = rows.map(r => `
-    <div class="form-row">
+    <div class="team-form-row">
       ${buildFlagSpan(teamName, 'flag-circle form-flag')}
       <span class="form-score ${resultClass[r.result] || ''}">${escapeHtml(r.middle)}</span>
       ${buildFlagSpan(r.opponent, 'flag-circle form-flag')}
