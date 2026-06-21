@@ -2996,5 +2996,42 @@ function attachExtendedTeamTooltipBehavior() {
   observer.observe(tt, { attributes: true, attributeFilter: ['style'] });
 }
 
+function getFlagNameLabel() {
+  let label = document.getElementById('flag-name-label');
+  if (!label) {
+    label = document.createElement('div');
+    label.id = 'flag-name-label';
+    label.className = 'flag-name-label';
+    label.style.display = 'none';
+    document.body.appendChild(label);
+  }
+  return label;
+}
+
+function showFlagNameLabel(flagEl, teamName) {
+  const label = getFlagNameLabel();
+  label.textContent = teamName;
+  const rect = flagEl.getBoundingClientRect();
+  label.style.left = `${Math.round(rect.left)}px`;
+  label.style.top = `${Math.round(rect.bottom + 6)}px`;
+  label.style.display = 'block';
+  label.dataset.forFlag = teamName;
+}
+
+function hideFlagNameLabel() {
+  const label = document.getElementById('flag-name-label');
+  if (label) label.style.display = 'none';
+}
+
+document.addEventListener('click', (e) => {
+  const flag = e.target.closest('.flag-circle[data-team]');
+  const label = document.getElementById('flag-name-label');
+  const wasShowingForThisFlag = flag && label && label.style.display === 'block' && label.dataset.forFlag === flag.dataset.team;
+  hideFlagNameLabel();
+  if (flag && !wasShowingForThisFlag) {
+    showFlagNameLabel(flag, flag.dataset.team);
+  }
+});
+
 // Initialize extended behavior
 attachExtendedTeamTooltipBehavior();
