@@ -1062,7 +1062,7 @@ const TEAM_NAME_ALIASES = {
   'türkiye':              'turkey',
   'cape verde':           'cape verde islands',
   'dr congo':             'congo dr',
-  'bosnia & herzegovina': 'bosnia and herzegovina',
+  'bosnia & herzegovina': 'bosnia-herzegovina',
 };
 function normalizeTeam(name) {
   const lower = name.trim().toLowerCase();
