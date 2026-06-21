@@ -66,7 +66,7 @@ Emoji flags (current `getTeamFlag()`, app.js:165-174) don't render on Windows an
 
 ### 2.2 Team name → country code table
 
-Replace `getTeamFlag()` entirely with a name→ISO-code lookup, reusing the same ~48 team-name keys already in `getTeamRanking()` (app.js:177-195):
+Add a new name→ISO-code lookup, reusing the same ~48 team-name keys already in `getTeamRanking()` (app.js:177-195). `getTeamFlag()` (app.js:165-174) is left untouched — it's still used by the Results tab (app.js:1382, 1384) and the Admin fixtures preview (app.js:2517, 2521), both out of scope for this change:
 
 ```js
 const TEAM_COUNTRY_CODES = {
@@ -150,7 +150,7 @@ document.addEventListener('click', (e) => {
 
 ### 3.5 Removed
 
-Delete entirely (now dead code): `createTeamTooltipElement`, `showTeamTooltipForElement`, `hideTeamTooltip`, `attachTeamTooltipListeners`, `attachExtendedTeamTooltipBehavior`, `populateTeamTooltipWithMatches`, `buildRecentMatchesHtml`, `unescapeHtml` (only used by the removed tooltip code — confirm no other callers before deleting), the `#team-ranking-tooltip` DOM element, and the `.team-info-btn` markup/CSS. `getTeamFlag()` is replaced by `getTeamCountryCode()`. `getTeamRanking()` is unchanged.
+Delete entirely (now dead code): `createTeamTooltipElement`, `showTeamTooltipForElement`, `hideTeamTooltip`, `attachTeamTooltipListeners`, `attachExtendedTeamTooltipBehavior`, `populateTeamTooltipWithMatches`, `buildRecentMatchesHtml`, `unescapeHtml` (confirmed only used by the removed tooltip code — no other callers), the `#team-ranking-tooltip` DOM element, and the `.team-info-btn` markup/CSS. The call site `attachExtendedTeamTooltipBehavior();` (module load, app.js:~2944) is removed along with the function. `getTeamFlag()` and `getTeamRanking()` are both unchanged (still used elsewhere).
 
 ---
 
