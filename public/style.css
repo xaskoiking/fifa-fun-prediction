@@ -373,8 +373,10 @@ body {
 }
 
 .team-flag {
-  width: 32px;
-  height: 32px;
+  display: inline-block;
+  font-size: 32px;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .form-flag {

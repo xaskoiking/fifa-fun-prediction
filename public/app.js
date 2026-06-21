@@ -1177,7 +1177,7 @@ function updateNotVotedAlert(count) {
 function buildFlagSpan(teamName, extraClass) {
   const code = getTeamCountryCode(teamName);
   const fiClass = code ? `fi fi-${code}` : '';
-  return `<span class="flag-circle ${extraClass} ${fiClass}" data-team="${escapeHtml(teamName)}"></span>`;
+  return `<span class="${extraClass} ${fiClass}" data-team="${escapeHtml(teamName)}"></span>`;
 }
 
 function buildTeamFormHtml(teamName, apiForm) {
@@ -1197,9 +1197,9 @@ function buildTeamFormHtml(teamName, apiForm) {
   if (rows.length === 0) return '';
   const rowsHtml = rows.map(r => `
     <div class="form-row">
-      ${buildFlagSpan(teamName, 'form-flag')}
+      ${buildFlagSpan(teamName, 'flag-circle form-flag')}
       <span class="form-score">${escapeHtml(r.middle)}</span>
-      ${buildFlagSpan(r.opponent, 'form-flag')}
+      ${buildFlagSpan(r.opponent, 'flag-circle form-flag')}
     </div>
   `).join('');
   return `<div class="team-form">${rowsHtml}</div>`;
@@ -2767,7 +2767,7 @@ function hideFlagNameLabel() {
 }
 
 document.addEventListener('click', (e) => {
-  const flag = e.target.closest('.flag-circle[data-team]');
+  const flag = e.target.closest('[data-team]');
   const label = document.getElementById('flag-name-label');
   const wasShowingForThisFlag = flag && label && label.style.display === 'block' && label.dataset.forFlag === flag.dataset.team;
   hideFlagNameLabel();
