@@ -187,12 +187,34 @@ function getTeamRanking(teamName) {
     'wales': 37, 'sweden': 38, 'hungary': 39, 'czechia': 40,
     'paraguay': 41, 'scotland': 42, 'serbia': 43, 'cameroon': 44,
     'tunisia': 45, 'dr congo': 46, 'slovakia': 47, 'greece': 48,
-    'qatar': 56, 'iraq': 57, 'south africa': 60, 
+    'qatar': 56, 'iraq': 57, 'south africa': 60,
     'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64,
     'cape verde': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
     'new zealand': 85, 'uzbekistan': 50
   };
   return ranks[teamName.toLowerCase().trim()] || 0;
+}
+
+function getTeamCountryCode(teamName) {
+  const codes = {
+    'argentina': 'ar', 'france': 'fr', 'brazil': 'br', 'germany': 'de',
+    'spain': 'es', 'italy': 'it', 'england': 'gb-eng', 'usa': 'us',
+    'portugal': 'pt', 'belgium': 'be', 'netherlands': 'nl', 'uruguay': 'uy',
+    'mexico': 'mx', 'canada': 'ca', 'croatia': 'hr', 'morocco': 'ma',
+    'japan': 'jp', 'senegal': 'sn', 'switzerland': 'ch', 'denmark': 'dk',
+    'colombia': 'co', 'iran': 'ir', 'türkiye': 'tr', 'australia': 'au',
+    'ecuador': 'ec', 'austria': 'at', 'south korea': 'kr', 'nigeria': 'ng',
+    'algeria': 'dz', 'egypt': 'eg', 'ukraine': 'ua', 'norway': 'no',
+    'ivory coast': 'ci', 'panama': 'pa', 'russia': 'ru', 'poland': 'pl',
+    'wales': 'gb-wls', 'sweden': 'se', 'hungary': 'hu', 'czechia': 'cz',
+    'paraguay': 'py', 'scotland': 'gb-sct', 'serbia': 'rs', 'cameroon': 'cm',
+    'tunisia': 'tn', 'dr congo': 'cd', 'slovakia': 'sk', 'greece': 'gr',
+    'qatar': 'qa', 'iraq': 'iq', 'south africa': 'za',
+    'saudi arabia': 'sa', 'jordan': 'jo', 'bosnia & herzegovina': 'ba',
+    'cape verde': 'cv', 'curaçao': 'cw', 'ghana': 'gh', 'haiti': 'ht',
+    'new zealand': 'nz', 'uzbekistan': 'uz'
+  };
+  return codes[teamName.toLowerCase().trim()] || null;
 }
 
 // Fetch matches (requires passcode header)
