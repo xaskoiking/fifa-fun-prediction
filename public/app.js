@@ -1374,11 +1374,12 @@ function renderResults() {
     const isWinnerDraw = isResolved && match.outcome === 'draw';
 
     // Result Outcome text
+    const scoreText = match.score ? ` (${match.score.scoreHome}-${match.score.scoreAway})` : '';
     let outcomeText = '';
     if (isResolved) {
-      if (match.outcome === 'home') outcomeText = `${escapeHtml(match.homeTeam)} Win`;
-      else if (match.outcome === 'away') outcomeText = `${escapeHtml(match.awayTeam)} Win`;
-      else outcomeText = 'Draw';
+      if (match.outcome === 'home') outcomeText = `${escapeHtml(match.homeTeam)} Win${scoreText}`;
+      else if (match.outcome === 'away') outcomeText = `${escapeHtml(match.awayTeam)} Win${scoreText}`;
+      else outcomeText = `Draw${scoreText}`;
     } else {
       outcomeText = '<span style="color: var(--color-warning); font-weight: bold;">Locked / Live</span>';
     }

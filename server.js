@@ -452,7 +452,8 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         },
         voters: match.votes,
         homeTeamForm: getRecentForm(match.homeTeam),
-        awayTeamForm: getRecentForm(match.awayTeam)
+        awayTeamForm: getRecentForm(match.awayTeam),
+        score: getMatchScore(match.homeTeam, match.awayTeam)
       };
     } else {
       // Hide details before kickoff
@@ -1148,6 +1149,18 @@ function getRecentForm(teamName, limit = 3) {
         scoreAgainst
       };
     });
+}
+
+function getMatchScore(homeTeam, awayTeam) {
+  const homeNorm = normalizeTeam(homeTeam);
+  const awayNorm = normalizeTeam(awayTeam);
+  const entry = _liveScoresCache.find(m =>
+    m.status === 'FINISHED' &&
+    normalizeTeam(m.homeTeam) === homeNorm &&
+    normalizeTeam(m.awayTeam) === awayNorm
+  );
+  if (!entry || entry.scoreHome === null || entry.scoreAway === null) return null;
+  return { scoreHome: entry.scoreHome, scoreAway: entry.scoreAway };
 }
 
 // Get which tournament stages are currently open for "Create Match"
