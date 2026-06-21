@@ -189,7 +189,7 @@ function getTeamRanking(teamName) {
     'tunisia': 45, 'dr congo': 46, 'slovakia': 47, 'greece': 48,
     'qatar': 56, 'iraq': 57, 'south africa': 60,
     'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64,
-    'cape verde': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
+    'cape verde': 67, 'cape verde islands': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
     'new zealand': 85, 'uzbekistan': 50
   };
   return ranks[teamName.toLowerCase().trim()] || 0;
@@ -211,7 +211,7 @@ function getTeamCountryCode(teamName) {
     'tunisia': 'tn', 'dr congo': 'cd', 'slovakia': 'sk', 'greece': 'gr',
     'qatar': 'qa', 'iraq': 'iq', 'south africa': 'za',
     'saudi arabia': 'sa', 'jordan': 'jo', 'bosnia & herzegovina': 'ba',
-    'cape verde': 'cv', 'curaçao': 'cw', 'ghana': 'gh', 'haiti': 'ht',
+    'cape verde': 'cv', 'cape verde islands': 'cv', 'curaçao': 'cw', 'ghana': 'gh', 'haiti': 'ht',
     'new zealand': 'nz', 'uzbekistan': 'uz'
   };
   return codes[teamName.toLowerCase().trim()] || null;
