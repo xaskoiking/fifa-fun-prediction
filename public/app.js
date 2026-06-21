@@ -1174,6 +1174,37 @@ function updateNotVotedAlert(count) {
   }
 }
 
+function buildFlagSpan(teamName, extraClass) {
+  const code = getTeamCountryCode(teamName);
+  const fiClass = code ? `fi fi-${code}` : '';
+  return `<span class="flag-circle ${extraClass} ${fiClass}" data-team="${escapeHtml(teamName)}"></span>`;
+}
+
+function buildTeamFormHtml(teamName, apiForm) {
+  let rows;
+  if (apiForm && apiForm.length > 0) {
+    rows = apiForm.map(f => ({
+      opponent: f.opponent,
+      middle: `${f.scoreFor}-${f.scoreAgainst}`
+    }));
+  } else {
+    const local = getRecentResolvedMatchesForTeam(teamName, 3);
+    rows = local.map(r => ({
+      opponent: r.opponent,
+      middle: r.result === 'Win' ? 'W' : r.result === 'Lost' ? 'L' : 'D'
+    }));
+  }
+  if (rows.length === 0) return '';
+  const rowsHtml = rows.map(r => `
+    <div class="form-row">
+      ${buildFlagSpan(teamName, 'form-flag')}
+      <span class="form-score">${escapeHtml(r.middle)}</span>
+      ${buildFlagSpan(r.opponent, 'form-flag')}
+    </div>
+  `).join('');
+  return `<div class="team-form">${rowsHtml}</div>`;
+}
+
 function renderMatches() {
   matchesGrid.innerHTML = '';
   const now = new Date();
@@ -1277,19 +1308,21 @@ function renderMatches() {
       </div>
       <div class="match-teams">
         <div class="team">
-          <span class="team-flag">${getTeamFlag(match.homeTeam)}</span>
-          <span style="display:flex; align-items:center; gap:8px;">
+          ${buildFlagSpan(match.homeTeam, 'team-flag')}
+          <span style="display:flex; align-items:center; gap:6px;">
             <span class="team-name" title="${escapeHtml(match.homeTeam)}">${escapeHtml(match.homeTeam)}</span>
-            <button class="team-info-btn" data-team="${escapeHtml(match.homeTeam)}" title="Team info" aria-label="Team info" style="background:transparent; border:none; color:var(--text-muted); font-size:0.9rem; padding:2px 6px; cursor:pointer;">ℹ️</button>
+            <span class="team-rank">#${getTeamRanking(match.homeTeam) || '-'}</span>
           </span>
+          ${buildTeamFormHtml(match.homeTeam, match.homeTeamForm)}
         </div>
         <div class="vs-divider">VS</div>
         <div class="team">
-          <span class="team-flag">${getTeamFlag(match.awayTeam)}</span>
-          <span style="display:flex; align-items:center; gap:8px;">
+          ${buildFlagSpan(match.awayTeam, 'team-flag')}
+          <span style="display:flex; align-items:center; gap:6px;">
             <span class="team-name" title="${escapeHtml(match.awayTeam)}">${escapeHtml(match.awayTeam)}</span>
-            <button class="team-info-btn" data-team="${escapeHtml(match.awayTeam)}" title="Team info" aria-label="Team info" style="background:transparent; border:none; color:var(--text-muted); font-size:0.9rem; padding:2px 6px; cursor:pointer;">ℹ️</button>
+            <span class="team-rank">#${getTeamRanking(match.awayTeam) || '-'}</span>
           </span>
+          ${buildTeamFormHtml(match.awayTeam, match.awayTeamForm)}
         </div>
       </div>
       <div class="match-meta" style="justify-content: center; font-size: 0.75rem;">
