@@ -1058,9 +1058,11 @@ const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED', 'FINISHED']);
 
 // Aliases from DB names → canonical API names (all lowercase)
 const TEAM_NAME_ALIASES = {
-  'usa':        'united states',
-  'türkiye':    'turkey',
-  'cape verde': 'cape verde islands',
+  'usa':                  'united states',
+  'türkiye':              'turkey',
+  'cape verde':           'cape verde islands',
+  'dr congo':             'congo dr',
+  'bosnia & herzegovina': 'bosnia and herzegovina',
 };
 function normalizeTeam(name) {
   const lower = name.trim().toLowerCase();

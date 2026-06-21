@@ -188,7 +188,7 @@ function getTeamRanking(teamName) {
     'paraguay': 41, 'scotland': 42, 'serbia': 43, 'cameroon': 44,
     'tunisia': 45, 'dr congo': 46, 'congo dr': 46, 'slovakia': 47, 'greece': 48,
     'qatar': 56, 'iraq': 57, 'south africa': 60,
-    'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64,
+    'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64, 'bosnia and herzegovina': 64,
     'cape verde': 67, 'cape verde islands': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
     'new zealand': 85, 'uzbekistan': 50
   };
@@ -210,7 +210,7 @@ function getTeamCountryCode(teamName) {
     'paraguay': 'py', 'scotland': 'gb-sct', 'serbia': 'rs', 'cameroon': 'cm',
     'tunisia': 'tn', 'dr congo': 'cd', 'congo dr': 'cd', 'slovakia': 'sk', 'greece': 'gr',
     'qatar': 'qa', 'iraq': 'iq', 'south africa': 'za',
-    'saudi arabia': 'sa', 'jordan': 'jo', 'bosnia & herzegovina': 'ba',
+    'saudi arabia': 'sa', 'jordan': 'jo', 'bosnia & herzegovina': 'ba', 'bosnia and herzegovina': 'ba',
     'cape verde': 'cv', 'cape verde islands': 'cv', 'curaçao': 'cw', 'ghana': 'gh', 'haiti': 'ht',
     'new zealand': 'nz', 'uzbekistan': 'uz'
   };
