@@ -1381,11 +1381,11 @@ function renderResults() {
       const scoreMid = match.score ? `${match.score.scoreHome}-${match.score.scoreAway}` : (isWinnerDraw ? 'Draw' : 'Win');
       outcomeText = `
         <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
-          ${buildFlagSpan(match.homeTeam, 'flag-circle form-flag')}
+          ${buildFlagSpan(match.homeTeam, 'result-flag')}
           <span>${homeNameHtml}</span>
           <span class="form-score">${escapeHtml(scoreMid)}</span>
           <span>${awayNameHtml}</span>
-          ${buildFlagSpan(match.awayTeam, 'flag-circle form-flag')}
+          ${buildFlagSpan(match.awayTeam, 'result-flag')}
         </span>
       `;
     } else {
