@@ -28,10 +28,13 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 const APP_ENV = process.env.APP_ENV || 'prod';
 const PR_NUMBER = process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null;
 
+<<<<<<< HEAD
 // Initialize cache with a 24-hour expiration (86400 seconds)
 const appCache = new NodeCache({ stdTTL: 86400 }); 
 const CACHE_KEY = 'world_football_ranking';
 
+=======
+>>>>>>> 046ea5a (Add environment indicator pill + scope/tag CI workflows (#23) (#25))
 // ── Admin / default-credential configuration ─────────────────────────────────
 // For production, set ADMIN_PASSCODE in the environment. When set, it overrides
 // the adminPasscode stored in data.json (which ships as the placeholder below).
