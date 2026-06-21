@@ -1374,12 +1374,20 @@ function renderResults() {
     const isWinnerDraw = isResolved && match.outcome === 'draw';
 
     // Result Outcome text
-    const scoreText = match.score ? ` (${match.score.scoreHome}-${match.score.scoreAway})` : '';
     let outcomeText = '';
     if (isResolved) {
-      if (match.outcome === 'home') outcomeText = `${escapeHtml(match.homeTeam)} Win${scoreText}`;
-      else if (match.outcome === 'away') outcomeText = `${escapeHtml(match.awayTeam)} Win${scoreText}`;
-      else outcomeText = `Draw${scoreText}`;
+      const homeNameHtml = isWinnerHome ? `<strong>${escapeHtml(match.homeTeam)}</strong>` : escapeHtml(match.homeTeam);
+      const awayNameHtml = isWinnerAway ? `<strong>${escapeHtml(match.awayTeam)}</strong>` : escapeHtml(match.awayTeam);
+      const scoreMid = match.score ? `${match.score.scoreHome}-${match.score.scoreAway}` : (isWinnerDraw ? 'Draw' : 'Win');
+      outcomeText = `
+        <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
+          ${buildFlagSpan(match.homeTeam, 'flag-circle form-flag')}
+          <span>${homeNameHtml}</span>
+          <span class="form-score">${escapeHtml(scoreMid)}</span>
+          <span>${awayNameHtml}</span>
+          ${buildFlagSpan(match.awayTeam, 'flag-circle form-flag')}
+        </span>
+      `;
     } else {
       outcomeText = '<span style="color: var(--color-warning); font-weight: bold;">Locked / Live</span>';
     }
@@ -1443,7 +1451,7 @@ function renderResults() {
       <td data-label="Kickoff (Local)" style="color: var(--text-muted); font-size: 0.8rem;">
         ${dateStr}
       </td>
-      <td data-label="Result" style="text-align: center; font-weight: 800;">
+      <td data-label="Result" style="text-align: center;">
         ${outcomeText}
       </td>
       <td data-label="Your Pick" style="text-align: center; font-weight: 700;" class="${pickClass}">
