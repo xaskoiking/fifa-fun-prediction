@@ -1442,9 +1442,9 @@ function renderResults() {
         ${escapeHtml(match.group || match.matchType)}
       </td>
       <td data-label="Matchup" style="font-weight: 700;">
-        <span>${getTeamFlag(match.homeTeam)} ${escapeHtml(match.homeTeam)}</span>
+        <span>${buildFlagSpan(match.homeTeam, 'result-flag')} ${escapeHtml(match.homeTeam)}</span>
         <span style="color: var(--text-muted); font-size: 0.75rem; padding: 0 4px; font-weight: normal;">vs</span>
-        <span>${escapeHtml(match.awayTeam)} ${getTeamFlag(match.awayTeam)}</span>
+        <span>${escapeHtml(match.awayTeam)} ${buildFlagSpan(match.awayTeam, 'result-flag')}</span>
       </td>
       <td data-label="Kickoff (Local)" style="color: var(--text-muted); font-size: 0.8rem;">
         ${dateStr}
