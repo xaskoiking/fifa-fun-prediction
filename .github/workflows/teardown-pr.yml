@@ -3,9 +3,11 @@ name: Teardown PR Review App
 # Deletes the Cloud Run service and GCS bucket created for a PR when it closes
 # (merged or abandoned). Errors are suppressed so a missing resource never
 # blocks the cleanup step.
+# Scoped to the same PRs deploy-pr.yml creates review apps for (base: staging).
 on:
   pull_request:
     types: [closed]
+    branches: [staging]
 
 permissions:
   contents: read

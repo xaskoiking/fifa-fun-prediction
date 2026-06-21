@@ -56,3 +56,65 @@ jobs:
           echo "Production is live at:"
           gcloud run services describe "$SERVICE" --project "$PROJECT_ID" \
             --region "$REGION" --format='value(status.url)'
+
+  # Tags this commit with the next semver version, once the production
+  # deploy above has succeeded. Bump type comes from a label on the PR that
+  # was merged into main: "release:major" or "release:patch". With neither
+  # label, the bump defaults to minor.
+  tag-release:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Check out the code (full history, so existing tags are visible)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine bump type from the merged PR's label
+        id: bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LABELS=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '.[0].labels[].name' 2>/dev/null || true)
+
+          if echo "$LABELS" | grep -qx "release:major"; then
+            BUMP=major
+          elif echo "$LABELS" | grep -qx "release:patch"; then
+            BUMP=patch
+          else
+            BUMP=minor   # default when neither release:major nor release:patch is set
+          fi
+
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "Resolved bump type: $BUMP (PR labels: ${LABELS:-none})"
+
+      - name: Compute the next version from the latest tag
+        id: version
+        run: |
+          LATEST=$(git tag -l | grep -iE '^v[0-9]+(\.[0-9]+){1,2}$' \
+            | sed -E 's/^V/v/; s/^(v[0-9]+\.[0-9]+)$/\1.0/' \
+            | sort -V | tail -n1)
+          LATEST=${LATEST:-v0.0.0}
+
+          IFS=. read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
+
+          case "${{ steps.bump.outputs.bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+          echo "Latest tag: $LATEST -> New tag: $NEW_TAG"
+
+      - name: Create and push the release tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
