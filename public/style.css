@@ -389,6 +389,11 @@ body {
   font-size: 16px;
   cursor: pointer;
   flex-shrink: 0;
+  border-radius: 3px;
+}
+
+.result-flag-winner {
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 .team-rank {

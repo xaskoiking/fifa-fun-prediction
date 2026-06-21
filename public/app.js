@@ -1376,16 +1376,14 @@ function renderResults() {
     // Result Outcome text
     let outcomeText = '';
     if (isResolved) {
-      const homeNameHtml = isWinnerHome ? `<strong>${escapeHtml(match.homeTeam)}</strong>` : escapeHtml(match.homeTeam);
-      const awayNameHtml = isWinnerAway ? `<strong>${escapeHtml(match.awayTeam)}</strong>` : escapeHtml(match.awayTeam);
+      const homeFlagClass = isWinnerHome ? 'result-flag result-flag-winner' : 'result-flag';
+      const awayFlagClass = isWinnerAway ? 'result-flag result-flag-winner' : 'result-flag';
       const scoreMid = match.score ? `${match.score.scoreHome}-${match.score.scoreAway}` : (isWinnerDraw ? 'Draw' : 'Win');
       outcomeText = `
         <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
-          ${buildFlagSpan(match.homeTeam, 'result-flag')}
-          <span>${homeNameHtml}</span>
+          ${buildFlagSpan(match.homeTeam, homeFlagClass)}
           <span class="form-score">${escapeHtml(scoreMid)}</span>
-          <span>${awayNameHtml}</span>
-          ${buildFlagSpan(match.awayTeam, 'result-flag')}
+          ${buildFlagSpan(match.awayTeam, awayFlagClass)}
         </span>
       `;
     } else {
