@@ -1185,20 +1185,22 @@ function buildTeamFormHtml(teamName, apiForm) {
   if (apiForm && apiForm.length > 0) {
     rows = apiForm.map(f => ({
       opponent: f.opponent,
-      middle: `${f.scoreFor}-${f.scoreAgainst}`
+      middle: `${f.scoreFor}-${f.scoreAgainst}`,
+      result: f.result
     }));
   } else {
     const local = getRecentResolvedMatchesForTeam(teamName, 3);
-    rows = local.map(r => ({
-      opponent: r.opponent,
-      middle: r.result === 'Win' ? 'W' : r.result === 'Lost' ? 'L' : 'D'
-    }));
+    rows = local.map(r => {
+      const result = r.result === 'Win' ? 'W' : r.result === 'Lost' ? 'L' : 'D';
+      return { opponent: r.opponent, middle: result, result };
+    });
   }
   if (rows.length === 0) return '';
+  const resultClass = { W: 'form-score-win', L: 'form-score-loss', D: 'form-score-draw' };
   const rowsHtml = rows.map(r => `
     <div class="form-row">
       ${buildFlagSpan(teamName, 'flag-circle form-flag')}
-      <span class="form-score">${escapeHtml(r.middle)}</span>
+      <span class="form-score ${resultClass[r.result] || ''}">${escapeHtml(r.middle)}</span>
       ${buildFlagSpan(r.opponent, 'flag-circle form-flag')}
     </div>
   `).join('');

@@ -410,6 +410,23 @@ body {
   color: var(--text-muted);
   min-width: 20px;
   text-align: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.form-score-win {
+  background: var(--color-accent);
+  color: #07130b;
+}
+
+.form-score-loss {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.form-score-draw {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
 }
 
 .flag-name-label {
