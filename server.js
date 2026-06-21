@@ -459,7 +459,10 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
           away: match.votes.away.length,
           draw: match.votes.draw ? match.votes.draw.length : 0
         },
-        voters: match.votes
+        voters: match.votes,
+        homeTeamForm: getRecentForm(match.homeTeam),
+        awayTeamForm: getRecentForm(match.awayTeam),
+        score: getMatchScore(match.homeTeam, match.awayTeam)
       };
     } else {
       // Hide details before kickoff
@@ -483,7 +486,9 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
           away: null,
           draw: null
         },
-        voters: null
+        voters: null,
+        homeTeamForm: getRecentForm(match.homeTeam),
+        awayTeamForm: getRecentForm(match.awayTeam)
       };
     }
   });
@@ -1062,9 +1067,11 @@ const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED', 'FINISHED']);
 
 // Aliases from DB names → canonical API names (all lowercase)
 const TEAM_NAME_ALIASES = {
-  'usa':        'united states',
-  'türkiye':    'turkey',
-  'cape verde': 'cape verde islands',
+  'usa':                  'united states',
+  'türkiye':              'turkey',
+  'cape verde':           'cape verde islands',
+  'dr congo':             'congo dr',
+  'bosnia & herzegovina': 'bosnia-herzegovina',
 };
 function normalizeTeam(name) {
   const lower = name.trim().toLowerCase();
@@ -1122,13 +1129,49 @@ async function pollLiveScores() {
           awayTeam: m.awayTeam?.name || '',
           scoreHome: ft.home ?? null,
           scoreAway: ft.away ?? null,
-          status: m.status
+          status: m.status,
+          utcDate: m.utcDate
         };
       });
     console.log(`[LIVE] Cache updated: ${_liveScoresCache.length} live/finished match(es)`);
   } catch (err) {
     console.error('[LIVE] Poll failed:', err.message);
   }
+}
+
+function getRecentForm(teamName, limit = 3) {
+  const normalized = normalizeTeam(teamName);
+  return _liveScoresCache
+    .filter(m => m.status === 'FINISHED')
+    .filter(m => normalizeTeam(m.homeTeam) === normalized || normalizeTeam(m.awayTeam) === normalized)
+    .sort((a, b) => new Date(b.utcDate) - new Date(a.utcDate))
+    .slice(0, limit)
+    .map(m => {
+      const isHome = normalizeTeam(m.homeTeam) === normalized;
+      const scoreFor = isHome ? m.scoreHome : m.scoreAway;
+      const scoreAgainst = isHome ? m.scoreAway : m.scoreHome;
+      let result = 'D';
+      if (scoreFor > scoreAgainst) result = 'W';
+      else if (scoreFor < scoreAgainst) result = 'L';
+      return {
+        opponent: isHome ? m.awayTeam : m.homeTeam,
+        result,
+        scoreFor,
+        scoreAgainst
+      };
+    });
+}
+
+function getMatchScore(homeTeam, awayTeam) {
+  const homeNorm = normalizeTeam(homeTeam);
+  const awayNorm = normalizeTeam(awayTeam);
+  const entry = _liveScoresCache.find(m =>
+    m.status === 'FINISHED' &&
+    normalizeTeam(m.homeTeam) === homeNorm &&
+    normalizeTeam(m.awayTeam) === awayNorm
+  );
+  if (!entry || entry.scoreHome === null || entry.scoreAway === null) return null;
+  return { scoreHome: entry.scoreHome, scoreAway: entry.scoreAway };
 }
 
 // Get which tournament stages are currently open for "Create Match"

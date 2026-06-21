@@ -200,23 +200,45 @@ function getTeamFlag(teamName) {
 function getTeamRanking(teamName) {
   const ranks = {
     'argentina': 1, 'france': 3, 'brazil': 6, 'germany': 10,
-    'spain': 2, 'italy': 12, 'england': 4, 'usa': 17,
+    'spain': 2, 'italy': 12, 'england': 4, 'usa': 17, 'united states': 17,
     'portugal': 5, 'belgium': 9, 'netherlands': 8, 'uruguay': 16,
     'mexico': 14, 'canada': 30, 'croatia': 11, 'morocco': 7,
     'japan': 18, 'senegal': 15, 'switzerland': 19, 'denmark': 21,
-    'colombia': 13, 'iran': 20, 'türkiye': 22, 'australia': 27,
+    'colombia': 13, 'iran': 20, 'türkiye': 22, 'turkey': 22, 'australia': 27,
     'ecuador': 23, 'austria': 24, 'south korea': 25, 'nigeria': 26,
     'algeria': 28, 'egypt': 29, 'ukraine': 32, 'norway': 31,
     'ivory coast': 33, 'panama': 34, 'russia': 35, 'poland': 36,
     'wales': 37, 'sweden': 38, 'hungary': 39, 'czechia': 40,
     'paraguay': 41, 'scotland': 42, 'serbia': 43, 'cameroon': 44,
-    'tunisia': 45, 'dr congo': 46, 'slovakia': 47, 'greece': 48,
-    'qatar': 56, 'iraq': 57, 'south africa': 60, 
-    'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64,
-    'cape verde': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
+    'tunisia': 45, 'dr congo': 46, 'congo dr': 46, 'slovakia': 47, 'greece': 48,
+    'qatar': 56, 'iraq': 57, 'south africa': 60,
+    'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64, 'bosnia-herzegovina': 64,
+    'cape verde': 67, 'cape verde islands': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
     'new zealand': 85, 'uzbekistan': 50
   };
   return ranks[teamName.toLowerCase().trim()] || 0;
+}
+
+function getTeamCountryCode(teamName) {
+  const codes = {
+    'argentina': 'ar', 'france': 'fr', 'brazil': 'br', 'germany': 'de',
+    'spain': 'es', 'italy': 'it', 'england': 'gb-eng', 'usa': 'us', 'united states': 'us',
+    'portugal': 'pt', 'belgium': 'be', 'netherlands': 'nl', 'uruguay': 'uy',
+    'mexico': 'mx', 'canada': 'ca', 'croatia': 'hr', 'morocco': 'ma',
+    'japan': 'jp', 'senegal': 'sn', 'switzerland': 'ch', 'denmark': 'dk',
+    'colombia': 'co', 'iran': 'ir', 'türkiye': 'tr', 'turkey': 'tr', 'australia': 'au',
+    'ecuador': 'ec', 'austria': 'at', 'south korea': 'kr', 'nigeria': 'ng',
+    'algeria': 'dz', 'egypt': 'eg', 'ukraine': 'ua', 'norway': 'no',
+    'ivory coast': 'ci', 'panama': 'pa', 'russia': 'ru', 'poland': 'pl',
+    'wales': 'gb-wls', 'sweden': 'se', 'hungary': 'hu', 'czechia': 'cz',
+    'paraguay': 'py', 'scotland': 'gb-sct', 'serbia': 'rs', 'cameroon': 'cm',
+    'tunisia': 'tn', 'dr congo': 'cd', 'congo dr': 'cd', 'slovakia': 'sk', 'greece': 'gr',
+    'qatar': 'qa', 'iraq': 'iq', 'south africa': 'za',
+    'saudi arabia': 'sa', 'jordan': 'jo', 'bosnia & herzegovina': 'ba', 'bosnia-herzegovina': 'ba',
+    'cape verde': 'cv', 'cape verde islands': 'cv', 'curaçao': 'cw', 'ghana': 'gh', 'haiti': 'ht',
+    'new zealand': 'nz', 'uzbekistan': 'uz'
+  };
+  return codes[teamName.toLowerCase().trim()] || null;
 }
 
 // Fetch matches (requires passcode header)
@@ -290,9 +312,9 @@ async function loadLiveMatches() {
         <div class="live-match-inner">
           ${statusTag(m.status)}
           <div class="live-match-teams">
-            <span>${escapeHtml(m.homeTeam)}</span>
+            <span>${buildFlagSpan(m.homeTeam, 'result-flag')} ${escapeHtml(m.homeTeam)}</span>
             <span class="live-match-score">${m.scoreHome ?? '&ndash;'} &mdash; ${m.scoreAway ?? '&ndash;'}</span>
-            <span>${escapeHtml(m.awayTeam)}</span>
+            <span>${escapeHtml(m.awayTeam)} ${buildFlagSpan(m.awayTeam, 'result-flag')}</span>
           </div>
         </div>
       </div>
@@ -1312,6 +1334,39 @@ function updateNotVotedAlert(count) {
   }
 }
 
+function buildFlagSpan(teamName, extraClass) {
+  const code = getTeamCountryCode(teamName);
+  const fiClass = code ? `fi fi-${code}` : '';
+  return `<span class="${extraClass} ${fiClass}" data-team="${escapeHtml(teamName)}"></span>`;
+}
+
+function buildTeamFormHtml(teamName, apiForm) {
+  let rows;
+  if (apiForm && apiForm.length > 0) {
+    rows = apiForm.map(f => ({
+      opponent: f.opponent,
+      middle: `${f.scoreFor}-${f.scoreAgainst}`,
+      result: f.result
+    }));
+  } else {
+    const local = getRecentResolvedMatchesForTeam(teamName, 3);
+    rows = local.map(r => {
+      const result = r.result === 'Win' ? 'W' : r.result === 'Lost' ? 'L' : 'D';
+      return { opponent: r.opponent, middle: result, result };
+    });
+  }
+  if (rows.length === 0) return '';
+  const resultClass = { W: 'form-score-win', L: 'form-score-loss', D: 'form-score-draw' };
+  const rowsHtml = rows.map(r => `
+    <div class="team-form-row">
+      ${buildFlagSpan(teamName, 'flag-circle form-flag')}
+      <span class="form-score ${resultClass[r.result] || ''}">${escapeHtml(r.middle)}</span>
+      ${buildFlagSpan(r.opponent, 'flag-circle form-flag')}
+    </div>
+  `).join('');
+  return `<div class="team-form">${rowsHtml}</div>`;
+}
+
 function renderMatches() {
   matchesGrid.innerHTML = '';
   const now = new Date();
@@ -1415,19 +1470,21 @@ function renderMatches() {
       </div>
       <div class="match-teams">
         <div class="team">
-          <span class="team-flag">${getTeamFlag(match.homeTeam)}</span>
-          <span style="display:flex; align-items:center; gap:8px;">
+          ${buildFlagSpan(match.homeTeam, 'team-flag')}
+          <span style="display:flex; align-items:center; gap:6px;">
             <span class="team-name" title="${escapeHtml(match.homeTeam)}">${escapeHtml(match.homeTeam)}</span>
-            <button class="team-info-btn" data-team="${escapeHtml(match.homeTeam)}" title="Team info" aria-label="Team info" style="background:transparent; border:none; color:var(--text-muted); font-size:0.9rem; padding:2px 6px; cursor:pointer;">ℹ️</button>
+            <span class="team-rank">#${getTeamRanking(match.homeTeam) || '-'}</span>
           </span>
+          ${buildTeamFormHtml(match.homeTeam, match.homeTeamForm)}
         </div>
         <div class="vs-divider">VS</div>
         <div class="team">
-          <span class="team-flag">${getTeamFlag(match.awayTeam)}</span>
-          <span style="display:flex; align-items:center; gap:8px;">
+          ${buildFlagSpan(match.awayTeam, 'team-flag')}
+          <span style="display:flex; align-items:center; gap:6px;">
             <span class="team-name" title="${escapeHtml(match.awayTeam)}">${escapeHtml(match.awayTeam)}</span>
-            <button class="team-info-btn" data-team="${escapeHtml(match.awayTeam)}" title="Team info" aria-label="Team info" style="background:transparent; border:none; color:var(--text-muted); font-size:0.9rem; padding:2px 6px; cursor:pointer;">ℹ️</button>
+            <span class="team-rank">#${getTeamRanking(match.awayTeam) || '-'}</span>
           </span>
+          ${buildTeamFormHtml(match.awayTeam, match.awayTeamForm)}
         </div>
       </div>
       <div class="match-meta" style="justify-content: center; font-size: 0.75rem;">
@@ -1441,7 +1498,6 @@ function renderMatches() {
   });
   
   updateAllTimers();
-  attachTeamTooltipListeners();
 }
 
 // Render results table (Live & resolved matches, latest first)
@@ -1480,9 +1536,16 @@ function renderResults() {
     // Result Outcome text
     let outcomeText = '';
     if (isResolved) {
-      if (match.outcome === 'home') outcomeText = `${escapeHtml(match.homeTeam)} Win`;
-      else if (match.outcome === 'away') outcomeText = `${escapeHtml(match.awayTeam)} Win`;
-      else outcomeText = 'Draw';
+      const homeFlagClass = isWinnerHome ? 'result-flag result-flag-winner' : 'result-flag';
+      const awayFlagClass = isWinnerAway ? 'result-flag result-flag-winner' : 'result-flag';
+      const scoreMid = match.score ? `${match.score.scoreHome}-${match.score.scoreAway}` : (isWinnerDraw ? 'Draw' : 'Win');
+      outcomeText = `
+        <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
+          ${buildFlagSpan(match.homeTeam, homeFlagClass)}
+          <span class="form-score">${escapeHtml(scoreMid)}</span>
+          ${buildFlagSpan(match.awayTeam, awayFlagClass)}
+        </span>
+      `;
     } else {
       outcomeText = '<span style="color: var(--color-warning); font-weight: bold;">Locked / Live</span>';
     }
@@ -1539,14 +1602,14 @@ function renderResults() {
         ${escapeHtml(match.group || match.matchType)}
       </td>
       <td data-label="Matchup" style="font-weight: 700;">
-        <span>${getTeamFlag(match.homeTeam)} ${escapeHtml(match.homeTeam)}</span>
+        <span>${buildFlagSpan(match.homeTeam, 'result-flag')} ${escapeHtml(match.homeTeam)}</span>
         <span style="color: var(--text-muted); font-size: 0.75rem; padding: 0 4px; font-weight: normal;">vs</span>
-        <span>${escapeHtml(match.awayTeam)} ${getTeamFlag(match.awayTeam)}</span>
+        <span>${escapeHtml(match.awayTeam)} ${buildFlagSpan(match.awayTeam, 'result-flag')}</span>
       </td>
       <td data-label="Kickoff (Local)" style="color: var(--text-muted); font-size: 0.8rem;">
         ${dateStr}
       </td>
-      <td data-label="Result" style="text-align: center; font-weight: 800;">
+      <td data-label="Result" style="text-align: center;">
         ${outcomeText}
       </td>
       <td data-label="Your Pick" style="text-align: center; font-weight: 700;" class="${pickClass}">
@@ -2824,155 +2887,6 @@ async function downloadHistoryCSV() {
   }
 }
 
-// Tooltip helpers for team ranking display
-function createTeamTooltipElement() {
-  let tt = document.getElementById('team-ranking-tooltip');
-  if (tt) return tt;
-  tt = document.createElement('div');
-  tt.id = 'team-ranking-tooltip';
-  tt.style.position = 'fixed';
-  tt.style.zIndex = 9999;
-  tt.style.padding = '8px 10px';
-  tt.style.background = 'rgba(0,0,0,0.85)';
-  tt.style.color = '#fff';
-  tt.style.borderRadius = '6px';
-  tt.style.fontSize = '0.85rem';
-  tt.style.boxShadow = '0 6px 18px rgba(0,0,0,0.5)';
-  tt.style.transition = 'opacity 120ms ease';
-  tt.style.opacity = '0';
-  tt.style.pointerEvents = 'none';
-  tt.style.display = 'none';
-  document.body.appendChild(tt);
-  return tt;
-}
-
-let _teamTooltipVisibleFor = null;
-let _teamTooltipHideTimer = null;
-
-function showTeamTooltipForElement(el, teamName, forcePersist) {
-  const tt = createTeamTooltipElement();
-
-  // If the passed element is the info button, prefer the .team-name element as anchor
-  let anchorEl = el;
-  try {
-    const possible = el && el.closest ? el.closest('.team') : null;
-    if (possible) {
-      const nameChild = possible.querySelector('.team-name');
-      if (nameChild) anchorEl = nameChild;
-    }
-  } catch (e) {
-    // ignore
-  }
-
-  // Populate full tooltip (ranking + recent matches). This handles content and positioning.
-  populateTeamTooltipWithMatches(anchorEl, teamName || text);
-
-  _teamTooltipVisibleFor = anchorEl;
-  if (_teamTooltipHideTimer) {
-    clearTimeout(_teamTooltipHideTimer);
-    _teamTooltipHideTimer = null;
-  }
-
-  // If not forced persist (click), auto-hide shortly after mouse leaves
-  if (!forcePersist) {
-    // The hide will be triggered on mouseleave handler
-  }
-}
-
-function hideTeamTooltip(force) {
-  const tt = document.getElementById('team-ranking-tooltip');
-  if (!tt) return;
-  if (_teamTooltipHideTimer) clearTimeout(_teamTooltipHideTimer);
-  // allow short fade
-  _teamTooltipHideTimer = setTimeout(() => {
-    tt.style.opacity = '0';
-    tt.style.display = 'none';
-    _teamTooltipVisibleFor = null;
-    _teamTooltipHideTimer = null;
-  }, force ? 0 : 120);
-}
-
-function attachTeamTooltipListeners() {
-  // Attach to all .team-name elements and .team-info-btn icons inside match cards
-  const els = document.querySelectorAll('.match-card .team-name, .match-card .team-info-btn');
-  if (!els || els.length === 0) return;
-
-  els.forEach(el => {
-    // Avoid re-attaching
-    if (el.__teamTooltipAttached) return;
-    el.__teamTooltipAttached = true;
-
-    // If this is the info button, treat clicks specially (persistent tooltip for mobile)
-    if (el.classList.contains('team-info-btn')) {
-      el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const team = el.dataset.team || '';
-        // Toggle persistent tooltip for this team button
-        const relatedNameEl = el.closest('.team') ? el.closest('.team').querySelector('.team-name') : null;
-        if (_teamTooltipVisibleFor === relatedNameEl) {
-          hideTeamTooltip(true);
-        } else {
-          // Prefer positioning near the button
-          showTeamTooltipForElement(el, team, true);
-        }
-      });
-      return; // do not attach hover handlers to the icon
-    }
-
-    // For team-name elements: show on hover, click toggles persistent tooltip
-    let hoverActive = false;
-
-    el.addEventListener('mouseenter', (e) => {
-      hoverActive = true;
-      const team = el.textContent || el.getAttribute('title') || '';
-      showTeamTooltipForElement(el, team, false);
-    });
-
-    el.addEventListener('mouseleave', (e) => {
-      hoverActive = false;
-      hideTeamTooltip(false);
-    });
-
-    // Click toggles a persistent tooltip (handy on touch devices)
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const team = el.textContent || el.getAttribute('title') || '';
-      if (_teamTooltipVisibleFor === el) {
-        hideTeamTooltip(true);
-      } else {
-        showTeamTooltipForElement(el, team, true);
-      }
-    });
-  });
-
-  // Clicking anywhere else hides persistent tooltip
-  if (!window.__teamTooltipDocClickAttached) {
-    document.addEventListener('click', () => {
-      hideTeamTooltip(true);
-    });
-    window.__teamTooltipDocClickAttached = true;
-  }
-
-  // Also hide tooltip on scroll/wheel/touch to mirror hover behavior (use capture so we catch it anywhere)
-  if (!window.__teamTooltipScrollAttached) {
-    document.addEventListener('scroll', () => { hideTeamTooltip(true); }, { passive: true, capture: true });
-    document.addEventListener('wheel', () => { hideTeamTooltip(true); }, { passive: true, capture: true });
-    document.addEventListener('touchstart', () => { hideTeamTooltip(true); }, { passive: true, capture: true });
-    window.__teamTooltipScrollAttached = true;
-  }
-}
-
-// Helper: Unescape HTML-escaped team names (matches were escaped when injected into data-team attrs)
-function unescapeHtml(escaped) {
-  if (!escaped) return '';
-  return String(escaped)
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'");
-}
-
 // Return recent resolved matches for a team (most recent first)
 function getRecentResolvedMatchesForTeam(teamName, limit = 5) {
   if (!teamName) return [];
@@ -2994,112 +2908,39 @@ function getRecentResolvedMatchesForTeam(teamName, limit = 5) {
   return recent;
 }
 
-// Build HTML for the recent matches list
-function buildRecentMatchesHtml(recentMatches) {
-  if (!recentMatches || recentMatches.length === 0) {
-    return '<div style="font-size:0.85rem; color:var(--text-muted); margin-top:6px;">No resolved matches on record.</div>';
+function getFlagNameLabel() {
+  let label = document.getElementById('flag-name-label');
+  if (!label) {
+    label = document.createElement('div');
+    label.id = 'flag-name-label';
+    label.className = 'flag-name-label';
+    label.style.display = 'none';
+    document.body.appendChild(label);
   }
-  const rows = recentMatches.map(r => {
-    // small icon for clarity
-    const icon = r.result === 'Win' ? '✅' : r.result === 'Lost' ? '❌' : '➖';
-    const opponentEsc = escapeHtml(r.opponent || 'Unknown');
-    return `<div style="margin:4px 0; font-size:0.9rem;">${icon} <strong>${escapeHtml(r.result)}</strong> vs ${opponentEsc}</div>`;
-  });
-  return `<div style="margin-top:8px; font-weight:700; font-size:0.9rem;">Recent Matches</div>` + rows.join('');
+  return label;
 }
 
-// Populate the tooltip element with ranking + recent matches for a team
-function populateTeamTooltipWithMatches(anchorEl, teamName) {
-  const tt = createTeamTooltipElement();
-  if (!tt) return;
-  const name = unescapeHtml(teamName || (anchorEl && (anchorEl.textContent || anchorEl.getAttribute('title'))));
-  const rank = getTeamRanking(name);
-  const rankText = rank && rank > 0 ? `FIFA Ranking: #${rank}` : 'FIFA Ranking: Unranked';
+function showFlagNameLabel(flagEl, teamName) {
+  const label = getFlagNameLabel();
+  label.textContent = teamName;
+  const rect = flagEl.getBoundingClientRect();
+  label.style.left = `${Math.round(rect.left)}px`;
+  label.style.top = `${Math.round(rect.bottom + 6)}px`;
+  label.style.display = 'block';
+  label.dataset.forFlag = teamName;
+}
 
-  const recent = getRecentResolvedMatchesForTeam(name, 5);
-  const recentHtml = buildRecentMatchesHtml(recent);
+function hideFlagNameLabel() {
+  const label = document.getElementById('flag-name-label');
+  if (label) label.style.display = 'none';
+}
 
-  // Compose full tooltip content (ranking + recent matches)
-  tt.innerHTML = `
-    <div style="font-weight:700; margin-bottom:6px;">${escapeHtml(name)}</div>
-    <div style="font-size:0.85rem; color:var(--text-muted);">${escapeHtml(rankText)}</div>
-    ${recentHtml}
-  `;
-
-  // Re-position tooltip relative to anchor after content change
-  try {
-    const rect = (anchorEl && anchorEl.getBoundingClientRect && anchorEl.getBoundingClientRect()) || { left: 0, top: 0, width: 0, bottom: 0 };
-    const w = tt.offsetWidth;
-    const h = tt.offsetHeight;
-    const margin = 8;
-    let left = rect.left + (rect.width - w) / 2;
-    let top = rect.bottom + margin;
-    if (top + h > window.innerHeight - 8) top = rect.top - h - margin;
-    if (top < 8) top = 8;
-    if (left < 8) left = 8;
-    if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
-    tt.style.left = `${Math.round(left)}px`;
-    tt.style.top = `${Math.round(top)}px`;
-    tt.style.display = '';
-    tt.style.opacity = '1';
-  } catch (e) {
-    // ignore positioning errors
+document.addEventListener('click', (e) => {
+  const flag = e.target.closest('[data-team]');
+  const label = document.getElementById('flag-name-label');
+  const wasShowingForThisFlag = flag && label && label.style.display === 'block' && label.dataset.forFlag === flag.dataset.team;
+  hideFlagNameLabel();
+  if (flag && !wasShowingForThisFlag) {
+    showFlagNameLabel(flag, flag.dataset.team);
   }
-}
-
-// Delegated click handler to augment persistent tooltips with recent matches
-function attachExtendedTeamTooltipBehavior() {
-  // Debounce per element to avoid repeated work
-  const lastPopulatedFor = new WeakMap();
-
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest && e.target.closest('.team-info-btn');
-    const nameEl = e.target.closest && e.target.closest('.team-name');
-    let anchor = null;
-    let rawName = null;
-
-    if (btn) {
-      // data-team was set with escaped value
-      rawName = btn.dataset ? btn.dataset.team : null;
-      anchor = btn;
-    } else if (nameEl) {
-      rawName = nameEl.textContent || nameEl.getAttribute('title') || '';
-      anchor = nameEl;
-    } else {
-      return; // not a team click
-    }
-
-    // Allow existing handlers to run (they toggle tooltip visibility). Populate shortly after.
-    setTimeout(() => {
-      const tt = document.getElementById('team-ranking-tooltip');
-      if (!tt || tt.style.display === 'none' || !anchor) return;
-
-      // Avoid re-populating if already done for same anchor
-      if (lastPopulatedFor.get(anchor)) return;
-      lastPopulatedFor.set(anchor, true);
-
-      const name = unescapeHtml(rawName || '');
-      populateTeamTooltipWithMatches(anchor, name);
-    }, 40);
-  }, true);
-
-  // When tooltip is hidden, clear the cache so next open repopulates
-  const observer = new MutationObserver(mutations => {
-    const tt = document.getElementById('team-ranking-tooltip');
-    if (!tt) return;
-    if (tt.style.display === 'none' || tt.style.opacity === '0') {
-      // clear cache
-      // WeakMap keys will be released over time; recreate to clear entries
-      // (simple approach)
-      // eslint-disable-next-line no-unused-vars
-      // reassign to empty WeakMap
-      // Note: we don't want to shadow lastPopulatedFor from outer scope, so iterate and delete isn't possible. Instead recreate map by closure trick below.
-    }
-  });
-  // Observe attribute/style changes on body to detect tooltip show/hide
-  const tt = document.getElementById('team-ranking-tooltip') || createTeamTooltipElement();
-  observer.observe(tt, { attributes: true, attributeFilter: ['style'] });
-}
-
-// Initialize extended behavior
-attachExtendedTeamTooltipBehavior();
+});

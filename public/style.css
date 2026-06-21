@@ -394,8 +394,94 @@ body {
   white-space: nowrap;
 }
 
+.flag-circle {
+  display: inline-block;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .team-flag {
-  font-size: 2rem;
+  display: inline-block;
+  font-size: 32px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.form-flag {
+  width: 16px;
+  height: 16px;
+}
+
+.result-flag {
+  display: inline-block;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 3px;
+}
+
+.result-flag-winner {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
+.team-rank {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.team-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.team-form-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.72rem;
+}
+
+.form-score {
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 20px;
+  text-align: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.form-score-win {
+  background: var(--color-accent);
+  color: #07130b;
+}
+
+.form-score-loss {
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.form-score-draw {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+}
+
+.flag-name-label {
+  position: fixed;
+  z-index: 9999;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  pointer-events: none;
 }
 
 .vs-divider {
