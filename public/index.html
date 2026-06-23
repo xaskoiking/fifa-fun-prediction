@@ -650,6 +650,20 @@
     </div>
   </div>
 
+  <!-- Race Chart: Match Result Popup -->
+  <div class="modal-overlay" id="matchPopupModal" style="display: none;">
+    <div class="modal-card" style="max-width: 320px;">
+      <div class="modal-header" style="padding: 20px 24px;">
+        <h2 style="font-size: 1.1rem;" id="matchPopupLabel">Match</h2>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px; text-align: center;">
+        <div id="matchPopupBody" style="margin-bottom: 14px;"></div>
+        <div id="matchPopupPoints" style="font-weight: 800; color: var(--color-accent); font-size: 1.1rem; margin-bottom: 18px;"></div>
+        <button class="btn btn-secondary btn-full" onclick="closeMatchPopup()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- General Script -->
   <script src="vendor/html2canvas.min.js"></script>
   <script src="app.js"></script>
