@@ -32,6 +32,8 @@ let raceMaxPoints = 1;
 let raceRowsByName = new Map();
 let raceScoringMatches = new Map();
 const RACE_FRAME_DURATION_MS = 700;
+const SEGMENT_PALETTE_SIZE = 10;
+const MIN_SEGMENT_LABEL_FRACTION = 0.04;
 
 // DOM Elements
 const usernameModal = document.getElementById('usernameModal');
@@ -1249,6 +1251,23 @@ function initRaceBars() {
   });
 }
 
+// Build the colored, per-match <div> segments for one player's bar, up to
+// (and including) the given frame index.
+function buildRaceSegmentsHtml(playerName, frameIndex) {
+  const scoringMatches = raceScoringMatches.get(playerName) || [];
+  return scoringMatches
+    .filter(m => m.frameIndex <= frameIndex)
+    .map(m => {
+      const colorIndex = parseInt(m.matchNumber, 10) % SEGMENT_PALETTE_SIZE;
+      const showLabel = (m.points / raceMaxPoints) >= MIN_SEGMENT_LABEL_FRACTION;
+      return `
+        <div class="race-bar-segment" style="flex-grow: ${m.points}; background: var(--seg-${colorIndex});"
+             onclick="openMatchPopup('${escapeHtml(playerName)}', '${escapeHtml(String(m.matchNumber))}')">${showLabel ? m.points : ''}</div>
+      `;
+    })
+    .join('');
+}
+
 // Render a given frame, animating bar width and row order changes (FLIP technique)
 function renderRaceFrame(frameIndex, animate) {
   const frame = raceFrames[frameIndex];
@@ -1268,14 +1287,15 @@ function renderRaceFrame(frameIndex, animate) {
     rows.forEach(row => firstRects.set(row, row.getBoundingClientRect()));
   }
 
-  frame.standings.forEach((player, index) => {
+  frame.standings.forEach(player => {
     const row = raceRowsByName.get(player.name);
     if (!row) return;
 
     const pct = (player.points / raceMaxPoints) * 100;
-    row.querySelector('.race-bar-fill').style.width = `${pct}%`;
+    const fill = row.querySelector('.race-bar-fill');
+    fill.style.width = `${pct}%`;
+    fill.innerHTML = buildRaceSegmentsHtml(player.name, frameIndex);
     row.querySelector('.race-points').textContent = `${player.points} pts`;
-    row.classList.toggle('race-row-leader', index === 0 && player.points > 0);
 
     raceBars.appendChild(row);
   });
