@@ -1347,6 +1347,55 @@ function onRaceRowClick(e, row, playerName) {
   }
 }
 
+// Fixed tournament-stage buckets for the Race chart's stage-breakdown
+// panel, as inclusive matchNumber ranges (48-team World Cup format: 12
+// groups x 3 matchdays x 24 matches, then 16+8+4+2+1+1 knockout matches).
+const RACE_STAGE_GROUPS = [
+  { label: 'Group Stage – Matchday 1', lo: 1,  hi: 24 },
+  { label: 'Group Stage – Matchday 2', lo: 25, hi: 48 },
+  { label: 'Group Stage – Matchday 3', lo: 49, hi: 72 },
+  { label: 'Round of 32',              lo: 73, hi: 88 },
+  { label: 'Round of 16',              lo: 89, hi: 96 },
+  { label: 'Quarter-Finals to Final',  lo: 97, hi: 104 }
+];
+
+// For each stage that has at least one resolved match (frames[1..frameIndex])
+// within its range, compute every player's point total in that stage so far
+// and the highest such total (used to scale that stage's bar width).
+// Unstarted stages are omitted from the result entirely.
+function computeStageBreakdown(scoringMatchesMap, playerNames, frames, frameIndex, stages) {
+  const startedIndexes = new Set();
+  for (let i = 1; i <= frameIndex; i++) {
+    const frame = frames[i];
+    if (!frame || frame.matchNumber == null) continue;
+    const n = parseInt(frame.matchNumber, 10);
+    stages.forEach((stage, idx) => {
+      if (n >= stage.lo && n <= stage.hi) startedIndexes.add(idx);
+    });
+  }
+
+  const result = [];
+  stages.forEach((stage, idx) => {
+    if (!startedIndexes.has(idx)) return;
+    const players = new Map();
+    let maxPoints = 0;
+    playerNames.forEach(name => {
+      const matches = scoringMatchesMap.get(name) || [];
+      const points = matches
+        .filter(m => m.frameIndex <= frameIndex)
+        .filter(m => {
+          const n = parseInt(m.matchNumber, 10);
+          return n >= stage.lo && n <= stage.hi;
+        })
+        .reduce((sum, m) => sum + m.points, 0);
+      players.set(name, points);
+      if (points > maxPoints) maxPoints = points;
+    });
+    result.push({ label: stage.label, lo: stage.lo, hi: stage.hi, maxPoints, players });
+  });
+  return result;
+}
+
 // Geometry constants for the mobile snake panel.
 const SNAKE_STROKE_WIDTH = 28;
 const SNAKE_ROW_PITCH = 36;
