@@ -301,7 +301,7 @@ async function loadLiveMatches() {
     if (liveMatches.length === 0) { panel.style.display = 'none'; return; }
 
     const statusTag = (status) => {
-      if (status === 'IN_PLAY') return '<span class="live-match-status in-play"><span class="live-dot"></span>LIVE</span>';
+      if (status === 'IN_PLAY' || status === 'LIVE') return '<span class="live-match-status in-play"><span class="live-dot"></span>LIVE</span>';
       if (status === 'PAUSED')  return '<span class="live-match-status paused">HT</span>';
       return '<span class="live-match-status finished">FT</span>';
     };
@@ -2906,7 +2906,7 @@ function refreshFixtures() {
 function findCurrentFixtureIndex() {
   if (!fixturesData.length) return 0;
   const now = new Date();
-  const liveIdx = fixturesData.findIndex(f => f.status === 'IN_PLAY' || f.status === 'PAUSED');
+  const liveIdx = fixturesData.findIndex(f => f.status === 'IN_PLAY' || f.status === 'LIVE' || f.status === 'PAUSED');
   if (liveIdx >= 0) return liveIdx;
   const nextIdx = fixturesData.findIndex(f => (f.status === 'SCHEDULED' || f.status === 'TIMED') && new Date(f.kickoff) > now);
   if (nextIdx >= 0) return nextIdx;
@@ -2935,7 +2935,7 @@ function renderMatchLog() {
   const timeStr = kickoffLocal.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
   const isFinished = f.status === 'FINISHED';
-  const isLive = f.status === 'IN_PLAY' || f.status === 'PAUSED';
+  const isLive = f.status === 'IN_PLAY' || f.status === 'LIVE' || f.status === 'PAUSED';
   const isStageOpen = openMatchStages.includes(f.stage);
   const isUpcoming = (f.status === 'SCHEDULED' || f.status === 'TIMED') && isStageOpen;
   const alreadyAdded = isFixtureAlreadyInDb(f);
@@ -2960,6 +2960,7 @@ function renderMatchLog() {
   const statusStyles = {
     'FINISHED':  { bg:'rgba(0,230,118,0.1)',  border:'rgba(0,230,118,0.3)',  color:'var(--color-accent)', label:'Finished' },
     'IN_PLAY':   { bg:'rgba(255,152,0,0.1)',  border:'rgba(255,152,0,0.4)',  color:'#ff9800',             label:'🔴 Live' },
+    'LIVE':      { bg:'rgba(255,152,0,0.1)',  border:'rgba(255,152,0,0.4)',  color:'#ff9800',             label:'🔴 Live' },
     'PAUSED':    { bg:'rgba(255,152,0,0.1)',  border:'rgba(255,152,0,0.4)',  color:'#ff9800',             label:'⏸ Half Time' },
     'SCHEDULED': { bg:'rgba(255,255,255,0.04)', border:'rgba(255,255,255,0.12)', color:'var(--text-muted)', label:'Scheduled' },
     'TIMED':     { bg:'rgba(255,255,255,0.04)', border:'rgba(255,255,255,0.12)', color:'var(--text-muted)', label:'Scheduled' },
