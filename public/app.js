@@ -1313,6 +1313,11 @@ function renderRaceFrame(frameIndex, animate) {
     fill.innerHTML = '';
     row.querySelector('.race-points').textContent = `${player.points} pts`;
 
+    const panel = row.querySelector('.race-row-stage-panel');
+    if (panel && panel.style.display !== 'none') {
+      renderStagePanel(panel, player.name);
+    }
+
     raceBars.appendChild(row);
   });
 
