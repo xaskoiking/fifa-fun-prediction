@@ -1254,13 +1254,14 @@ function initRaceBars() {
   });
 }
 
-// Build the colored, per-match <div> segments for one player's bar, up to
-// (and including) the given frame index.
 // Build the colored, per-match <div> segments for one player's stage bar:
 // every scoring match within [stage.lo, stage.hi], up to (and including)
 // the given frame index, with each segment's label-visibility threshold
-// evaluated against that stage's own max (not the all-time raceMaxPoints).
-function buildStageSegmentsHtml(playerName, frameIndex, stage, stageMaxPoints) {
+// evaluated against that player's own total for the stage (not the
+// all-time raceMaxPoints, and not other players' totals) — the bar is
+// always filled to 100% width, so a segment's share of stageTotalPoints
+// is exactly its share of the bar's width.
+function buildStageSegmentsHtml(playerName, frameIndex, stage, stageTotalPoints) {
   const scoringMatches = raceScoringMatches.get(playerName) || [];
   return scoringMatches
     .filter(m => m.frameIndex <= frameIndex)
@@ -1270,7 +1271,7 @@ function buildStageSegmentsHtml(playerName, frameIndex, stage, stageMaxPoints) {
     })
     .map(m => {
       const colorIndex = parseInt(m.matchNumber, 10) % SEGMENT_PALETTE_SIZE;
-      const showLabel = stageMaxPoints > 0 && (m.points / stageMaxPoints) >= MIN_SEGMENT_LABEL_FRACTION;
+      const showLabel = stageTotalPoints > 0 && (m.points / stageTotalPoints) >= MIN_SEGMENT_LABEL_FRACTION;
       const player = escapeHtml(playerName);
       const matchNum = escapeHtml(String(m.matchNumber));
       return `
@@ -1281,6 +1282,31 @@ function buildStageSegmentsHtml(playerName, frameIndex, stage, stageMaxPoints) {
       `;
     })
     .join('');
+}
+
+// Build the colored stage segments for one player's *main* (collapsed) bar:
+// one segment per RACE_STAGE_GROUPS stage the player has scored in, up to
+// (and including) the given frame index, colored by stage index using the
+// pastel --stage-pastel-* palette (deliberately distinct from the vivid
+// --seg-* palette used by the per-match segments inside the expanded
+// stage-breakdown panel). Segment widths are relative within the bar via
+// flex-grow, same mechanism as the per-match segments; the label threshold
+// is evaluated against raceMaxPoints, consistent with how the main bar's
+// overall width is scaled.
+function buildMainBarStageSegmentsHtml(playerName, frameIndex) {
+  const scoringMatches = raceScoringMatches.get(playerName) || [];
+  return RACE_STAGE_GROUPS.map((stage, stageIndex) => {
+    const points = scoringMatches
+      .filter(m => m.frameIndex <= frameIndex)
+      .filter(m => {
+        const n = parseInt(m.matchNumber, 10);
+        return n >= stage.lo && n <= stage.hi;
+      })
+      .reduce((sum, m) => sum + m.points, 0);
+    if (points <= 0) return '';
+    const showLabel = (points / raceMaxPoints) >= MIN_SEGMENT_LABEL_FRACTION;
+    return `<div class="race-bar-segment" style="flex-grow: ${points}; background: var(--stage-pastel-${stageIndex});">${showLabel ? points : ''}</div>`;
+  }).join('');
 }
 
 // Render a given frame, animating bar width and row order changes (FLIP technique)
@@ -1309,8 +1335,8 @@ function renderRaceFrame(frameIndex, animate) {
     const pct = (player.points / raceMaxPoints) * 100;
     const fill = row.querySelector('.race-bar-fill');
     fill.style.width = `${pct}%`;
-    fill.style.background = 'var(--color-accent)';
-    fill.innerHTML = '';
+    fill.style.background = '';
+    fill.innerHTML = buildMainBarStageSegmentsHtml(player.name, frameIndex);
     row.querySelector('.race-points').textContent = `${player.points} pts`;
 
     const panel = row.querySelector('.race-row-stage-panel');
@@ -1353,10 +1379,12 @@ function onRaceRowClick(e, row, playerName) {
     panel.style.display = 'none';
     panel.innerHTML = '';
     if (chevron) chevron.textContent = '▸';
+    row.classList.remove('race-row-expanded');
   } else {
     panel.style.display = 'flex';
     if (chevron) chevron.textContent = '▾';
     renderStagePanel(panel, playerName);
+    row.classList.add('race-row-expanded');
   }
 }
 
@@ -1364,12 +1392,12 @@ function onRaceRowClick(e, row, playerName) {
 // panel, as inclusive matchNumber ranges (48-team World Cup format: 12
 // groups x 3 matchdays x 24 matches, then 16+8+4+2+1+1 knockout matches).
 const RACE_STAGE_GROUPS = [
-  { label: 'Group Stage – Matchday 1', lo: 1,  hi: 24 },
-  { label: 'Group Stage – Matchday 2', lo: 25, hi: 48 },
-  { label: 'Group Stage – Matchday 3', lo: 49, hi: 72 },
-  { label: 'Round of 32',              lo: 73, hi: 88 },
-  { label: 'Round of 16',              lo: 89, hi: 96 },
-  { label: 'Quarter-Finals to Final',  lo: 97, hi: 104 }
+  { label: 'M1',    lo: 1,  hi: 24 },
+  { label: 'M2',    lo: 25, hi: 48 },
+  { label: 'M3',    lo: 49, hi: 72 },
+  { label: 'R32',   lo: 73, hi: 88 },
+  { label: 'R16',   lo: 89, hi: 96 },
+  { label: 'QF->F', lo: 97, hi: 104 }
 ];
 
 // For each stage that has at least one resolved match (frames[1..frameIndex])
@@ -1421,12 +1449,11 @@ function renderStagePanel(panel, playerName) {
 
   panel.innerHTML = breakdown.map(stageEntry => {
     const stagePoints = stageEntry.players.get(playerName) || 0;
-    const pct = stageEntry.maxPoints > 0 ? (stagePoints / stageEntry.maxPoints) * 100 : 0;
-    const segmentsHtml = buildStageSegmentsHtml(playerName, raceCurrentFrame, stageEntry, stageEntry.maxPoints);
+    const segmentsHtml = buildStageSegmentsHtml(playerName, raceCurrentFrame, stageEntry, stagePoints);
     return `
       <div class="race-stage-row">
         <span class="race-stage-label">${escapeHtml(stageEntry.label)}</span>
-        <div class="race-stage-bar-track"><div class="race-stage-bar-fill" style="width: ${pct}%;">${segmentsHtml}</div></div>
+        <div class="race-stage-bar-track"><div class="race-stage-bar-fill" style="width: 100%;">${segmentsHtml}</div></div>
         <span class="race-stage-points">${stagePoints} pts</span>
       </div>
     `;
@@ -1440,9 +1467,13 @@ function toggleRacePlayback() {
     return;
   }
 
-  raceCurrentFrame = 0;
-  raceScrubber.value = '0';
-  renderRaceFrame(0, false);
+  // Resume from wherever playback was paused/scrubbed to; only restart
+  // from the beginning if playback had already reached the end.
+  if (raceCurrentFrame >= raceFrames.length - 1) {
+    raceCurrentFrame = 0;
+    raceScrubber.value = '0';
+    renderRaceFrame(0, false);
+  }
 
   startRacePlayback();
 }

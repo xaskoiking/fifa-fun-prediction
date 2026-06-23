@@ -35,6 +35,17 @@
   --seg-8: #d4e157;
   --seg-9: #8d6e63;
 
+  /* Race chart main-bar stage palette (one per RACE_STAGE_GROUPS entry,
+     by stage index: M1, M2, M3, R32, R16, F). Deliberately pastel/muted so
+     it reads as visually distinct from the vivid --seg-* per-match palette
+     used inside the expanded stage-breakdown panel. */
+  --stage-pastel-0: #ffadad;
+  --stage-pastel-1: #ffd6a5;
+  --stage-pastel-2: #fdffb6;
+  --stage-pastel-3: #9bf6ff;
+  --stage-pastel-4: #a0c4ff;
+  --stage-pastel-5: #bdb2ff;
+
   /* Shading */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -871,6 +882,13 @@ body {
   cursor: pointer;
 }
 
+.race-row-expanded {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin: -8px -10px;
+}
+
 .race-row-chevron {
   flex-shrink: 0;
   width: 16px;
@@ -895,7 +913,7 @@ body {
 }
 
 .race-stage-label {
-  width: 150px;
+  width: 42px;
   flex-shrink: 0;
   font-size: 0.78rem;
   color: var(--text-muted);
