@@ -1649,7 +1649,7 @@ function onSegmentClick(el, playerName, matchNumber) {
 // (mobile/touch only — desktop relies on mouseleave instead).
 document.addEventListener('click', (e) => {
   if (supportsHoverForSegments) return;
-  if (e.target.closest('.race-bar-segment') || e.target.closest('#race-segment-tooltip')) return;
+  if (e.target.closest('.race-bar-segment') || e.target.closest('.race-snake-segment') || e.target.closest('#race-segment-tooltip')) return;
   hideSegmentTooltip();
 });
 
