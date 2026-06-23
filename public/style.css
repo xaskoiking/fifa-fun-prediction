@@ -496,6 +496,24 @@ body {
   pointer-events: none;
 }
 
+.race-segment-tooltip {
+  position: fixed;
+  z-index: 9999;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  pointer-events: none;
+  text-align: center;
+}
+
+.race-segment-tooltip-points {
+  margin-top: 4px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--color-accent);
+}
+
 .vs-divider {
   color: var(--text-muted);
   font-weight: 800;
