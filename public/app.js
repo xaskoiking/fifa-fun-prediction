@@ -1388,6 +1388,39 @@ function buildFlagSpan(teamName, extraClass) {
   return `<span class="${extraClass} ${fiClass}" data-team="${escapeHtml(teamName)}"></span>`;
 }
 
+// Open the race chart's match-result popup for the segment a user clicked.
+function openMatchPopup(playerName, matchNumber) {
+  const scoringMatches = raceScoringMatches.get(playerName) || [];
+  const matchInfo = scoringMatches.find(m => String(m.matchNumber) === String(matchNumber));
+  if (!matchInfo) return;
+
+  const dateStr = matchInfo.kickoff
+    ? new Date(matchInfo.kickoff).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : '';
+  document.getElementById('matchPopupLabel').textContent =
+    `Match ${matchInfo.matchNumber}${dateStr ? ' · ' + dateStr : ''}`;
+
+  const isDraw = matchInfo.outcome === 'draw';
+  const scoreMid = matchInfo.score
+    ? `${matchInfo.score.scoreHome}-${matchInfo.score.scoreAway}`
+    : (isDraw ? 'Draw' : 'Win');
+
+  document.getElementById('matchPopupBody').innerHTML = `
+    <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
+      ${buildFlagSpan(matchInfo.homeTeam, 'result-flag')}
+      <span class="form-score">${escapeHtml(scoreMid)}</span>
+      ${buildFlagSpan(matchInfo.awayTeam, 'result-flag')}
+    </span>
+  `;
+  document.getElementById('matchPopupPoints').textContent = `+${matchInfo.points} pts`;
+
+  document.getElementById('matchPopupModal').style.display = 'flex';
+}
+
+function closeMatchPopup() {
+  document.getElementById('matchPopupModal').style.display = 'none';
+}
+
 function buildTeamFormHtml(teamName, apiForm) {
   let rows;
   if (apiForm && apiForm.length > 0) {
