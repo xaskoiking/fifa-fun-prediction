@@ -1429,6 +1429,75 @@ function buildSnakeSegmentData(scoringMatches, totalPoints) {
   });
 }
 
+// Build and animate-in the snake panel's SVG content for one player,
+// snapshotting raceScoringMatches as of the current frame at the moment
+// the row was opened (per design, this does not live-update afterward).
+function renderRaceSnakePanel(panel, playerName) {
+  const scoringMatches = (raceScoringMatches.get(playerName) || [])
+    .filter(m => m.frameIndex <= raceCurrentFrame);
+  const totalPoints = scoringMatches.reduce((sum, m) => sum + m.points, 0);
+
+  const availableWidth = Math.round(panel.getBoundingClientRect().width) || 280;
+  const numRows = computeSnakeRowCount(totalPoints, availableWidth);
+  const pathD = buildSnakePathD(numRows, availableWidth);
+  const segments = buildSnakeSegmentData(scoringMatches, totalPoints);
+  const height = SNAKE_STROKE_WIDTH / 2 + (numRows - 1) * SNAKE_ROW_PITCH + SNAKE_STROKE_WIDTH / 2;
+  const maskId = `race-snake-mask-${Math.random().toString(36).slice(2)}`;
+  const player = escapeHtml(playerName);
+
+  const segmentsHtml = segments.map(s => {
+    const matchNum = escapeHtml(String(s.matchNumber));
+    return `
+      <path d="${pathD}" pathLength="1" data-match-number="${matchNum}"
+            stroke="var(--seg-${s.colorIndex})" stroke-width="${SNAKE_STROKE_WIDTH}"
+            stroke-linecap="butt" fill="none"
+            stroke-dasharray="${s.fraction} ${1 - s.fraction}"
+            stroke-dashoffset="${-s.offset}"
+            class="race-snake-segment"
+            onmouseenter="onSegmentMouseEnter(this, '${player}', '${matchNum}')"
+            onmouseleave="onSegmentMouseLeave()"
+            onclick="onSegmentClick(this, '${player}', '${matchNum}')"></path>
+    `;
+  }).join('');
+
+  panel.innerHTML = `
+    <svg viewBox="0 0 ${availableWidth} ${height}" width="${availableWidth}" height="${height}">
+      <mask id="${maskId}">
+        <path d="${pathD}" pathLength="1" stroke="#fff" stroke-width="${SNAKE_STROKE_WIDTH}" fill="none"
+              stroke-dasharray="1" stroke-dashoffset="1" class="race-snake-reveal"></path>
+      </mask>
+      <g mask="url(#${maskId})">${segmentsHtml}</g>
+    </svg>
+  `;
+
+  const reveal = panel.querySelector('.race-snake-reveal');
+  if (reveal) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        reveal.style.transition = `stroke-dashoffset ${RACE_FRAME_DURATION_MS}ms ease`;
+        reveal.style.strokeDashoffset = '0';
+      });
+    });
+  }
+
+  segments.filter(s => s.showLabel).forEach(s => {
+    const matchNum = escapeHtml(String(s.matchNumber));
+    const pathEl = panel.querySelector(`.race-snake-segment[data-match-number="${matchNum}"]`);
+    if (!pathEl) return;
+    const totalLength = pathEl.getTotalLength();
+    const midLength = (s.offset + s.fraction / 2) * totalLength;
+    const point = pathEl.getPointAtLength(midLength);
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', String(point.x));
+    label.setAttribute('y', String(point.y));
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('dominant-baseline', 'central');
+    label.setAttribute('class', 'race-snake-label');
+    label.textContent = String(s.points);
+    panel.querySelector('svg').appendChild(label);
+  });
+}
+
 // Play/Pause button handler
 function toggleRacePlayback() {
   if (racePlaying) {
