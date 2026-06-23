@@ -1373,10 +1373,26 @@ function computeSnakeRowCount(totalPoints, availableWidth) {
   return Math.max(1, Math.ceil(totalLength / rowSpan));
 }
 
+// How much of the *last* row's width should actually be drawn, so the
+// path's real drawn length matches totalPoints * SNAKE_PIXELS_PER_POINT
+// exactly instead of always filling every row to its full width (which
+// inflated every segment's visual length whenever totalLength didn't
+// land on an exact multiple of the row span).
+function computeSnakeLastRowWidth(totalPoints, availableWidth, numRows) {
+  if (totalPoints <= 0) return 0;
+  const rowSpan = Math.max(1, availableWidth - SNAKE_STROKE_WIDTH);
+  const totalLength = totalPoints * SNAKE_PIXELS_PER_POINT;
+  const fullRowsLength = (numRows - 1) * rowSpan;
+  return Math.max(0, Math.min(rowSpan, totalLength - fullRowsLength));
+}
+
 // Build an SVG path `d` string: numRows horizontal strokes spanning
 // availableWidth, alternating direction, connected by rounded
-// quarter-turn corners (a "rounded zigzag" / boustrophedon snake).
-function buildSnakePathD(numRows, availableWidth) {
+// quarter-turn corners (a "rounded zigzag" / boustrophedon snake). Every
+// row but the last spans the full row width; the last row stops at
+// lastRowWidth so the path's total drawn length matches the intended
+// pixels-per-point length rather than always filling complete rows.
+function buildSnakePathD(numRows, availableWidth, lastRowWidth) {
   const xLeft = SNAKE_STROKE_WIDTH / 2;
   const xRight = Math.max(xLeft + 1, availableWidth - SNAKE_STROKE_WIDTH / 2);
   const rowY = (i) => SNAKE_STROKE_WIDTH / 2 + i * SNAKE_ROW_PITCH;
@@ -1389,7 +1405,9 @@ function buildSnakePathD(numRows, availableWidth) {
     const isLastRow = i === numRows - 1;
     const fromX = goingRight ? xLeft : xRight;
     const toX = goingRight ? xRight : xLeft;
-    const lineToX = isLastRow ? toX : insetToward(toX);
+    const lineToX = isLastRow
+      ? (goingRight ? fromX + lastRowWidth : fromX - lastRowWidth)
+      : insetToward(toX);
 
     if (i === 0) d += `M ${fromX},${y} `;
     d += `L ${lineToX},${y} `;
@@ -1439,7 +1457,8 @@ function renderRaceSnakePanel(panel, playerName) {
 
   const availableWidth = Math.round(panel.getBoundingClientRect().width) || 280;
   const numRows = computeSnakeRowCount(totalPoints, availableWidth);
-  const pathD = buildSnakePathD(numRows, availableWidth);
+  const lastRowWidth = computeSnakeLastRowWidth(totalPoints, availableWidth, numRows);
+  const pathD = buildSnakePathD(numRows, availableWidth, lastRowWidth);
   const segments = buildSnakeSegmentData(scoringMatches, totalPoints);
   const height = SNAKE_STROKE_WIDTH / 2 + (numRows - 1) * SNAKE_ROW_PITCH + SNAKE_STROKE_WIDTH / 2;
   const maskId = `race-snake-mask-${Math.random().toString(36).slice(2)}`;

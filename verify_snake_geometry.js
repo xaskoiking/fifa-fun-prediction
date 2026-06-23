@@ -18,7 +18,15 @@ function computeSnakeRowCount(totalPoints, availableWidth) {
   return Math.max(1, Math.ceil(totalLength / rowSpan));
 }
 
-function buildSnakePathD(numRows, availableWidth) {
+function computeSnakeLastRowWidth(totalPoints, availableWidth, numRows) {
+  if (totalPoints <= 0) return 0;
+  const rowSpan = Math.max(1, availableWidth - STROKE_WIDTH);
+  const totalLength = totalPoints * PIXELS_PER_POINT;
+  const fullRowsLength = (numRows - 1) * rowSpan;
+  return Math.max(0, Math.min(rowSpan, totalLength - fullRowsLength));
+}
+
+function buildSnakePathD(numRows, availableWidth, lastRowWidth) {
   const xLeft = STROKE_WIDTH / 2;
   const xRight = Math.max(xLeft + 1, availableWidth - STROKE_WIDTH / 2);
   const rowY = (i) => STROKE_WIDTH / 2 + i * ROW_PITCH;
@@ -31,7 +39,9 @@ function buildSnakePathD(numRows, availableWidth) {
     const isLastRow = i === numRows - 1;
     const fromX = goingRight ? xLeft : xRight;
     const toX = goingRight ? xRight : xLeft;
-    const lineToX = isLastRow ? toX : insetToward(toX);
+    const lineToX = isLastRow
+      ? (goingRight ? fromX + lastRowWidth : fromX - lastRowWidth)
+      : insetToward(toX);
 
     if (i === 0) d += `M ${fromX},${y} `;
     d += `L ${lineToX},${y} `;
@@ -102,23 +112,62 @@ console.log("\nTest #1: computeSnakeRowCount");
   assertEqual(computeSnakeRowCount(20, 100), 7, '20 pts = 480px in a narrow 72px row needs ceil(480/72) = 7 rows');
 }
 
-console.log("\nTest #2: buildSnakePathD — single row has no corners");
+console.log("\nTest #2: buildSnakePathD — single row spanning the full lastRowWidth has no corners");
 {
-  const d = buildSnakePathD(1, 300);
-  assertEqual(d, 'M 14,14 L 286,14', 'single row is a plain straight line from left edge to right edge');
+  const d = buildSnakePathD(1, 300, 272);
+  assertEqual(d, 'M 14,14 L 286,14', 'single row with lastRowWidth = full rowSpan reaches the right edge');
 }
 
 console.log("\nTest #3: buildSnakePathD — two rows produces one rounded turn");
 {
-  const d = buildSnakePathD(2, 300);
+  const d = buildSnakePathD(2, 300, 272);
   assertEqual(
     d,
     'M 14,14 L 272,14 Q 286,14 286,28 L 286,36 Q 286,50 272,50 L 14,50',
-    'two rows: row 0 left-to-right stopping short of the corner (272,14), ' +
+    'two rows with lastRowWidth = full rowSpan: row 0 left-to-right stopping short of the corner (272,14), ' +
     'a quarter-turn down to (286,28), a straight vertical drop to (286,36) ' +
     'since dropToY(36) is greater than y+radius(28), a quarter-turn into ' +
     'row 1 landing at (272,50), then row 1 right-to-left to the full left edge (14,50)'
   );
+}
+
+console.log("\nTest #2b: buildSnakePathD — partial last row stops short instead of filling the whole row");
+{
+  const d = buildSnakePathD(1, 300, 72);
+  assertEqual(d, 'M 14,14 L 86,14', 'a 72px lastRowWidth stops 72px past the left edge, not at the far right edge');
+}
+
+console.log("\nTest #6: computeSnakeLastRowWidth — single-row case matches the intended pixels-per-point length exactly");
+{
+  // Regression test for the bug where every row was always drawn at full
+  // width regardless of how many points it represented, inflating a lone
+  // low-point segment up to 13x its intended size (a single 1-point match
+  // filled the entire 312px row instead of its intended 24px).
+  const availableWidth = 340; // rowSpan = 340 - 28 = 312
+  [1, 3, 5, 10].forEach(totalPoints => {
+    const numRows = computeSnakeRowCount(totalPoints, availableWidth);
+    const lastRowWidth = computeSnakeLastRowWidth(totalPoints, availableWidth, numRows);
+    assertEqual(numRows, 1, `${totalPoints} pts at availableWidth=340 still fits in 1 row`);
+    assertEqual(lastRowWidth, totalPoints * PIXELS_PER_POINT,
+      `${totalPoints} pts: lastRowWidth (${lastRowWidth}) matches the intended ${totalPoints * PIXELS_PER_POINT}px exactly, not the full 312px row`);
+  });
+}
+
+console.log("\nTest #7: computeSnakeLastRowWidth — multi-row case: full rows plus a short remainder");
+{
+  // 15 pts * 24px/pt = 360px. rowSpan = 312px (availableWidth 340).
+  // ceil(360/312) = 2 rows: one full 312px row, then a 48px remainder.
+  const availableWidth = 340;
+  const totalPoints = 15;
+  const numRows = computeSnakeRowCount(totalPoints, availableWidth);
+  const lastRowWidth = computeSnakeLastRowWidth(totalPoints, availableWidth, numRows);
+  assertEqual(numRows, 2, '15 pts needs 2 rows');
+  assertEqual(lastRowWidth, 48, 'remainder after one full 312px row is 48px (360 - 312)');
+}
+
+console.log("\nTest #8: computeSnakeLastRowWidth — zero points yields zero width");
+{
+  assertEqual(computeSnakeLastRowWidth(0, 300, 1), 0, 'zero points means nothing to draw');
 }
 
 console.log("\nTest #4: buildSnakeSegmentData — fractions and cumulative offsets");
