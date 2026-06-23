@@ -866,41 +866,68 @@ body {
   text-align: right;
 }
 
-@media (max-width: 600px) {
-  .race-row {
-    flex-wrap: wrap;
-    cursor: pointer;
-  }
+.race-row {
+  flex-wrap: wrap;
+  cursor: pointer;
+}
 
-  .race-row-chevron {
-    flex-shrink: 0;
-    width: 16px;
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-  }
+.race-row-chevron {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
 
-  .race-row-snake-panel {
-    flex-basis: 100%;
-    margin-top: 8px;
-    cursor: default;
-  }
+.race-row-stage-panel {
+  flex-basis: 100%;
+  margin-top: 8px;
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-  .race-row-snake-panel svg {
-    display: block;
-    width: 100%;
-  }
+.race-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
-  .race-snake-segment {
-    cursor: pointer;
-  }
+.race-stage-label {
+  width: 150px;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  .race-snake-label {
-    font-size: 0.7rem;
-    font-weight: 800;
-    fill: rgba(0, 0, 0, 0.75);
-    pointer-events: none;
-  }
+.race-stage-bar-track {
+  flex: 1;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.race-stage-bar-fill {
+  height: 100%;
+  width: 0%;
+  display: flex;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: width 700ms ease;
+}
+
+.race-stage-points {
+  width: 55px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-accent);
 }
 
 /* ===================== Ranking comparison (prev vs current) ===================== */
