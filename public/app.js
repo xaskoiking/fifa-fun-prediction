@@ -1358,6 +1358,77 @@ function onRaceRowClick(e, row, playerName) {
   }
 }
 
+// Geometry constants for the mobile snake panel.
+const SNAKE_STROKE_WIDTH = 28;
+const SNAKE_ROW_PITCH = 36;
+const SNAKE_CORNER_RADIUS = 14;
+const SNAKE_PIXELS_PER_POINT = 24;
+
+// How many rows the boustrophedon snake needs to fit a player's total
+// points at the panel's available width.
+function computeSnakeRowCount(totalPoints, availableWidth) {
+  if (totalPoints <= 0) return 1;
+  const rowSpan = Math.max(1, availableWidth - SNAKE_STROKE_WIDTH);
+  const totalLength = totalPoints * SNAKE_PIXELS_PER_POINT;
+  return Math.max(1, Math.ceil(totalLength / rowSpan));
+}
+
+// Build an SVG path `d` string: numRows horizontal strokes spanning
+// availableWidth, alternating direction, connected by rounded
+// quarter-turn corners (a "rounded zigzag" / boustrophedon snake).
+function buildSnakePathD(numRows, availableWidth) {
+  const xLeft = SNAKE_STROKE_WIDTH / 2;
+  const xRight = Math.max(xLeft + 1, availableWidth - SNAKE_STROKE_WIDTH / 2);
+  const rowY = (i) => SNAKE_STROKE_WIDTH / 2 + i * SNAKE_ROW_PITCH;
+  const insetToward = (edgeX) => (edgeX === xRight ? edgeX - SNAKE_CORNER_RADIUS : edgeX + SNAKE_CORNER_RADIUS);
+
+  let d = '';
+  for (let i = 0; i < numRows; i++) {
+    const y = rowY(i);
+    const goingRight = i % 2 === 0;
+    const isLastRow = i === numRows - 1;
+    const fromX = goingRight ? xLeft : xRight;
+    const toX = goingRight ? xRight : xLeft;
+    const lineToX = isLastRow ? toX : insetToward(toX);
+
+    if (i === 0) d += `M ${fromX},${y} `;
+    d += `L ${lineToX},${y} `;
+
+    if (!isLastRow) {
+      const cornerX = toX;
+      const nextY = rowY(i + 1);
+      const dropToY = nextY - SNAKE_CORNER_RADIUS;
+      d += `Q ${cornerX},${y} ${cornerX},${y + SNAKE_CORNER_RADIUS} `;
+      if (dropToY > y + SNAKE_CORNER_RADIUS) {
+        d += `L ${cornerX},${dropToY} `;
+      }
+      const nextLineStartX = insetToward(cornerX);
+      d += `Q ${cornerX},${nextY} ${nextLineStartX},${nextY} `;
+    }
+  }
+  return d.trim();
+}
+
+// Per-match fraction (of the player's total points) and cumulative offset
+// along the shared snake path, plus color/label info reusing the existing
+// per-match palette and label-visibility threshold.
+function buildSnakeSegmentData(scoringMatches, totalPoints) {
+  let cumulative = 0;
+  return scoringMatches.map(m => {
+    const fraction = totalPoints > 0 ? m.points / totalPoints : 0;
+    const offset = cumulative;
+    cumulative += fraction;
+    return {
+      matchNumber: m.matchNumber,
+      points: m.points,
+      fraction,
+      offset,
+      colorIndex: parseInt(m.matchNumber, 10) % SEGMENT_PALETTE_SIZE,
+      showLabel: fraction >= MIN_SEGMENT_LABEL_FRACTION
+    };
+  });
+}
+
 // Play/Pause button handler
 function toggleRacePlayback() {
   if (racePlaying) {
