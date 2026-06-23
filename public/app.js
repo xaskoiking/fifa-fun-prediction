@@ -1256,13 +1256,21 @@ function initRaceBars() {
 
 // Build the colored, per-match <div> segments for one player's bar, up to
 // (and including) the given frame index.
-function buildRaceSegmentsHtml(playerName, frameIndex) {
+// Build the colored, per-match <div> segments for one player's stage bar:
+// every scoring match within [stage.lo, stage.hi], up to (and including)
+// the given frame index, with each segment's label-visibility threshold
+// evaluated against that stage's own max (not the all-time raceMaxPoints).
+function buildStageSegmentsHtml(playerName, frameIndex, stage, stageMaxPoints) {
   const scoringMatches = raceScoringMatches.get(playerName) || [];
   return scoringMatches
     .filter(m => m.frameIndex <= frameIndex)
+    .filter(m => {
+      const n = parseInt(m.matchNumber, 10);
+      return n >= stage.lo && n <= stage.hi;
+    })
     .map(m => {
       const colorIndex = parseInt(m.matchNumber, 10) % SEGMENT_PALETTE_SIZE;
-      const showLabel = (m.points / raceMaxPoints) >= MIN_SEGMENT_LABEL_FRACTION;
+      const showLabel = stageMaxPoints > 0 && (m.points / stageMaxPoints) >= MIN_SEGMENT_LABEL_FRACTION;
       const player = escapeHtml(playerName);
       const matchNum = escapeHtml(String(m.matchNumber));
       return `
@@ -1394,6 +1402,30 @@ function computeStageBreakdown(scoringMatchesMap, playerNames, frames, frameInde
     result.push({ label: stage.label, lo: stage.lo, hi: stage.hi, maxPoints, players });
   });
   return result;
+}
+
+// Build the stage-breakdown panel's content for one player: one
+// .race-stage-row per started stage, each a mini stacked bar of that
+// player's per-match segments within that stage, scaled to the stage's
+// own leading scorer. Called both when a panel is first opened and again
+// on every subsequent frame tick while it stays open (see renderRaceFrame),
+// so it stays live-synced with Play/scrub.
+function renderStagePanel(panel, playerName) {
+  const playerNames = Array.from(raceRowsByName.keys());
+  const breakdown = computeStageBreakdown(raceScoringMatches, playerNames, raceFrames, raceCurrentFrame, RACE_STAGE_GROUPS);
+
+  panel.innerHTML = breakdown.map(stageEntry => {
+    const stagePoints = stageEntry.players.get(playerName) || 0;
+    const pct = stageEntry.maxPoints > 0 ? (stagePoints / stageEntry.maxPoints) * 100 : 0;
+    const segmentsHtml = buildStageSegmentsHtml(playerName, raceCurrentFrame, stageEntry, stageEntry.maxPoints);
+    return `
+      <div class="race-stage-row">
+        <span class="race-stage-label">${escapeHtml(stageEntry.label)}</span>
+        <div class="race-stage-bar-track"><div class="race-stage-bar-fill" style="width: ${pct}%;">${segmentsHtml}</div></div>
+        <span class="race-stage-points">${stagePoints} pts</span>
+      </div>
+    `;
+  }).join('');
 }
 
 // Geometry constants for the mobile snake panel.
