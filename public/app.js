@@ -34,6 +34,9 @@ let raceScoringMatches = new Map();
 const RACE_FRAME_DURATION_MS = 700;
 const SEGMENT_PALETTE_SIZE = 10;
 const MIN_SEGMENT_LABEL_FRACTION = 0.04;
+// Below this width, the race chart hides per-match segments in the bar
+// itself and shows them only in a tap-to-expand snake panel instead.
+const isMobileRaceWidth = window.matchMedia('(max-width: 600px)').matches;
 
 // DOM Elements
 const usernameModal = document.getElementById('usernameModal');
@@ -1241,11 +1244,18 @@ function initRaceBars() {
   startFrame.standings.forEach(player => {
     const row = document.createElement('div');
     row.className = 'race-row';
+    const mobileExtras = isMobileRaceWidth
+      ? `<span class="race-row-chevron">&#9656;</span><div class="race-row-snake-panel" style="display:none;"></div>`
+      : '';
     row.innerHTML = `
       <span class="race-name">${escapeHtml(player.name)}</span>
       <div class="race-bar-track"><div class="race-bar-fill"></div></div>
       <span class="race-points">0 pts</span>
+      ${mobileExtras}
     `;
+    if (isMobileRaceWidth) {
+      row.onclick = (e) => onRaceRowClick(e, row, player.name);
+    }
     raceBars.appendChild(row);
     raceRowsByName.set(player.name, row);
   });
@@ -1298,7 +1308,12 @@ function renderRaceFrame(frameIndex, animate) {
     const pct = (player.points / raceMaxPoints) * 100;
     const fill = row.querySelector('.race-bar-fill');
     fill.style.width = `${pct}%`;
-    fill.innerHTML = buildRaceSegmentsHtml(player.name, frameIndex);
+    if (isMobileRaceWidth) {
+      fill.style.background = 'var(--color-accent)';
+      fill.innerHTML = '';
+    } else {
+      fill.innerHTML = buildRaceSegmentsHtml(player.name, frameIndex);
+    }
     row.querySelector('.race-points').textContent = `${player.points} pts`;
 
     raceBars.appendChild(row);
@@ -1319,6 +1334,28 @@ function renderRaceFrame(frameIndex, animate) {
       });
     }
   });
+}
+
+// Tapping a row (mobile only) toggles its snake breakdown panel open/closed.
+// Multiple rows may be open at once. Clicks that originate inside an
+// already-open panel (e.g. tapping a segment for its tooltip) don't
+// toggle the row.
+function onRaceRowClick(e, row, playerName) {
+  if (e.target.closest('.race-row-snake-panel')) return;
+  const panel = row.querySelector('.race-row-snake-panel');
+  const chevron = row.querySelector('.race-row-chevron');
+  if (!panel) return;
+
+  const isOpen = panel.style.display !== 'none';
+  if (isOpen) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    if (chevron) chevron.textContent = '▸';
+  } else {
+    panel.style.display = 'block';
+    if (chevron) chevron.textContent = '▾';
+    renderRaceSnakePanel(panel, playerName);
+  }
 }
 
 // Play/Pause button handler
