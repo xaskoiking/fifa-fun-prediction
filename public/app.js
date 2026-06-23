@@ -30,6 +30,7 @@ let racePlaying = false;
 let raceIntervalHandle = null;
 let raceMaxPoints = 1;
 let raceRowsByName = new Map();
+let raceScoringMatches = new Map();
 const RACE_FRAME_DURATION_MS = 700;
 
 // DOM Elements
@@ -1185,6 +1186,8 @@ async function loadLeaderboardHistory() {
       });
     });
 
+    raceScoringMatches = buildRaceScoringMatches(raceFrames);
+
     raceCurrentFrame = raceFrames.length - 1;
     raceScrubber.max = String(Math.max(raceFrames.length - 1, 0));
     raceScrubber.value = String(raceCurrentFrame);
@@ -1200,6 +1203,31 @@ async function loadLeaderboardHistory() {
     console.error('Error loading leaderboard history:', err);
     raceBars.innerHTML = `<p class="loading-state error-text">Error loading race data.</p>`;
   }
+}
+
+// Turn leaderboard history frames into a per-player ordered list of
+// "scoring matches" — the matches that earned that player points, in
+// chronological (frame) order. Drives the stacked bar segments below.
+function buildRaceScoringMatches(frames) {
+  const result = new Map();
+  for (let frameIndex = 1; frameIndex < frames.length; frameIndex++) {
+    const frame = frames[frameIndex];
+    const matchPoints = frame.matchPoints || {};
+    Object.keys(matchPoints).forEach(playerName => {
+      if (!result.has(playerName)) result.set(playerName, []);
+      result.get(playerName).push({
+        frameIndex,
+        matchNumber: frame.matchNumber,
+        homeTeam: frame.homeTeam,
+        awayTeam: frame.awayTeam,
+        kickoff: frame.kickoff,
+        outcome: frame.outcome,
+        score: frame.score,
+        points: matchPoints[playerName]
+      });
+    });
+  }
+  return result;
 }
 
 // Build one row per player from the start frame, in initial order
