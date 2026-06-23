@@ -1260,9 +1260,13 @@ function buildRaceSegmentsHtml(playerName, frameIndex) {
     .map(m => {
       const colorIndex = parseInt(m.matchNumber, 10) % SEGMENT_PALETTE_SIZE;
       const showLabel = (m.points / raceMaxPoints) >= MIN_SEGMENT_LABEL_FRACTION;
+      const player = escapeHtml(playerName);
+      const matchNum = escapeHtml(String(m.matchNumber));
       return `
         <div class="race-bar-segment" style="flex-grow: ${m.points}; background: var(--seg-${colorIndex});"
-             onclick="openMatchPopup('${escapeHtml(playerName)}', '${escapeHtml(String(m.matchNumber))}')">${showLabel ? m.points : ''}</div>
+             onmouseenter="onSegmentMouseEnter(this, '${player}', '${matchNum}')"
+             onmouseleave="onSegmentMouseLeave()"
+             onclick="onSegmentClick(this, '${player}', '${matchNum}')">${showLabel ? m.points : ''}</div>
       `;
     })
     .join('');
@@ -1388,38 +1392,89 @@ function buildFlagSpan(teamName, extraClass) {
   return `<span class="${extraClass} ${fiClass}" data-team="${escapeHtml(teamName)}"></span>`;
 }
 
-// Open the race chart's match-result popup for the segment a user clicked.
-function openMatchPopup(playerName, matchNumber) {
+// Capability check: true on devices with real hover (mouse/trackpad),
+// false on touch-only devices. Drives whether segments react to
+// hover or to tap.
+const supportsHoverForSegments = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+function getSegmentTooltip() {
+  let tip = document.getElementById('race-segment-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'race-segment-tooltip';
+    tip.className = 'race-segment-tooltip';
+    tip.style.display = 'none';
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+
+// Show the race chart's match-result tooltip for the segment a user
+// hovered or tapped, positioned just above it.
+function showSegmentTooltip(segmentEl, playerName, matchNumber) {
   const scoringMatches = raceScoringMatches.get(playerName) || [];
   const matchInfo = scoringMatches.find(m => String(m.matchNumber) === String(matchNumber));
   if (!matchInfo) return;
-
-  const dateStr = matchInfo.kickoff
-    ? new Date(matchInfo.kickoff).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    : '';
-  document.getElementById('matchPopupLabel').textContent =
-    `Match ${matchInfo.matchNumber}${dateStr ? ' · ' + dateStr : ''}`;
 
   const isDraw = matchInfo.outcome === 'draw';
   const scoreMid = matchInfo.score
     ? `${matchInfo.score.scoreHome}-${matchInfo.score.scoreAway}`
     : (isDraw ? 'Draw' : 'Win');
 
-  document.getElementById('matchPopupBody').innerHTML = `
+  const tip = getSegmentTooltip();
+  tip.innerHTML = `
     <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
       ${buildFlagSpan(matchInfo.homeTeam, 'result-flag')}
       <span class="form-score">${escapeHtml(scoreMid)}</span>
       ${buildFlagSpan(matchInfo.awayTeam, 'result-flag')}
     </span>
+    <div class="race-segment-tooltip-points">+${matchInfo.points} pts</div>
   `;
-  document.getElementById('matchPopupPoints').textContent = `+${matchInfo.points} pts`;
+  tip.dataset.forSegment = `${playerName}|${matchNumber}`;
+  tip.style.display = 'block';
 
-  document.getElementById('matchPopupModal').style.display = 'flex';
+  const rect = segmentEl.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - tipRect.width / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+  const top = rect.top - tipRect.height - 8;
+  tip.style.left = `${Math.round(left)}px`;
+  tip.style.top = `${Math.round(top)}px`;
 }
 
-function closeMatchPopup() {
-  document.getElementById('matchPopupModal').style.display = 'none';
+function hideSegmentTooltip() {
+  const tip = document.getElementById('race-segment-tooltip');
+  if (tip) tip.style.display = 'none';
 }
+
+function onSegmentMouseEnter(el, playerName, matchNumber) {
+  if (!supportsHoverForSegments) return;
+  showSegmentTooltip(el, playerName, matchNumber);
+}
+
+function onSegmentMouseLeave() {
+  if (!supportsHoverForSegments) return;
+  hideSegmentTooltip();
+}
+
+function onSegmentClick(el, playerName, matchNumber) {
+  if (supportsHoverForSegments) return;
+  const tip = getSegmentTooltip();
+  const key = `${playerName}|${matchNumber}`;
+  const wasShowingForThis = tip.style.display === 'block' && tip.dataset.forSegment === key;
+  hideSegmentTooltip();
+  if (!wasShowingForThis) {
+    showSegmentTooltip(el, playerName, matchNumber);
+  }
+}
+
+// Tapping anywhere outside a segment or the tooltip itself dismisses it
+// (mobile/touch only — desktop relies on mouseleave instead).
+document.addEventListener('click', (e) => {
+  if (supportsHoverForSegments) return;
+  if (e.target.closest('.race-bar-segment') || e.target.closest('#race-segment-tooltip')) return;
+  hideSegmentTooltip();
+});
 
 function buildTeamFormHtml(teamName, apiForm) {
   let rows;
