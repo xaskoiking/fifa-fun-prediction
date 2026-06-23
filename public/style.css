@@ -866,6 +866,43 @@ body {
   text-align: right;
 }
 
+@media (max-width: 600px) {
+  .race-row {
+    flex-wrap: wrap;
+    cursor: pointer;
+  }
+
+  .race-row-chevron {
+    flex-shrink: 0;
+    width: 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+
+  .race-row-snake-panel {
+    flex-basis: 100%;
+    margin-top: 8px;
+    cursor: default;
+  }
+
+  .race-row-snake-panel svg {
+    display: block;
+    width: 100%;
+  }
+
+  .race-snake-segment {
+    cursor: pointer;
+  }
+
+  .race-snake-label {
+    font-size: 0.7rem;
+    font-weight: 800;
+    fill: rgba(0, 0, 0, 0.75);
+    pointer-events: none;
+  }
+}
+
 /* ===================== Ranking comparison (prev vs current) ===================== */
 .compare-card { padding: 18px 20px; }
 .compare-controls {
