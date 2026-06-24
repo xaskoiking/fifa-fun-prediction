@@ -1,9 +1,9 @@
 name: Deploy to Staging
 
 # Runs automatically whenever code is pushed to the "staging" branch.
-# It builds the app and deploys it to the STAGING Cloud Run service,
-# which uses its OWN data bucket (a copy of the live votes) — so testing
-# here never touches real votes.
+# It refreshes staging's data.json from the production bucket, then builds
+# and deploys to the STAGING Cloud Run service — so testing here uses
+# realistic data but never touches real votes (staging has its own bucket).
 on:
   push:
     branches: [staging]
@@ -22,6 +22,7 @@ jobs:
       REGION: us-central1
       SERVICE: fifa-predictions-staging
       BUCKET: fifa-predictions-staging-data-data-science-1530973235551
+      PROD_BUCKET: fifa-predictions-data-data-science-1530973235551
     steps:
       - name: Check out the code
         uses: actions/checkout@v4
@@ -35,6 +36,10 @@ jobs:
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
+
+      - name: Refresh staging data.json from production
+        run: |
+          gcloud storage cp "gs://$PROD_BUCKET/data.json" "gs://$BUCKET/data.json" --project "$PROJECT_ID"
 
       - name: Build and deploy to Cloud Run (staging)
         run: |
