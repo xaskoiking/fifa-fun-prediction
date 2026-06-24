@@ -1063,7 +1063,9 @@ let _fixturesCacheTime = 0;
 const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 
 let _liveScoresCache = [];
-const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED', 'FINISHED']);
+// football-data.org has been observed returning 'LIVE' as well as the
+// documented 'IN_PLAY' for an in-progress match — treat them as equivalent.
+const LIVE_STATUSES = new Set(['IN_PLAY', 'LIVE', 'PAUSED', 'FINISHED']);
 
 // Aliases from DB names → canonical API names (all lowercase)
 const TEAM_NAME_ALIASES = {
@@ -1232,7 +1234,7 @@ app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
           : (STAGE_LABELS[m.stage] || m.stage || 'KO');
         const ft = (m.score || {}).fullTime || {};
         const finished = m.status === 'FINISHED';
-        const live = m.status === 'IN_PLAY' || m.status === 'PAUSED';
+        const live = m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED';
         return {
           apiId: m.id,
           matchNumber: String(i + 1),
@@ -1256,6 +1258,81 @@ app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
     console.error('[FIXTURES] Error fetching from football-data.org:', err);
     res.status(500).json({ error: 'Failed to fetch fixtures from football-data.org.' });
   }
+});
+
+// Diagnostic endpoint for /api/live-matches: that endpoint silently requires
+// a live-scores-cache entry's homeTeam/awayTeam to normalize-match an
+// unresolved db match's homeTeam/awayTeam in the *same order* (no swapped-
+// side fallback). This exposes both lists, each with their normalized form
+// shown alongside the raw string, plus which pairs actually matched — so a
+// mismatch (typo, reversed home/away, missing db entry, or a team simply
+// not yet in the upstream cache) is visible directly instead of requiring
+// two separate calls compared by hand.
+app.get('/api/admin/live-debug', async (req, res) => {
+  const db = readData();
+
+  const unresolvedMatches = db.matches
+    .filter(m => m.status !== 'resolved')
+    .map(m => ({
+      matchNumber: m.matchNumber,
+      homeTeam: m.homeTeam,
+      awayTeam: m.awayTeam,
+      homeTeamNormalized: normalizeTeam(m.homeTeam),
+      awayTeamNormalized: normalizeTeam(m.awayTeam),
+      status: m.status
+    }));
+
+  const liveScoresCache = _liveScoresCache.map(c => ({
+    homeTeam: c.homeTeam,
+    awayTeam: c.awayTeam,
+    homeTeamNormalized: normalizeTeam(c.homeTeam),
+    awayTeamNormalized: normalizeTeam(c.awayTeam),
+    status: c.status,
+    scoreHome: c.scoreHome,
+    scoreAway: c.scoreAway,
+    utcDate: c.utcDate
+  }));
+
+  const matched = liveScoresCache.filter(live =>
+    unresolvedMatches.some(m =>
+      m.homeTeamNormalized === live.homeTeamNormalized &&
+      m.awayTeamNormalized === live.awayTeamNormalized
+    )
+  );
+
+  // liveScoresCache above already had pollLiveScores' IN_PLAY/PAUSED/FINISHED
+  // filter applied, so a match missing from it could mean either "not live
+  // yet" or "filtered out for some other reason" — indistinguishable without
+  // seeing the raw status. Fetch the upstream feed fresh, unfiltered, so
+  // every match's real current status (TIMED, SCHEDULED, POSTPONED, etc.)
+  // is visible even when pollLiveScores' cache has discarded it.
+  let rawUpstreamMatches = null;
+  let rawUpstreamError = null;
+  const apiKey = process.env.FOOTBALL_DATA_API_KEY;
+  if (!apiKey) {
+    rawUpstreamError = 'FOOTBALL_DATA_API_KEY environment variable is not set on the server.';
+  } else {
+    try {
+      const apiRes = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
+        headers: { 'X-Auth-Token': apiKey }
+      });
+      if (!apiRes.ok) {
+        rawUpstreamError = `football-data.org responded with ${apiRes.status}`;
+      } else {
+        const data = await apiRes.json();
+        rawUpstreamMatches = (data.matches || []).map(m => ({
+          homeTeam: m.homeTeam?.name || 'TBD',
+          awayTeam: m.awayTeam?.name || 'TBD',
+          status: m.status,
+          utcDate: m.utcDate
+        }));
+      }
+    } catch (err) {
+      rawUpstreamError = err.message;
+    }
+  }
+
+  res.json({ liveScoresCache, unresolvedMatches, matched, rawUpstreamMatches, rawUpstreamError });
 });
 
 // Start Server — pre-load data from GCS before accepting requests
