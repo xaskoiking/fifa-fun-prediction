@@ -185,6 +185,21 @@ function readData() {
           changed = true;
           updated.votingExtendedUntil = null;
         }
+        if (!updated.boosters || typeof updated.boosters !== 'object') {
+          changed = true;
+          updated.boosters = { home: [], away: [], draw: [] };
+        } else {
+          updated.boosters = {
+            home: Array.isArray(updated.boosters.home) ? updated.boosters.home : [],
+            away: Array.isArray(updated.boosters.away) ? updated.boosters.away : [],
+            draw: Array.isArray(updated.boosters.draw) ? updated.boosters.draw : []
+          };
+          if (updated.boosters.home.length !== (match.boosters?.home?.length ?? 0)
+            || updated.boosters.away.length !== (match.boosters?.away?.length ?? 0)
+            || updated.boosters.draw.length !== (match.boosters?.draw?.length ?? 0)) {
+            changed = true;
+          }
+        }
         if (changed) migrated = true;
         return updated;
       });
@@ -291,7 +306,7 @@ function writeData(data) {
 }
 
 // Points Calculation Engine
-function calculatePointsForMatch(votes, outcome, matchType) {
+function calculatePointsForMatch(votes, outcome, matchType, boosters = {}) {
   const votersHome = votes.home || [];
   const votersAway = votes.away || [];
   const votersDraw = votes.draw || [];
@@ -306,13 +321,19 @@ function calculatePointsForMatch(votes, outcome, matchType) {
 
   if (outcome === 'home') {
     const pts = countAway + countDraw + 1;
-    votersHome.forEach(v => { pointsAllocated[v] = pts; });
+    votersHome.forEach(v => {
+      pointsAllocated[v] = pts * ((boosters.home || []).includes(v) ? 2 : 1);
+    });
   } else if (outcome === 'away') {
     const pts = countHome + countDraw + 1;
-    votersAway.forEach(v => { pointsAllocated[v] = pts; });
+    votersAway.forEach(v => {
+      pointsAllocated[v] = pts * ((boosters.away || []).includes(v) ? 2 : 1);
+    });
   } else if (outcome === 'draw' && matchType === 'League') {
     const pts = countHome + countAway + 1;
-    votersDraw.forEach(v => { pointsAllocated[v] = pts; });
+    votersDraw.forEach(v => {
+      pointsAllocated[v] = pts * ((boosters.draw || []).includes(v) ? 2 : 1);
+    });
   }
 
   return pointsAllocated;
@@ -352,8 +373,12 @@ function buildLeaderboardHistory(db) {
     });
 
   resolvedMatches.forEach(match => {
+<<<<<<< HEAD
     const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
     const matchPoints = {};
+=======
+    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
+>>>>>>> 4399f91 (feat: add knockout booster support)
     Object.keys(pointsAllocated).forEach(user => {
       if (!standings[user]) {
         standings[user] = { name: user, points: 0, correct: 0 };
@@ -451,7 +476,10 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
   const now = new Date();
 
   // Process matches to respect privacy rules
+  const userBoosterStatus = getUserBoosterStatus(db, username);
+
   const processedMatches = db.matches.map(match => {
+    ensureMatchBoosterData(match);
     const kickoffTime = new Date(match.kickoff);
     const hasStarted = kickoffTime <= now;
     
@@ -464,6 +492,18 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
     if (match.votes.home.includes(username)) myVote = 'home';
     else if (match.votes.away.includes(username)) myVote = 'away';
     else if (match.votes.draw && match.votes.draw.includes(username)) myVote = 'draw';
+
+    const stageCode = getMatchStageCode(match);
+    const stageLabel = stageCode ? STAGE_LABELS[stageCode] || 'Knockout' : null;
+    const stageBoosterUsed = stageCode ? !!userBoosterStatus[stageCode] : false;
+    const votingOpen = !match.votingLocked && (kickoffTime > now || extensionActive);
+    const boosterEligible = match.matchType === 'KO' && !!stageCode && votingOpen && !stageBoosterUsed;
+    const myBooster = !!(myVote && match.boosters[myVote] && match.boosters[myVote].includes(username));
+    const myMatchBooster = !!(
+      (match.boosters.home || []).includes(username) ||
+      (match.boosters.away || []).includes(username) ||
+      (match.boosters.draw || []).includes(username)
+    );
 
     // Core Privacy Logic
     if (hasStarted || match.status === 'resolved') {
@@ -482,7 +522,13 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         voters: match.votes,
         homeTeamForm: getRecentForm(match.homeTeam),
         awayTeamForm: getRecentForm(match.awayTeam),
-        score: getMatchScore(match.homeTeam, match.awayTeam)
+        score: getMatchScore(match.homeTeam, match.awayTeam),
+        boosterStageCode: stageCode,
+        boosterStageLabel: stageLabel,
+        boosterEligible,
+        myBooster,
+        myMatchBooster,
+        boosterStageUsed: stageBoosterUsed
       };
     } else {
       // Hide details before kickoff
@@ -501,6 +547,12 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         extensionActive: false,
         votingExtendedUntil: null,
         myVote,
+        boosterStageCode: stageCode,
+        boosterStageLabel: stageLabel,
+        boosterEligible,
+        myBooster,
+        myMatchBooster,
+        boosterStageUsed: stageBoosterUsed,
         voteCounts: {
           home: null,
           away: null,
@@ -519,7 +571,8 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
 // Submit a prediction (Requires Passcode validation)
 app.post('/api/predict', authenticateSecret, (req, res) => {
   const username = req.username;
-  const { matchId, prediction } = req.body; // prediction: 'home', 'away', or 'draw'
+  const { matchId, prediction, useBooster } = req.body; // prediction: 'home', 'away', or 'draw'
+  const useBoosterFlag = !!useBooster;
   
   if (!matchId || !prediction) {
     return res.status(400).json({ error: 'matchId and prediction are required.' });
@@ -558,6 +611,24 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
     return res.status(400).json({ error: 'Invalid prediction option.' });
   }
 
+  const stageCode = getMatchStageCode(match);
+  const userBoosterStatus = getUserBoosterStatus(db, username);
+  const alreadyBoostedHere = stageCode && match.boosters && (
+    (match.boosters.home || []).includes(username) ||
+    (match.boosters.away || []).includes(username) ||
+    (match.boosters.draw || []).includes(username)
+  );
+  const stageAlreadyUsedElsewhere = stageCode && userBoosterStatus[stageCode] && !alreadyBoostedHere;
+
+  if (useBoosterFlag) {
+    if (match.matchType !== 'KO' || !stageCode) {
+      return res.status(400).json({ error: 'Boosters are only available on knockout matches.' });
+    }
+    if (stageAlreadyUsedElsewhere) {
+      return res.status(400).json({ error: 'You have already used your booster for this stage.' });
+    }
+  }
+
   // Remove existing vote by this user in this match (ensure we don't duplicate votes)
   match.votes.home = match.votes.home.filter(u => u !== username);
   match.votes.away = match.votes.away.filter(u => u !== username);
@@ -570,8 +641,16 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
   // Ensure voteLog exists
   if (!Array.isArray(match.voteLog)) match.voteLog = [];
 
+  ensureMatchBoosterData(match);
+  match.boosters.home = match.boosters.home.filter(u => u !== username);
+  match.boosters.away = match.boosters.away.filter(u => u !== username);
+  match.boosters.draw = match.boosters.draw.filter(u => u !== username);
+
   // Add new prediction
   match.votes[prediction].push(username);
+  if (useBoosterFlag) {
+    match.boosters[prediction].push(username);
+  }
 
   // Record timestamped vote log entry
   match.voteLog.push({
@@ -634,7 +713,7 @@ app.get('/api/leaderboard', (req, res) => {
       ensureStanding(user).totalPredictions += 1;
     });
 
-    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
+    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
     Object.keys(pointsAllocated).forEach(user => {
       const pts = pointsAllocated[user];
       if (pts > 0) {
@@ -667,7 +746,7 @@ app.get('/api/leaderboard', (req, res) => {
     else if (liveEntry.scoreAway > liveEntry.scoreHome) provisionalOutcome = 'away';
     else provisionalOutcome = 'draw';
 
-    const pts = calculatePointsForMatch(match.votes, provisionalOutcome, match.matchType);
+    const pts = calculatePointsForMatch(match.votes, provisionalOutcome, match.matchType, match.boosters);
     Object.keys(pts).forEach(user => {
       if (!standings[user]) ensureStanding(user);
       standings[user].provisionalDelta = (standings[user].provisionalDelta || 0) + pts[user];
@@ -1197,6 +1276,63 @@ const STAGE_LABELS = TOURNAMENT_STAGES.reduce((acc, s) => {
   if (s.code !== 'GROUP_STAGE') acc[s.code] = s.label;
   return acc;
 }, {});
+STAGE_LABELS.QF_SF_FINAL = 'QF/SF/Final';
+
+const KNOCKOUT_BOOSTER_STAGES = ['LAST_32', 'LAST_16', 'QF_SF_FINAL'];
+
+function normalizeStageText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+function getMatchStageCode(match) {
+  const stageText = normalizeStageText(match.group || match.stage || match.round || '');
+  if (stageText) {
+    if (/(round of 32|last 32|r32)\b/.test(stageText)) return 'LAST_32';
+    if (/(round of 16|last 16|r16)\b/.test(stageText)) return 'LAST_16';
+    if (/(quarter final|quarter-final|quarterfinal|semi final|semi-final|semifinal|final|qf\/sf\/final|qf sf final)\b/.test(stageText)) {
+      return 'QF_SF_FINAL';
+    }
+  }
+
+  const num = parseInt(match.matchNumber, 10);
+  if (!Number.isFinite(num)) return null;
+  if (num >= 73 && num <= 88) return 'LAST_32';
+  if (num >= 89 && num <= 96) return 'LAST_16';
+  if (num >= 97 && num <= 104) return 'QF_SF_FINAL';
+  return null;
+}
+
+function ensureMatchBoosterData(match) {
+  if (!match.boosters || typeof match.boosters !== 'object') {
+    match.boosters = { home: [], away: [], draw: [] };
+  } else {
+    match.boosters = {
+      home: Array.isArray(match.boosters.home) ? match.boosters.home : [],
+      away: Array.isArray(match.boosters.away) ? match.boosters.away : [],
+      draw: Array.isArray(match.boosters.draw) ? match.boosters.draw : []
+    };
+  }
+  return match;
+}
+
+function getUserBoosterStatus(db, username) {
+  const status = { LAST_32: false, LAST_16: false, QF_SF_FINAL: false };
+  db.matches.forEach(match => {
+    const stageCode = getMatchStageCode(match);
+    if (!stageCode) return;
+    ensureMatchBoosterData(match);
+    if (match.boosters.home.includes(username)
+      || match.boosters.away.includes(username)
+      || match.boosters.draw.includes(username)) {
+      status[stageCode] = true;
+    }
+  });
+  return status;
+}
 
 // Ensure db.settings.openMatchStages exists, defaulting to Group Stage only.
 function ensureSettings(db) {

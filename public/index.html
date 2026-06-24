@@ -461,7 +461,10 @@
                      </div>
                      <div class="form-group">
                        <label for="groupInput">Group / Stage (Optional)</label>
-                       <input type="text" id="groupInput" placeholder="e.g. Group A" class="form-control">
+                       <input type="text" id="groupInput" placeholder="e.g. Group A or Round of 32" class="form-control">
+                       <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">
+                         For knockout booster support, use Round of 32, Round of 16, or QF/SF/Final.
+                       </div>
                      </div>
                    </div>
                   <div class="form-row">
@@ -640,6 +643,13 @@
           <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px;" id="voteConfirmMatchLabel"></div>
           <div style="font-weight: 700; font-size: 1rem; margin-bottom: 10px;" id="voteConfirmMatchup"></div>
           <div style="display: inline-block; background: rgba(0,230,118,0.12); border: 1px solid var(--color-accent); color: var(--color-accent); padding: 6px 18px; border-radius: 20px; font-weight: 700; font-size: 1rem;" id="voteConfirmChoice"></div>
+        </div>
+        <div id="voteConfirmBoosterSection" style="display:none; background: rgba(60,120,255,0.08); border: 1px solid rgba(60,120,255,0.16); border-radius: 12px; padding: 14px 16px; margin-bottom: 18px;">
+          <label style="display:flex; align-items:center; gap: 10px; font-weight: 700; cursor: pointer;">
+            <input type="checkbox" id="voteConfirmUseBooster" style="transform: scale(1.1);" />
+            Use knockout booster for this vote (2× points if correct)
+          </label>
+          <div id="voteConfirmBoosterInfo" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 8px;"></div>
         </div>
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; text-align: center;">You can change your vote anytime before kickoff.</p>
         <div style="display: flex; gap: 10px;">
