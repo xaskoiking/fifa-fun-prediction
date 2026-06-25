@@ -483,7 +483,7 @@
                   <div class="form-row">
                     <div class="form-group">
                       <label for="matchTypeSelect">Match Type</label>
-                      <select id="matchTypeSelect" class="form-control">
+                      <select id="matchTypeSelect" class="form-control" onchange="toggleBracketFieldsRow()">
                         <option value="League">League Match (3-way)</option>
                         <option value="KO">Knockout Match (2-way)</option>
                       </select>
@@ -491,6 +491,23 @@
                     <div class="form-group">
                       <label for="kickoffInput">Kickoff Time (Local)</label>
                       <input type="datetime-local" id="kickoffInput" required class="form-control">
+                    </div>
+                  </div>
+                  <div class="form-row" id="bracketFieldsRow" style="display: none;">
+                    <div class="form-group">
+                      <label for="bracketRoundSelect">Bracket Round</label>
+                      <select id="bracketRoundSelect" class="form-control">
+                        <option value="">— none —</option>
+                        <option value="LAST_32">Round of 32</option>
+                        <option value="LAST_16">Round of 16</option>
+                        <option value="QUARTER_FINALS">Quarter-finals</option>
+                        <option value="SEMI_FINALS">Semi-finals</option>
+                        <option value="FINAL">Final</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="bracketSlotInput">Bracket Slot (0-indexed)</label>
+                      <input type="number" id="bracketSlotInput" min="0" placeholder="e.g. 0" class="form-control">
                     </div>
                   </div>
                   <button type="submit" class="btn btn-success btn-full">Create Match</button>

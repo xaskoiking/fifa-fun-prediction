@@ -2574,6 +2574,11 @@ function loadAdminMatches() {
 }
 
 // Add Match Form submission
+function toggleBracketFieldsRow() {
+  const matchType = document.getElementById('matchTypeSelect').value;
+  document.getElementById('bracketFieldsRow').style.display = matchType === 'KO' ? 'flex' : 'none';
+}
+
 async function handleCreateMatch(event) {
   event.preventDefault();
   const homeTeam = document.getElementById('homeTeamInput').value.trim();
@@ -2582,6 +2587,9 @@ async function handleCreateMatch(event) {
   const kickoffStr = document.getElementById('kickoffInput').value;
   const matchNumber = document.getElementById('matchNumberInput').value.trim();
   const group = document.getElementById('groupInput').value.trim();
+  const bracketRound = document.getElementById('bracketRoundSelect').value || undefined;
+  const bracketSlotRaw = document.getElementById('bracketSlotInput').value;
+  const bracketSlot = bracketSlotRaw !== '' ? Number(bracketSlotRaw) : undefined;
 
   if (!homeTeam || !awayTeam || !kickoffStr) return;
 
@@ -2595,7 +2603,7 @@ async function handleCreateMatch(event) {
         'x-admin-passcode': adminPasscode,
         'x-user-secret': currentUserSecret
       },
-      body: JSON.stringify({ homeTeam, awayTeam, matchType, kickoff: kickoffISO, matchNumber, group })
+      body: JSON.stringify({ homeTeam, awayTeam, matchType, kickoff: kickoffISO, matchNumber, group, bracketRound, bracketSlot })
     });
 
     const data = await response.json();
@@ -2607,7 +2615,8 @@ async function handleCreateMatch(event) {
     showFeedback(addMatchMessage, `✅ Match ${homeTeam} vs ${awayTeam} created successfully!`, 'success');
     document.getElementById('addMatchForm').reset();
     initializeDefaultKickoff();
-    
+    toggleBracketFieldsRow();
+
     loadDashboardData();
   } catch (err) {
     console.error('Error creating match:', err);
