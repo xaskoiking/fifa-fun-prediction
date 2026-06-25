@@ -2438,3 +2438,107 @@ body {
   .bracket-col-label { width: 150px; }
   .bracket-row { font-size: 0.76rem; padding: 6px 8px; }
 }
+
+/* ── Fantasy Bracket Button ───────────────────────────────────── */
+
+.btn-fantasy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.btn-fantasy:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+}
+
+@media (max-width: 600px) {
+  .fantasy-btn-label { display: none; }
+}
+
+/* ── Fantasy Bracket Modal ────────────────────────────────────── */
+
+.fantasy-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.fantasy-modal-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.fantasy-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #0f1f17;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.fantasy-modal-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #fbbf24;
+}
+
+.fantasy-progress {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin-left: auto;
+}
+
+.fantasy-modal-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.fantasy-modal-close:hover {
+  color: #fff;
+}
+
+.fantasy-bracket-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Fantasy bracket card accent ─────────────────────────────── */
+
+.bracket-card--fantasy .bracket-row.fantasy-pick {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fcd34d;
+  font-weight: 700;
+  border-left: 3px solid #f59e0b;
+}
+
+.bracket-card--fantasy .bracket-row.votable:hover:not(.fantasy-pick) {
+  background: rgba(251, 191, 36, 0.08);
+  cursor: pointer;
+}

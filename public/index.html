@@ -33,7 +33,11 @@
             <p class="subtitle">FIFA Prediction Game</p>
           </div>
         </div>
-        
+
+        <button id="fantasyBracketBtn" class="btn btn-fantasy" style="display:none;" onclick="openFantasyBracket()">
+          ⭐<span class="fantasy-btn-label"> Fantasy Bracket</span><span id="fantasyLockBadge" class="fantasy-lock-badge" style="display:none;"> 🔒</span>
+        </button>
+
         <div class="user-status" id="userStatusArea">
           <span class="user-welcome">Welcome, <strong id="currentUserNameDisplay">Guest</strong></span>
           <span id="boosterStatusDisplay" style="display:none; font-size: 1rem; letter-spacing: 2px; margin-left: auto;"></span>
@@ -642,6 +646,18 @@
 
   </div>
 
+  <!-- Fantasy Bracket Modal -->
+  <div id="fantasyBracketModal" class="fantasy-modal" style="display:none;">
+    <div class="fantasy-modal-inner">
+      <div class="fantasy-modal-header">
+        <span class="fantasy-modal-title">⭐ Fantasy Bracket</span>
+        <span id="fantasyProgress" class="fantasy-progress">0 / 31 picks made</span>
+        <button id="fantasyModalClose" class="fantasy-modal-close" onclick="closeFantasyBracket()" type="button">✕</button>
+      </div>
+      <div id="fantasyBracketContainer" class="fantasy-bracket-container"></div>
+    </div>
+  </div>
+
   <!-- Passcode Login Modal (Overlay) -->
   <div class="modal-overlay" id="usernameModal" style="display: none;">
     <div class="modal-card">
@@ -693,6 +709,7 @@
   <!-- General Script -->
   <script src="vendor/html2canvas.min.js"></script>
   <script src="bracket.js"></script>
+  <script src="fantasy-bracket.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
