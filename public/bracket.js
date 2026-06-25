@@ -126,7 +126,13 @@ function debounceBracketScroll(fn) {
   };
 }
 
+let _bracketDragHandlers = null;
+
 function wireBracketDrag(scrollwrap) {
+  if (_bracketDragHandlers) {
+    window.removeEventListener('mouseup', _bracketDragHandlers.up);
+    window.removeEventListener('mousemove', _bracketDragHandlers.move);
+  }
   let isDown = false, startX, scrollStart;
   scrollwrap.onmousedown = e => {
     isDown = true;
@@ -134,11 +140,14 @@ function wireBracketDrag(scrollwrap) {
     scrollStart = scrollwrap.scrollLeft;
     scrollwrap.style.cursor = 'grabbing';
   };
-  window.addEventListener('mouseup', () => { isDown = false; scrollwrap.style.cursor = 'grab'; });
-  window.addEventListener('mousemove', e => {
+  const onMouseUp = () => { isDown = false; scrollwrap.style.cursor = 'grab'; };
+  const onMouseMove = e => {
     if (!isDown) return;
     scrollwrap.scrollLeft = scrollStart - (e.pageX - startX);
-  });
+  };
+  window.addEventListener('mouseup', onMouseUp);
+  window.addEventListener('mousemove', onMouseMove);
+  _bracketDragHandlers = { up: onMouseUp, move: onMouseMove };
 }
 
 function buildBracketCards(track, rounds) {
