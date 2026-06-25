@@ -1383,7 +1383,9 @@ async function pollLiveScores() {
       return;
     }
     const data = await res.json();
-    _liveScoresCache = (data.matches || [])
+    const allMatches = data.matches || [];
+
+    _liveScoresCache = allMatches
       .filter(m => LIVE_STATUSES.has(m.status))
       .map(m => {
         const ft = (m.score || {}).fullTime || {};
@@ -1397,8 +1399,42 @@ async function pollLiveScores() {
         };
       });
     console.log(`[LIVE] Cache updated: ${_liveScoresCache.length} live/finished match(es)`);
+
+    // Sync ROUND_OF_32 fixtures into db.fantasyR32 so the fantasy bracket
+    // auto-populates without any manual step. Only write when something changes.
+    syncFantasyR32FromApi(allMatches);
   } catch (err) {
     console.error('[LIVE] Poll failed:', err.message);
+  }
+}
+
+function syncFantasyR32FromApi(apiMatches) {
+  const r32 = apiMatches
+    .filter(m => m.stage === 'ROUND_OF_32')
+    .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+  if (r32.length === 0) return;
+
+  const db = readData();
+  ensureFantasyR32(db);
+
+  const slotMap = new Map(db.fantasyR32.map(m => [m.bracketSlot, m]));
+  let changed = false;
+
+  r32.forEach((m, i) => {
+    const homeTeam = m.homeTeam?.name || 'TBD';
+    const awayTeam = m.awayTeam?.name || 'TBD';
+    const kickoff = m.utcDate;
+    const existing = slotMap.get(i);
+    if (!existing || existing.homeTeam !== homeTeam || existing.awayTeam !== awayTeam || existing.kickoff !== kickoff) {
+      slotMap.set(i, { bracketSlot: i, homeTeam, awayTeam, kickoff });
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    db.fantasyR32 = Array.from(slotMap.values()).sort((a, b) => a.bracketSlot - b.bracketSlot);
+    writeData(db);
+    console.log(`[LIVE] fantasyR32 synced: ${db.fantasyR32.length} slot(s)`);
   }
 }
 
