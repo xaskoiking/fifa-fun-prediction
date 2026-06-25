@@ -1,6 +1,7 @@
 // server.js
 require('dotenv').config();
 const express = require('express');
+const NodeCache = require('node-cache');
 const fs = require('fs');
 const path = require('path');
 
@@ -26,6 +27,10 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 // ── Environment identification (drives the staging/review pill in the UI) ────
 const APP_ENV = process.env.APP_ENV || 'prod';
 const PR_NUMBER = process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null;
+
+// Initialize cache with a 24-hour expiration (86400 seconds)
+const appCache = new NodeCache({ stdTTL: 86400 }); 
+const CACHE_KEY = 'world_football_ranking';
 
 // ── Admin / default-credential configuration ─────────────────────────────────
 // For production, set ADMIN_PASSCODE in the environment. When set, it overrides
@@ -706,6 +711,82 @@ app.get('/api/live-matches', (req, res) => {
   });
 
   res.json(matched);
+});
+
+const TEAM_NAME_OVERRIDES = {
+  'korea republic': 'south korea',
+  "côte d'ivoire": 'ivory coast',
+  'türkiye': 'turkey',
+  'united states': 'usa',
+  'cabo verde': 'cape verde islands',
+  'ir iran': 'iran',
+  'bosnia and herzegovina': 'bosnia & herzegovina'
+};
+
+async function getFootballRankings() {
+  const cachedData = appCache.get(CACHE_KEY);
+  if (cachedData) {
+    console.log('Serving from cache...');
+    return { data: cachedData, source: 'cache' };
+  }
+
+  console.log('Cache miss. Fetching from RapidAPI...');
+  const url = 'https://world-football-ranking.p.rapidapi.com/current-ranking.php';
+  const options = {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-rapidapi-host': 'world-football-ranking.p.rapidapi.com',
+      'x-rapidapi-key': process.env.RAPIDAPI_KEY || ''
+    }
+  };
+
+  const response = await fetch(url, options);
+  
+  if (!response.ok) {
+    throw new Error(`RapidAPI responded with status: ${response.status}`);
+  }
+
+  const rawApiData = await response.json();
+
+  const teamsArray = Array.isArray(rawApiData) 
+  ? rawApiData 
+  : Object.values(rawApiData).find(val => Array.isArray(val)) || [];
+
+  if (teamsArray.length === 0) {
+    throw new Error("Could not find an array of teams in the API response structure.");
+  }
+
+  // Reduce the array safely
+  const formattedData = teamsArray.reduce((accumulator, team) => {
+    if (team && team.name && team.rank) {
+      const lowerCaseName = team.name.toLowerCase();
+      const finalName = TEAM_NAME_OVERRIDES[lowerCaseName] || lowerCaseName;
+      accumulator[finalName] = team.rank;
+    }
+    return accumulator;
+  }, {});
+  
+  // Save to cache for subsequent requests
+  appCache.set(CACHE_KEY, formattedData);
+
+  return { data: formattedData, source: 'api' };
+}
+
+// Intercept the frontend call at /api/ranking
+app.get('/api/ranking', async (req, res) => {
+  try {
+    const { data, source } = await getFootballRankings();
+    
+    // Set a custom header so your frontend knows if it's cached or live
+    res.setHeader('X-Cache-Lookup', source === 'cache' ? 'HIT' : 'MISS');
+    
+    // Return the JSON data to the frontend
+    res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to retrieve ranking data' });
+  }
 });
 
 // =================== ADMIN ENDPOINTS ===================

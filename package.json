@@ -10,7 +10,8 @@
   "dependencies": {
     "@google-cloud/storage": "^7.21.0",
     "dotenv": "^17.4.2",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "node-cache": "^5.1.2"
   },
   "private": true
 }

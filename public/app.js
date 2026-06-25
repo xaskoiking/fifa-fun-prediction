@@ -23,6 +23,8 @@ let fixturesCurrentIndex = 0;
 let openMatchStages = ['GROUP_STAGE'];
 let availableStages = [];
 
+let globalRankings = {};
+
 // Racing leaderboard chart state
 let raceFrames = [];
 let raceCurrentFrame = 0;
@@ -197,26 +199,29 @@ function getTeamFlag(teamName) {
   return flags[teamName.toLowerCase().trim()] || '⚽';
 }
 
-function getTeamRanking(teamName) {
-  const ranks = {
-    'argentina': 1, 'france': 3, 'brazil': 6, 'germany': 10,
-    'spain': 2, 'italy': 12, 'england': 4, 'usa': 17, 'united states': 17,
-    'portugal': 5, 'belgium': 9, 'netherlands': 8, 'uruguay': 16,
-    'mexico': 14, 'canada': 30, 'croatia': 11, 'morocco': 7,
-    'japan': 18, 'senegal': 15, 'switzerland': 19, 'denmark': 21,
-    'colombia': 13, 'iran': 20, 'türkiye': 22, 'turkey': 22, 'australia': 27,
-    'ecuador': 23, 'austria': 24, 'south korea': 25, 'nigeria': 26,
-    'algeria': 28, 'egypt': 29, 'ukraine': 32, 'norway': 31,
-    'ivory coast': 33, 'panama': 34, 'russia': 35, 'poland': 36,
-    'wales': 37, 'sweden': 38, 'hungary': 39, 'czechia': 40,
-    'paraguay': 41, 'scotland': 42, 'serbia': 43, 'cameroon': 44,
-    'tunisia': 45, 'dr congo': 46, 'congo dr': 46, 'slovakia': 47, 'greece': 48,
-    'qatar': 56, 'iraq': 57, 'south africa': 60,
-    'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64, 'bosnia-herzegovina': 64,
-    'cape verde': 67, 'cape verde islands': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
-    'new zealand': 85, 'uzbekistan': 50
-  };
-  return ranks[teamName.toLowerCase().trim()] || 0;
+function getCachedRankString(teamName) {
+  if (!teamName) return '#-';
+  const safeKey = teamName.toLowerCase().trim();
+  const rank = globalRankings[safeKey];
+  return rank ? `#${rank}` : '#-';
+}
+
+fetchRankings();
+
+async function fetchRankings() {
+  try {
+    const response = await fetch('/api/ranking');
+    
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    const data = await response.json();
+    globalRankings = data || {};
+
+  } catch (error) {
+    console.error('Error fetching rankings from Node backend:', error);
+    globalRankings = {}; 
+  }
 }
 
 function getTeamCountryCode(teamName) {
@@ -1473,7 +1478,7 @@ function renderMatches() {
           ${buildFlagSpan(match.homeTeam, 'team-flag')}
           <span style="display:flex; align-items:center; gap:6px;">
             <span class="team-name" title="${escapeHtml(match.homeTeam)}">${escapeHtml(match.homeTeam)}</span>
-            <span class="team-rank">#${getTeamRanking(match.homeTeam) || '-'}</span>
+            <span class="team-rank">${getCachedRankString(match.homeTeam)}</span>
           </span>
           ${buildTeamFormHtml(match.homeTeam, match.homeTeamForm)}
         </div>
@@ -1482,7 +1487,7 @@ function renderMatches() {
           ${buildFlagSpan(match.awayTeam, 'team-flag')}
           <span style="display:flex; align-items:center; gap:6px;">
             <span class="team-name" title="${escapeHtml(match.awayTeam)}">${escapeHtml(match.awayTeam)}</span>
-            <span class="team-rank">#${getTeamRanking(match.awayTeam) || '-'}</span>
+            <span class="team-rank">${getCachedRankString(match.awayTeam)}</span>
           </span>
           ${buildTeamFormHtml(match.awayTeam, match.awayTeamForm)}
         </div>
