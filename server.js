@@ -529,6 +529,8 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         homeTeam: match.homeTeam,
         awayTeam: match.awayTeam,
         matchType: match.matchType,
+        bracketRound: match.bracketRound || null,
+        bracketSlot: match.bracketSlot != null ? match.bracketSlot : null,
         kickoff: match.kickoff,
         status: match.status,
         outcome: match.outcome,
@@ -959,7 +961,7 @@ app.post('/api/admin/users/delete', verifyAdmin, (req, res) => {
 
 // Add a Match
 app.post('/api/admin/match', verifyAdmin, (req, res) => {
-  const { homeTeam, awayTeam, matchType, kickoff, matchNumber, group } = req.body;
+  const { homeTeam, awayTeam, matchType, kickoff, matchNumber, group, bracketRound, bracketSlot } = req.body;
   if (!homeTeam || !awayTeam || !matchType || !kickoff) {
     return res.status(400).json({ error: 'homeTeam, awayTeam, matchType, and kickoff are required.' });
   }
@@ -973,6 +975,20 @@ app.post('/api/admin/match', verifyAdmin, (req, res) => {
     return res.status(400).json({ error: 'Invalid kickoff date.' });
   }
 
+  let resolvedBracketRound = null;
+  let resolvedBracketSlot = null;
+  if (bracketRound !== undefined && bracketRound !== null && bracketRound !== '') {
+    if (!Object.prototype.hasOwnProperty.call(BRACKET_ROUND_SIZES, bracketRound)) {
+      return res.status(400).json({ error: `bracketRound must be one of: ${Object.keys(BRACKET_ROUND_SIZES).join(', ')}` });
+    }
+    const slotNum = Number(bracketSlot);
+    if (!Number.isInteger(slotNum) || slotNum < 0 || slotNum >= BRACKET_ROUND_SIZES[bracketRound]) {
+      return res.status(400).json({ error: `bracketSlot must be an integer between 0 and ${BRACKET_ROUND_SIZES[bracketRound] - 1} for ${bracketRound}.` });
+    }
+    resolvedBracketRound = bracketRound;
+    resolvedBracketSlot = slotNum;
+  }
+
   const db = readData();
 
   const newMatch = {
@@ -982,6 +998,8 @@ app.post('/api/admin/match', verifyAdmin, (req, res) => {
     homeTeam: homeTeam.trim(),
     awayTeam: awayTeam.trim(),
     matchType,
+    bracketRound: resolvedBracketRound,
+    bracketSlot: resolvedBracketSlot,
     kickoff: kickoffDate.toISOString(),
     status: 'scheduled',
     votingLocked: false,
@@ -1249,6 +1267,17 @@ const TOURNAMENT_STAGES = [
   { code: 'THIRD_PLACE',    label: 'Third Place' },
   { code: 'FINAL',          label: 'Final' }
 ];
+
+// Knockout bracket structure: code -> number of slots in that round.
+// Used to validate bracketSlot on match creation and (by the frontend,
+// mirrored in public/bracket.js) to lay out the bracket tree.
+const BRACKET_ROUND_SIZES = {
+  LAST_32: 16,
+  LAST_16: 8,
+  QUARTER_FINALS: 4,
+  SEMI_FINALS: 2,
+  FINAL: 1
+};
 
 const STAGE_LABELS = TOURNAMENT_STAGES.reduce((acc, s) => {
   if (s.code !== 'GROUP_STAGE') acc[s.code] = s.label;
