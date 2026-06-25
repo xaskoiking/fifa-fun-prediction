@@ -2,16 +2,22 @@
 
 ## Overview
 
-Replace the flat `matchesGrid` card list with a bracket-tree visualization
-once a match reaches the knockout stage (`matchType: "KO"`), starting at
-Round of 32. Group stage is unaffected — it keeps today's card grid.
+Knockout-stage matches (`matchType: "KO"`, starting at Round of 32) move
+out of the existing flat `matchesGrid` card list entirely and get two new,
+dedicated tabs. The existing Predictions tab keeps its current UI
+unchanged but narrows to group-stage matches only — it never needs to
+branch into bracket rendering.
 
-Two distinct features come out of this:
+Three tabs altogether:
 
-1. **Predictions tab (existing)** — the real, scored predictions, now shown
-   as a bracket instead of a flat list. Scoring and admin workflow are
-   unchanged; this is a rendering/navigation upgrade only.
-2. **New "Bracket Challenge" tab** — a separate, unscored feature letting a
+1. **Predictions tab (existing, narrowed)** — unchanged flat card grid,
+   group-stage matches only. Hidden once the knockout stage opens (see
+   "Navigation & Tab Visibility").
+2. **New "Bracket" tab** — the real, scored knockout predictions, shown as
+   a bracket tree. Scoring and the admin workflow are unchanged; this is a
+   rendering/navigation upgrade for KO matches, just split into its own
+   tab rather than living inside Predictions.
+3. **New "Bracket Challenge" tab** — a separate, unscored feature letting a
    player fill out an entire speculative bracket (R32 → champion) in one
    sitting, independent of real-world results.
 
@@ -20,8 +26,11 @@ Two distinct features come out of this:
 - `public/app.js:1649` `renderMatches()` builds the flat card grid (used by
   `#matchesGrid`, `public/index.html:69-81`). Per-card prediction buttons
   are rendered with `submitVote(matchId, prediction)`
-  (`public/app.js:1955`); KO matches already render 2 buttons instead of 3
-  (no draw) — `server.js:542` rejects `draw` for `matchType: 'KO'` server-side.
+  (`public/app.js:1955`). This function needs one new filter to exclude
+  `matchType: 'KO'` matches going forward, since those move to the Bracket
+  tab exclusively — it no longer needs its existing 2-vs-3-button KO
+  branching once KO matches never reach it, though leaving that branch in
+  place is harmless if removal turns out riskier than expected.
 - No knockout matches exist in `data.json` yet. `matchType: 'KO'` is wired
   end-to-end but unused in practice.
 - `TOURNAMENT_STAGES` (`server.js:1096-1104`) already enumerates
@@ -37,10 +46,26 @@ Two distinct features come out of this:
   fixture list already arrives ordered and stage-tagged.
 - `/api/admin/resolve` (`server.js:989`) is where the admin sets a match's
   real `outcome`. This is the trigger point for bracket propagation in the
-  Predictions tab (see "Propagation rules").
+  Bracket tab (see "Propagation rules").
 - `match.votes` / a player's own vote (used today for the "selected" button
   state, `public/app.js:~1691`) is what bracket personal-pick highlighting
   reads — no new field needed for that part.
+
+## Navigation & Tab Visibility
+
+All three tabs ship and go live simultaneously the moment this feature is
+released — Bracket and Bracket Challenge are **not** gated behind any
+tournament-stage check. Players want to explore and fill out Bracket
+Challenge in advance, well before Round of 32 is actually determined; both
+new tabs simply render the full TBD skeleton until real matches exist to
+fill it in.
+
+The only visibility rule needed is hiding the *old* Predictions tab once
+it's no longer useful: once `LAST_32` appears in
+`db.settings.openMatchStages` (the existing admin-controlled setting,
+`server.js:1111-1120`/`/api/admin/settings`), group-stage voting is done
+and the flat-grid tab is removed from the nav. No new admin control is
+required — this reuses the stage toggle the admin already operates today.
 
 ## Data Model Changes
 
@@ -88,7 +113,7 @@ difference between the two tabs:
   **immediately, client-side**. It's the player's own speculative pick
   driving what shows next — no dependency on real-world results or on the
   admin having created anything.
-- **Predictions tab**: a round's slot shows a real team name only once the
+- **Bracket tab**: a round's slot shows a real team name only once the
   admin **resolves** the match that feeds it (`/api/admin/resolve` sets a
   real `outcome`) — not when a player predicts, and not gated on the admin
   having created the *next* round's match record yet. The moment one
@@ -99,8 +124,8 @@ difference between the two tabs:
   actually created the real match record (with a kickoff time) the way it
   works today.
 
-In short: in Predictions, *displaying* a team name in the bracket is driven
-by resolved real outcomes; *being predictable* is still gated on the admin
+In short: in the Bracket tab, *displaying* a team name is driven by
+resolved real outcomes; *being predictable* is still gated on the admin
 creating that match record. These are two independent layers.
 
 ## Bracket Rendering — One Algorithm, Two Viewport Modes
@@ -140,7 +165,7 @@ div elbows that can interpolate like the boxes do.
 - Any round/slot with no resolved feeding match renders `TBD` in place of
   a team name (per-row, not per-box — so a half-decided match shows one
   real name and one `TBD` correctly).
-- In the Predictions tab, a completed match highlights whichever team the
+- In the Bracket tab, a completed match highlights whichever team the
   *current logged-in player* predicted (existing `match.votes` lookup), so
   their personal path through the bracket is visible at a glance.
 
@@ -161,14 +186,18 @@ div elbows that can interpolate like the boxes do.
 - Manual pass through the interactive mockups already validated the core
   interaction (paging, cascade compaction, connector lines) —
   `.superpowers/brainstorm/mockups/bracket-paged-v3-cascade.html`.
-- Once implemented: exercise both tabs end-to-end —
-  - Predictions: create a KO match via admin, confirm bracket skeleton
-    shows correct TBD placeholders pre-creation, predict, resolve via
+- Once implemented: exercise all three tabs end-to-end —
+  - Confirm Bracket and Bracket Challenge are visible immediately (no
+    stage gating), showing a fully-TBD skeleton before any KO match exists.
+  - Predictions: confirm it now only lists group-stage matches; confirm it
+    disappears from the nav once admin adds `LAST_32` to `openMatchStages`.
+  - Bracket: create a KO match via admin, confirm bracket skeleton shows
+    correct TBD placeholders pre-creation, predict, resolve via
     `/api/admin/resolve`, confirm the next round's slot fills with the
     real winner and the player's own pick is highlighted.
   - Bracket Challenge: pick an R32 winner, confirm it's the same underlying
-    pick as Predictions; pick through LAST_16/QF/SF/Final, confirm instant
-    client-side propagation and a champion can be reached.
+    pick as the Bracket tab; pick through LAST_16/QF/SF/Final, confirm
+    instant client-side propagation and a champion can be reached.
   - Resize/narrow the viewport and confirm the round-tabs + cascade
     behavior kicks in; widen it and confirm the full tree renders without
     paging.
