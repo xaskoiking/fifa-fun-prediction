@@ -1359,10 +1359,16 @@ function ensureFantasyBrackets(db) {
   return db.fantasyBrackets;
 }
 
+function ensureFantasyR32(db) {
+  if (!Array.isArray(db.fantasyR32)) {
+    db.fantasyR32 = [];
+  }
+  return db.fantasyR32;
+}
+
 function isFantasyLocked(db) {
-  return db.matches.some(
-    m => m.bracketRound === 'LAST_32' && new Date(m.kickoff) <= new Date()
-  );
+  const r32 = Array.isArray(db.fantasyR32) ? db.fantasyR32 : [];
+  return r32.some(m => new Date(m.kickoff) <= new Date());
 }
 
 async function pollLiveScores() {
@@ -1468,19 +1474,45 @@ app.get('/api/stages', authenticateSecret, (req, res) => {
 app.get('/api/fantasy-bracket', authenticateSecret, (req, res) => {
   const db = readData();
   ensureFantasyBrackets(db);
+  ensureFantasyR32(db);
   const username = req.username;
   const locked = isFantasyLocked(db);
   const userBracket = db.fantasyBrackets[username] || { picks: {} };
-  const r32Matches = db.matches
-    .filter(m => m.bracketRound === 'LAST_32')
-    .sort((a, b) => a.bracketSlot - b.bracketSlot)
-    .map(m => ({
-      bracketSlot: m.bracketSlot,
-      homeTeam: m.homeTeam,
-      awayTeam: m.awayTeam,
-      kickoff: m.kickoff
-    }));
+  const r32Matches = db.fantasyR32
+    .slice()
+    .sort((a, b) => a.bracketSlot - b.bracketSlot);
   res.json({ locked, picks: userBracket.picks, r32Matches });
+});
+
+app.post('/api/admin/fantasy-r32', verifyAdmin, (req, res) => {
+  const { fixtures } = req.body;
+  if (!Array.isArray(fixtures)) {
+    return res.status(400).json({ error: 'fixtures must be an array.' });
+  }
+  for (const f of fixtures) {
+    const slot = Number(f.bracketSlot);
+    if (!Number.isInteger(slot) || slot < 0 || slot > 15) {
+      return res.status(400).json({ error: `Invalid bracketSlot: ${f.bracketSlot}` });
+    }
+    if (!f.homeTeam || !f.awayTeam || !f.kickoff) {
+      return res.status(400).json({ error: `Missing homeTeam, awayTeam, or kickoff for slot ${slot}` });
+    }
+  }
+  const db = readData();
+  ensureFantasyR32(db);
+  const incoming = fixtures.map(f => ({
+    bracketSlot: Number(f.bracketSlot),
+    homeTeam: String(f.homeTeam),
+    awayTeam: String(f.awayTeam),
+    kickoff: String(f.kickoff)
+  }));
+  // Merge: replace existing slots, keep others
+  const slotMap = new Map(db.fantasyR32.map(m => [m.bracketSlot, m]));
+  incoming.forEach(m => slotMap.set(m.bracketSlot, m));
+  db.fantasyR32 = Array.from(slotMap.values()).sort((a, b) => a.bracketSlot - b.bracketSlot);
+  logAuditAction(db, 'FANTASY_R32_IMPORT', `Admin ${req.adminUsername} imported ${incoming.length} R32 fixtures`);
+  writeData(db);
+  res.json({ ok: true, count: db.fantasyR32.length });
 });
 
 app.post('/api/fantasy-bracket/pick', authenticateSecret, (req, res) => {
