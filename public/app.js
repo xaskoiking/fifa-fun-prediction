@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupUser();
   startIntervals();
   loadEnvBadge();
+  fetchRankings();
 
   // Switch/Change User button listener (logs out current session)
   changeUserBtn.addEventListener('click', () => {
@@ -206,8 +207,6 @@ function getCachedRankString(teamName) {
   return rank ? `#${rank}` : '#-';
 }
 
-fetchRankings();
-
 async function fetchRankings() {
   try {
     const response = await fetch('/api/ranking');
@@ -220,8 +219,29 @@ async function fetchRankings() {
 
   } catch (error) {
     console.error('Error fetching rankings from Node backend:', error);
-    globalRankings = {}; 
+    globalRankings = await getFallbackRankingData() || {}; // Fallback to static rankings if available
   }
+}
+
+async function getFallbackRankingData() {
+  return {
+    'argentina': 1, 'france': 3, 'brazil': 6, 'germany': 10,
+    'spain': 2, 'italy': 12, 'england': 4, 'usa': 17, 'united states': 17,
+    'portugal': 5, 'belgium': 9, 'netherlands': 8, 'uruguay': 16,
+    'mexico': 14, 'canada': 30, 'croatia': 11, 'morocco': 7,
+    'japan': 18, 'senegal': 15, 'switzerland': 19, 'denmark': 21,
+    'colombia': 13, 'iran': 20, 'türkiye': 22, 'turkey': 22, 'australia': 27,
+    'ecuador': 23, 'austria': 24, 'south korea': 25, 'nigeria': 26,
+    'algeria': 28, 'egypt': 29, 'ukraine': 32, 'norway': 31,
+    'ivory coast': 33, 'panama': 34, 'russia': 35, 'poland': 36,
+    'wales': 37, 'sweden': 38, 'hungary': 39, 'czechia': 40,
+    'paraguay': 41, 'scotland': 42, 'serbia': 43, 'cameroon': 44,
+    'tunisia': 45, 'dr congo': 46, 'congo dr': 46, 'slovakia': 47, 'greece': 48,
+    'qatar': 56, 'iraq': 57, 'south africa': 60,
+    'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64, 'bosnia-herzegovina': 64,
+    'cape verde': 67, 'cape verde islands': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
+    'new zealand': 85, 'uzbekistan': 50
+  };
 }
 
 function getTeamCountryCode(teamName) {
@@ -287,6 +307,7 @@ async function loadDashboardData() {
       loadLeaderboard();
     }
     loadLiveMatches();
+    // fetchRankings();
   } catch (err) {
     console.error('Error getting match data:', err);
   }

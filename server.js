@@ -731,46 +731,36 @@ async function getFootballRankings() {
   }
 
   console.log('Cache miss. Fetching from RapidAPI...');
-  const url = 'https://world-football-ranking.p.rapidapi.com/current-ranking.php';
+  const url = 'https://api.fifa.com/api/v3/fifarankings/rankings/live?gender=1&sportType=0&language=en';
   const options = {
     method: 'GET',
     headers: {
-      'Content-Type': 'application/json',
-      'x-rapidapi-host': 'world-football-ranking.p.rapidapi.com',
-      'x-rapidapi-key': process.env.RAPIDAPI_KEY || ''
+      'Content-Type': 'application/json'
     }
   };
 
   const response = await fetch(url, options);
   
   if (!response.ok) {
-    throw new Error(`RapidAPI responded with status: ${response.status}`);
+    throw new Error(`Ranking API responded with status: ${response.status}`);
   }
 
   const rawApiData = await response.json();
 
-  const teamsArray = Array.isArray(rawApiData) 
-  ? rawApiData 
-  : Object.values(rawApiData).find(val => Array.isArray(val)) || [];
+  // Transformation logic using Array.prototype.reduce
+  const transformedData = rawApiData.Results.reduce((accumulator, currentTeam) => {
+    // Extract the team name description safely
+    const teamName = currentTeam.TeamName[0]?.Description.toLowerCase();
+    const finalName = TEAM_NAME_OVERRIDES[teamName] || teamName;
+    accumulator[finalName] = currentTeam.Rank;
 
-  if (teamsArray.length === 0) {
-    throw new Error("Could not find an array of teams in the API response structure.");
-  }
-
-  // Reduce the array safely
-  const formattedData = teamsArray.reduce((accumulator, team) => {
-    if (team && team.name && team.rank) {
-      const lowerCaseName = team.name.toLowerCase();
-      const finalName = TEAM_NAME_OVERRIDES[lowerCaseName] || lowerCaseName;
-      accumulator[finalName] = team.rank;
-    }
     return accumulator;
   }, {});
   
   // Save to cache for subsequent requests
-  appCache.set(CACHE_KEY, formattedData);
+  appCache.set(CACHE_KEY, transformedData);
 
-  return { data: formattedData, source: 'api' };
+  return { data: transformedData, source: 'api' };
 }
 
 // Intercept the frontend call at /api/ranking
