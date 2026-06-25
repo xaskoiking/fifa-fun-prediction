@@ -110,16 +110,30 @@ function renderBracket(rootEl, rounds, onPick) {
 
   const trackWidth = rounds.length * BRACKET_COL_PITCH + 240;
   track.style.width = trackWidth + 'px';
-  track.style.transform = 'translateX(0px)';
   svg.setAttribute('width', trackWidth);
 
-  _bracketFocused = 0;
-  _bracketPositions = computeBracketPositions(roundSizes, 0, BRACKET_ROW_H);
+  // renderBracket() is called on every data poll while the Bracket tab is
+  // open, not just on first mount — preserve whichever round the player
+  // was viewing instead of snapping back to round 0 every refresh. Clamp
+  // defensively in case round count ever changes.
+  const focused = Math.min(_bracketFocused, rounds.length - 1);
+  _bracketFocused = focused;
+  _bracketPositions = computeBracketPositions(roundSizes, focused, BRACKET_ROW_H);
 
-  buildBracketColLabels(track, rounds);
+  buildBracketColLabels(track, rounds, focused);
   buildBracketCards(track, rounds);
   applyBracketPositions(rounds, track, svg);
   updateBracketNavButtons(rounds.length, prevBtn, nextBtn);
+
+  // The DOM was just rebuilt, so it currently sits at the visual start —
+  // re-apply the preserved position instantly (no transition), so a
+  // silent background refresh doesn't visibly move anything.
+  const prevTransition = track.style.transition;
+  track.style.transition = 'none';
+  track.style.transform = `translateX(-${focused * BRACKET_COL_PITCH}px)`;
+  scrollwrap.scrollLeft = focused * BRACKET_COL_PITCH;
+  track.offsetHeight; // force reflow so the no-transition transform applies before re-enabling it
+  track.style.transition = prevTransition;
 
   prevBtn.onclick = () => goToBracketRound(_bracketFocused - 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
   nextBtn.onclick = () => goToBracketRound(_bracketFocused + 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
@@ -138,10 +152,10 @@ function renderBracket(rootEl, rounds, onPick) {
   }
 }
 
-function buildBracketColLabels(track, rounds) {
+function buildBracketColLabels(track, rounds, focused) {
   rounds.forEach((round, r) => {
     const label = document.createElement('div');
-    label.className = 'bracket-col-label' + (r === 0 ? ' active' : '');
+    label.className = 'bracket-col-label' + (r === focused ? ' active' : '');
     label.style.left = (r * BRACKET_COL_PITCH) + 'px';
     label.textContent = round.label;
     label.dataset.round = r;
