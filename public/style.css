@@ -2315,7 +2315,7 @@ body {
   scroll-snap-type: x mandatory;
   position: relative;
   cursor: grab;
-  max-height: 70vh;
+  height: 70vh;
   border-radius: var(--radius-md);
   background: var(--bg-card);
   border: 1px solid var(--border-color);
