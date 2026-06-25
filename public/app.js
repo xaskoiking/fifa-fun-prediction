@@ -1945,6 +1945,8 @@ async function openFantasyBracket() {
     renderFantasyBracketModal(_fantasyData);
   } catch (e) {
     console.error('Fantasy bracket load error:', e);
+    const progress = document.getElementById('fantasyProgress');
+    if (progress) progress.textContent = 'Failed to load — please try again.';
   }
 }
 
