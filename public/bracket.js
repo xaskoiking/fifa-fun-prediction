@@ -127,12 +127,19 @@ function renderBracket(rootEl, rounds, onPick) {
 
   // The DOM was just rebuilt, so it currently sits at the visual start —
   // re-apply the preserved position instantly (no transition), so a
-  // silent background refresh doesn't visibly move anything.
+  // silent background refresh doesn't visibly move anything. Only ONE of
+  // transform/scrollLeft is the "live" mechanism per mode (matching
+  // goToBracketRound below) — overflow-x: hidden blocks scroll gestures
+  // on desktop but NOT a programmatic scrollLeft assignment, so setting
+  // both unconditionally compounds into a double offset away from round 0.
   const prevTransition = track.style.transition;
   track.style.transition = 'none';
-  track.style.transform = `translateX(-${focused * BRACKET_COL_PITCH}px)`;
-  scrollwrap.scrollLeft = focused * BRACKET_COL_PITCH;
-  track.offsetHeight; // force reflow so the no-transition transform applies before re-enabling it
+  if (isBracketDesktop()) {
+    track.style.transform = `translateX(-${focused * BRACKET_COL_PITCH}px)`;
+  } else {
+    scrollwrap.scrollLeft = focused * BRACKET_COL_PITCH;
+  }
+  track.offsetHeight; // force reflow so the no-transition change applies before re-enabling it
   track.style.transition = prevTransition;
 
   prevBtn.onclick = () => goToBracketRound(_bracketFocused - 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
