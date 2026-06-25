@@ -327,7 +327,11 @@ function buildLeaderboardHistory(db) {
     });
 
   const frames = [
-    { matchNumber: null, homeTeam: null, awayTeam: null, kickoff: null, standings: snapshot() }
+    {
+      matchNumber: null, homeTeam: null, awayTeam: null, kickoff: null,
+      outcome: null, score: null, matchPoints: {},
+      standings: snapshot()
+    }
   ];
 
   const resolvedMatches = db.matches
@@ -341,6 +345,7 @@ function buildLeaderboardHistory(db) {
 
   resolvedMatches.forEach(match => {
     const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
+    const matchPoints = {};
     Object.keys(pointsAllocated).forEach(user => {
       if (!standings[user]) {
         standings[user] = { name: user, points: 0, correct: 0 };
@@ -348,6 +353,7 @@ function buildLeaderboardHistory(db) {
       if (pointsAllocated[user] > 0) {
         standings[user].points += pointsAllocated[user];
         standings[user].correct += 1;
+        matchPoints[user] = pointsAllocated[user];
       }
     });
 
@@ -356,6 +362,9 @@ function buildLeaderboardHistory(db) {
       homeTeam: match.homeTeam,
       awayTeam: match.awayTeam,
       kickoff: match.kickoff,
+      outcome: match.outcome,
+      score: getMatchScore(match.homeTeam, match.awayTeam),
+      matchPoints,
       standings: snapshot()
     });
   });

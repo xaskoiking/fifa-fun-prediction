@@ -28,21 +28,33 @@ function calculatePointsForMatch(votes, outcome, matchType) {
   return pointsAllocated;
 }
 
+// Stub: the real getMatchScore reads from the live external-API cache, which
+// isn't available in this standalone script. Tests control scores directly.
+function getMatchScore(homeTeam, awayTeam) {
+  return _scoreStub[`${homeTeam}|${awayTeam}`] || null;
+}
+let _scoreStub = {};
+
 function buildLeaderboardHistory(db) {
   const standings = {};
   db.users.forEach(user => {
-    standings[user.name] = { name: user.name, points: 0 };
+    standings[user.name] = { name: user.name, points: 0, correct: 0 };
   });
 
   const snapshot = () => Object.values(standings)
-    .map(s => ({ name: s.name, points: s.points }))
+    .map(s => ({ name: s.name, points: s.points, correct: s.correct }))
     .sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
+      if (b.correct !== a.correct) return b.correct - a.correct;
       return a.name.localeCompare(b.name);
     });
 
   const frames = [
-    { matchNumber: null, homeTeam: null, awayTeam: null, kickoff: null, standings: snapshot() }
+    {
+      matchNumber: null, homeTeam: null, awayTeam: null, kickoff: null,
+      outcome: null, score: null, matchPoints: {},
+      standings: snapshot()
+    }
   ];
 
   const resolvedMatches = db.matches
@@ -56,11 +68,16 @@ function buildLeaderboardHistory(db) {
 
   resolvedMatches.forEach(match => {
     const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
+    const matchPoints = {};
     Object.keys(pointsAllocated).forEach(user => {
       if (!standings[user]) {
-        standings[user] = { name: user, points: 0 };
+        standings[user] = { name: user, points: 0, correct: 0 };
       }
-      standings[user].points += pointsAllocated[user];
+      if (pointsAllocated[user] > 0) {
+        standings[user].points += pointsAllocated[user];
+        standings[user].correct += 1;
+        matchPoints[user] = pointsAllocated[user];
+      }
     });
 
     frames.push({
@@ -68,6 +85,9 @@ function buildLeaderboardHistory(db) {
       homeTeam: match.homeTeam,
       awayTeam: match.awayTeam,
       kickoff: match.kickoff,
+      outcome: match.outcome,
+      score: getMatchScore(match.homeTeam, match.awayTeam),
+      matchPoints,
       standings: snapshot()
     });
   });
@@ -121,15 +141,18 @@ console.log("\nTest #1: basic cumulative accumulation");
   assertDeepEqual(frames.length, 3, 'three frames (start + 2 resolved matches, scheduled match ignored)');
   assertDeepEqual(frames[0], {
     matchNumber: null, homeTeam: null, awayTeam: null, kickoff: null,
-    standings: [{ name: 'Alice', points: 0 }, { name: 'Bob', points: 0 }, { name: 'Carol', points: 0 }]
+    outcome: null, score: null, matchPoints: {},
+    standings: [{ name: 'Alice', points: 0, correct: 0 }, { name: 'Bob', points: 0, correct: 0 }, { name: 'Carol', points: 0, correct: 0 }]
   }, 'frame 0 is the start frame, all zero, alphabetical');
   assertDeepEqual(frames[1], {
     matchNumber: '1', homeTeam: 'A', awayTeam: 'B', kickoff: '2026-06-01T00:00:00.000Z',
-    standings: [{ name: 'Alice', points: 2 }, { name: 'Bob', points: 0 }, { name: 'Carol', points: 0 }]
+    outcome: 'home', score: null, matchPoints: { Alice: 2 },
+    standings: [{ name: 'Alice', points: 2, correct: 1 }, { name: 'Bob', points: 0, correct: 0 }, { name: 'Carol', points: 0, correct: 0 }]
   }, 'frame 1 reflects match 1 (Alice wins home pick)');
   assertDeepEqual(frames[2], {
     matchNumber: '2', homeTeam: 'C', awayTeam: 'D', kickoff: '2026-06-02T00:00:00.000Z',
-    standings: [{ name: 'Alice', points: 4 }, { name: 'Carol', points: 2 }, { name: 'Bob', points: 0 }]
+    outcome: 'draw', score: null, matchPoints: { Alice: 2, Carol: 2 },
+    standings: [{ name: 'Alice', points: 4, correct: 2 }, { name: 'Carol', points: 2, correct: 1 }, { name: 'Bob', points: 0, correct: 0 }]
   }, 'frame 2 accumulates match 2 (Alice + Carol picked draw)');
 }
 
@@ -156,7 +179,7 @@ console.log("\nTest #2: frames ordered by kickoff regardless of array order");
 
   assertDeepEqual(frames[1].matchNumber, '1', 'earlier kickoff (match 1) becomes frame 1');
   assertDeepEqual(frames[2].matchNumber, '2', 'later kickoff (match 2) becomes frame 2');
-  assertDeepEqual(frames[2].standings, [{ name: 'X', points: 2 }, { name: 'Y', points: 2 }],
+  assertDeepEqual(frames[2].standings, [{ name: 'X', points: 2, correct: 1 }, { name: 'Y', points: 2, correct: 1 }],
     'tied points break alphabetically (X before Y)');
 }
 
@@ -176,7 +199,7 @@ console.log("\nTest #3: unregistered voter is added dynamically");
 
   const frames = buildLeaderboardHistory(db);
 
-  assertDeepEqual(frames[1].standings, [{ name: 'Ghost', points: 2 }, { name: 'Alice', points: 0 }],
+  assertDeepEqual(frames[1].standings, [{ name: 'Ghost', points: 2, correct: 1 }, { name: 'Alice', points: 0, correct: 0 }],
     'Ghost (unregistered voter) appears with earned points, ranked above Alice');
 }
 
@@ -197,8 +220,47 @@ console.log("\nTest #4: no resolved matches yields only the start frame");
   const frames = buildLeaderboardHistory(db);
 
   assertDeepEqual(frames.length, 1, 'only the start frame exists');
-  assertDeepEqual(frames[0].standings, [{ name: 'Alice', points: 0 }, { name: 'Bob', points: 0 }],
+  assertDeepEqual(frames[0].standings, [{ name: 'Alice', points: 0, correct: 0 }, { name: 'Bob', points: 0, correct: 0 }],
     'start frame lists all registered users at zero');
+}
+
+// Test 5: frames carry matchPoints/outcome/score enrichment
+console.log("\nTest #5: frames carry per-match points, outcome, and score");
+{
+  _scoreStub = { 'A|B': { scoreHome: 2, scoreAway: 1 } };
+
+  const db = {
+    users: [{ name: 'Alice' }, { name: 'Bob' }, { name: 'Carol' }],
+    matches: [
+      {
+        matchNumber: '1', homeTeam: 'A', awayTeam: 'B', matchType: 'League',
+        kickoff: '2026-06-01T00:00:00.000Z', status: 'resolved', outcome: 'home',
+        votes: { home: ['Alice'], away: ['Bob'], draw: ['Carol'] }
+      },
+      {
+        matchNumber: '2', homeTeam: 'C', awayTeam: 'D', matchType: 'League',
+        kickoff: '2026-06-02T00:00:00.000Z', status: 'resolved', outcome: 'draw',
+        votes: { home: [], away: [], draw: [] }
+      }
+    ]
+  };
+
+  const frames = buildLeaderboardHistory(db);
+
+  assertDeepEqual(frames[0].outcome, null, 'start frame has null outcome');
+  assertDeepEqual(frames[0].score, null, 'start frame has null score');
+  assertDeepEqual(frames[0].matchPoints, {}, 'start frame has empty matchPoints');
+
+  assertDeepEqual(frames[1].outcome, 'home', 'frame 1 carries match outcome');
+  assertDeepEqual(frames[1].score, { scoreHome: 2, scoreAway: 1 }, 'frame 1 carries looked-up score');
+  assertDeepEqual(frames[1].matchPoints, { Alice: 3 },
+    'frame 1 matchPoints only includes the scoring voter (Alice), not Bob/Carol who picked wrong');
+
+  assertDeepEqual(frames[2].outcome, 'draw', 'frame 2 carries match outcome even with no voters');
+  assertDeepEqual(frames[2].score, null, 'frame 2 has null score when no stub entry exists for that matchup');
+  assertDeepEqual(frames[2].matchPoints, {}, 'frame 2 matchPoints is empty when nobody scored');
+
+  _scoreStub = {};
 }
 
 if (failed) {
