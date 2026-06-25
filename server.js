@@ -1236,6 +1236,13 @@ let _fixturesCache = null;
 let _fixturesCacheTime = 0;
 const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 
+// Cooldown for the dedicated R32 sync fetch. R32 fixtures change at most once
+// a day (as group stage results come in), so polling once per 10 minutes is
+// plenty. The main poll runs every 60s and already covers live/recent matches;
+// this extra call only fires when upcoming fixtures are missing from that response.
+let _r32SyncLastFetch = 0;
+const R32_SYNC_COOLDOWN = 10 * 60 * 1000;
+
 let _liveScoresCache = [];
 // football-data.org has been observed returning 'LIVE' as well as the
 // documented 'IN_PLAY' for an in-progress match — treat them as equivalent.
@@ -1418,14 +1425,19 @@ async function syncFantasyR32FromApi(apiMatches, apiKey) {
 
   // If the main poll didn't include upcoming fixtures, fetch them explicitly.
   // football-data.org's default window excludes SCHEDULED/TIMED matches that
-  // haven't started yet. Stop making the extra call once all 16 slots are
-  // populated with real team names.
+  // haven't started yet. Guarded by a 10-minute cooldown so we don't burn
+  // API quota on every 60-second poll. Stops entirely once all 16 slots have
+  // real team names.
   if (r32.length === 0) {
     const db = readData();
     ensureFantasyR32(db);
     const allReal = db.fantasyR32.length === 16 &&
       db.fantasyR32.every(m => m.homeTeam !== 'TBD' && m.awayTeam !== 'TBD');
-    if (allReal) return; // nothing left to update
+    if (allReal) return;
+
+    const now = Date.now();
+    if (now - _r32SyncLastFetch < R32_SYNC_COOLDOWN) return;
+    _r32SyncLastFetch = now;
 
     try {
       const url = 'https://api.football-data.org/v4/competitions/WC/matches?status=SCHEDULED,TIMED,IN_PLAY,PAUSED,FINISHED';
