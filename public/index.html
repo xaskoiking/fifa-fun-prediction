@@ -49,6 +49,9 @@
         <button class="tab-btn active" id="tabBtnPredictions" onclick="switchTab('predictions')">
           <span class="tab-icon">🔮</span> <span class="tab-label">Predictions</span>
         </button>
+        <button class="tab-btn" id="tabBtnBracket" onclick="switchTab('bracket')">
+          <span class="tab-icon">🎯</span> <span class="tab-label">Bracket</span>
+        </button>
         <button class="tab-btn" id="tabBtnResults" onclick="switchTab('results')">
           <span class="tab-icon"><svg class="cal-icon" viewBox="0 0 24 24" role="img" aria-label="2026 calendar"><rect x="2.5" y="4.5" width="19" height="16.5" rx="3" fill="#0d2416" stroke="#1f7a45" stroke-width="1.5"/><rect x="2.5" y="4.5" width="19" height="5" rx="3" fill="#e53935"/><line x1="7.5" y1="2.5" x2="7.5" y2="6.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="16.5" y1="2.5" x2="16.5" y2="6.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><text x="12" y="18" text-anchor="middle" font-size="7.5" font-weight="800" fill="#fff" font-family="Arial, Helvetica, sans-serif">2026</text></svg></span> <span class="tab-label">Past Results</span>
         </button>
@@ -79,6 +82,15 @@
         <div id="matchesGrid" class="matches-grid">
           <div class="loading-state">Loading matches...</div>
         </div>
+      </section>
+
+      <!-- ================= BRACKET TAB ================= -->
+      <section id="tabContentBracket" class="tab-content">
+        <div class="section-header">
+          <h2>🎯 Knockout Bracket</h2>
+          <p class="section-description">Round of 32 onward. Drag/swipe between rounds — your picks light up green as you go.</p>
+        </div>
+        <div id="bracketContainer"></div>
       </section>
 
       <!-- ================= PAST RESULTS TAB ================= -->
