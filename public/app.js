@@ -117,6 +117,19 @@ function setupUser() {
     usernameModal.style.display = 'none';
     currentUserNameDisplay.textContent = currentUsername;
     updateAdminTabVisibility();
+    const fantasyBtn = document.getElementById('fantasyBracketBtn');
+    if (fantasyBtn) fantasyBtn.style.display = 'inline-flex';
+
+    // Set lock badge on login without requiring the modal to be opened
+    fetch('/api/fantasy-bracket', { headers: { 'x-user-secret': currentUserSecret } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        const lockBadge = document.getElementById('fantasyLockBadge');
+        if (lockBadge) lockBadge.style.display = data.locked ? 'inline' : 'none';
+      })
+      .catch(() => {});
+
     loadStages();
     loadDashboardData();
   }
@@ -1912,6 +1925,68 @@ function renderBracketTab() {
   if (!container) return;
   const rounds = buildBracketRounds(matches, BRACKET_ROUNDS);
   renderBracket(container, rounds, (match, side) => submitVote(match.id, side));
+}
+
+// ── Fantasy Bracket ───────────────────────────────────────────────
+
+let _fantasyData = null;
+
+async function openFantasyBracket() {
+  const modal = document.getElementById('fantasyBracketModal');
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  try {
+    const res = await fetch('/api/fantasy-bracket', {
+      headers: { 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) throw new Error('Failed to load fantasy bracket.');
+    _fantasyData = await res.json();
+    renderFantasyBracketModal(_fantasyData);
+  } catch (e) {
+    console.error('Fantasy bracket load error:', e);
+  }
+}
+
+function renderFantasyBracketModal(data) {
+  const { locked, picks, r32Matches } = data;
+  const pickCount = Object.keys(picks).length;
+
+  document.getElementById('fantasyProgress').textContent = locked
+    ? `${pickCount} / 31 complete 🔒`
+    : `${pickCount} / 31 picks made`;
+
+  const lockBadge = document.getElementById('fantasyLockBadge');
+  if (lockBadge) lockBadge.style.display = locked ? 'inline' : 'none';
+
+  const container = document.getElementById('fantasyBracketContainer');
+  const rounds = buildFantasyBracketRounds(r32Matches, picks, BRACKET_ROUNDS);
+  renderFantasyBracket(container, rounds, picks, locked, saveFantasyPick);
+}
+
+async function saveFantasyPick(roundCode, slot, side) {
+  if (!_fantasyData || _fantasyData.locked) return;
+  try {
+    const res = await fetch('/api/fantasy-bracket/pick', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-secret': currentUserSecret
+      },
+      body: JSON.stringify({ roundCode, slot, side })
+    });
+    if (!res.ok) throw new Error('Failed to save fantasy pick.');
+    const data = await res.json();
+    _fantasyData.picks = data.picks;
+    renderFantasyBracketModal(_fantasyData);
+  } catch (e) {
+    console.error('Fantasy pick save error:', e);
+  }
+}
+
+function closeFantasyBracket() {
+  document.getElementById('fantasyBracketModal').style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 // Render results table (Live & resolved matches, latest first)
