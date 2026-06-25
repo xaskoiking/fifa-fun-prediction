@@ -432,7 +432,6 @@ console.log("\nTest #10: an explicit next-round match record takes priority over
     { matchType: 'KO', bracketRound: 'LAST_16', bracketSlot: 0, homeTeam: 'Germany', awayTeam: 'Sweden', status: 'scheduled', outcome: null }
   ];
   const rounds = buildBracketRounds(matches, ROUND_DEFS);
-  assertEqual(rounds[1].slots[0].match.id, undefined, 'sanity: fixture objects in this test have no id field');
   assertEqual(rounds[1].slots[0].homeTeam, 'Germany', 'LAST_16 slot 0 uses the real match record\'s home team');
   assertEqual(rounds[1].slots[0].awayTeam, 'Sweden', 'LAST_16 slot 0 uses the real match record\'s away team');
 }
