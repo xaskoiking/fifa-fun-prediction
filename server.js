@@ -1352,6 +1352,19 @@ function ensureSettings(db) {
   return db.settings;
 }
 
+function ensureFantasyBrackets(db) {
+  if (!db.fantasyBrackets || typeof db.fantasyBrackets !== 'object') {
+    db.fantasyBrackets = {};
+  }
+  return db.fantasyBrackets;
+}
+
+function isFantasyLocked(db) {
+  return db.matches.some(
+    m => m.bracketRound === 'LAST_32' && new Date(m.kickoff) <= new Date()
+  );
+}
+
 async function pollLiveScores() {
   const apiKey = process.env.FOOTBALL_DATA_API_KEY;
   if (!apiKey) return;
@@ -1450,6 +1463,67 @@ app.get('/api/stages', authenticateSecret, (req, res) => {
   const db = readData();
   const settings = ensureSettings(db);
   res.json({ openMatchStages: settings.openMatchStages });
+});
+
+app.get('/api/fantasy-bracket', authenticateSecret, (req, res) => {
+  const db = readData();
+  ensureFantasyBrackets(db);
+  const username = req.username;
+  const locked = isFantasyLocked(db);
+  const userBracket = db.fantasyBrackets[username] || { picks: {} };
+  const r32Matches = db.matches
+    .filter(m => m.bracketRound === 'LAST_32')
+    .sort((a, b) => a.bracketSlot - b.bracketSlot)
+    .map(m => ({
+      bracketSlot: m.bracketSlot,
+      homeTeam: m.homeTeam,
+      awayTeam: m.awayTeam,
+      kickoff: m.kickoff
+    }));
+  res.json({ locked, picks: userBracket.picks, r32Matches });
+});
+
+app.post('/api/fantasy-bracket/pick', authenticateSecret, (req, res) => {
+  const db = readData();
+  ensureFantasyBrackets(db);
+  const username = req.username;
+
+  if (isFantasyLocked(db)) {
+    return res.status(403).json({ error: 'Fantasy bracket is locked.' });
+  }
+
+  const { roundCode, slot, side } = req.body;
+
+  if (!Object.prototype.hasOwnProperty.call(BRACKET_ROUND_SIZES, roundCode)) {
+    return res.status(400).json({ error: `Invalid roundCode. Must be one of: ${Object.keys(BRACKET_ROUND_SIZES).join(', ')}` });
+  }
+  const slotNum = Number(slot);
+  if (!Number.isInteger(slotNum) || slotNum < 0 || slotNum >= BRACKET_ROUND_SIZES[roundCode]) {
+    return res.status(400).json({ error: `Invalid slot for ${roundCode}.` });
+  }
+  if (side !== 'home' && side !== 'away') {
+    return res.status(400).json({ error: 'side must be "home" or "away".' });
+  }
+
+  if (!db.fantasyBrackets[username]) {
+    db.fantasyBrackets[username] = { picks: {} };
+  }
+  const picks = db.fantasyBrackets[username].picks;
+
+  picks[`${roundCode}:${slotNum}`] = side;
+
+  // Cascade clear: wipe all downstream picks that depended on this slot
+  const FANTASY_ROUND_ORDER = ['LAST_32', 'LAST_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'];
+  const startIdx = FANTASY_ROUND_ORDER.indexOf(roundCode);
+  let currentSlot = slotNum;
+  for (let i = startIdx + 1; i < FANTASY_ROUND_ORDER.length; i++) {
+    currentSlot = Math.floor(currentSlot / 2);
+    delete picks[`${FANTASY_ROUND_ORDER[i]}:${currentSlot}`];
+  }
+
+  logAuditAction(db, 'FANTASY_PICK', `${username} picked "${side}" for ${roundCode} slot ${slotNum}`);
+  writeData(db);
+  res.json({ ok: true, picks });
 });
 
 app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
