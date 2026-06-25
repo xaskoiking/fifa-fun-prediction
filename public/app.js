@@ -30,7 +30,10 @@ let racePlaying = false;
 let raceIntervalHandle = null;
 let raceMaxPoints = 1;
 let raceRowsByName = new Map();
+let raceScoringMatches = new Map();
 const RACE_FRAME_DURATION_MS = 700;
+const SEGMENT_PALETTE_SIZE = 10;
+const MIN_SEGMENT_LABEL_FRACTION = 0.04;
 
 // DOM Elements
 const usernameModal = document.getElementById('usernameModal');
@@ -1185,6 +1188,8 @@ async function loadLeaderboardHistory() {
       });
     });
 
+    raceScoringMatches = buildRaceScoringMatches(raceFrames);
+
     raceCurrentFrame = raceFrames.length - 1;
     raceScrubber.max = String(Math.max(raceFrames.length - 1, 0));
     raceScrubber.value = String(raceCurrentFrame);
@@ -1202,6 +1207,31 @@ async function loadLeaderboardHistory() {
   }
 }
 
+// Turn leaderboard history frames into a per-player ordered list of
+// "scoring matches" — the matches that earned that player points, in
+// chronological (frame) order. Drives the stacked bar segments below.
+function buildRaceScoringMatches(frames) {
+  const result = new Map();
+  for (let frameIndex = 1; frameIndex < frames.length; frameIndex++) {
+    const frame = frames[frameIndex];
+    const matchPoints = frame.matchPoints || {};
+    Object.keys(matchPoints).forEach(playerName => {
+      if (!result.has(playerName)) result.set(playerName, []);
+      result.get(playerName).push({
+        frameIndex,
+        matchNumber: frame.matchNumber,
+        homeTeam: frame.homeTeam,
+        awayTeam: frame.awayTeam,
+        kickoff: frame.kickoff,
+        outcome: frame.outcome,
+        score: frame.score,
+        points: matchPoints[playerName]
+      });
+    });
+  }
+  return result;
+}
+
 // Build one row per player from the start frame, in initial order
 function initRaceBars() {
   raceBars.innerHTML = '';
@@ -1215,10 +1245,68 @@ function initRaceBars() {
       <span class="race-name">${escapeHtml(player.name)}</span>
       <div class="race-bar-track"><div class="race-bar-fill"></div></div>
       <span class="race-points">0 pts</span>
+      <span class="race-row-chevron">&#9656;</span>
+      <div class="race-row-stage-panel" style="display:none;"></div>
     `;
+    row.onclick = (e) => onRaceRowClick(e, row, player.name);
     raceBars.appendChild(row);
     raceRowsByName.set(player.name, row);
   });
+}
+
+// Build the colored, per-match <div> segments for one player's stage bar:
+// every scoring match within [stage.lo, stage.hi], up to (and including)
+// the given frame index, with each segment's label-visibility threshold
+// evaluated against that player's own total for the stage (not the
+// all-time raceMaxPoints, and not other players' totals) — the bar is
+// always filled to 100% width, so a segment's share of stageTotalPoints
+// is exactly its share of the bar's width.
+function buildStageSegmentsHtml(playerName, frameIndex, stage, stageTotalPoints) {
+  const scoringMatches = raceScoringMatches.get(playerName) || [];
+  return scoringMatches
+    .filter(m => m.frameIndex <= frameIndex)
+    .filter(m => {
+      const n = parseInt(m.matchNumber, 10);
+      return n >= stage.lo && n <= stage.hi;
+    })
+    .map(m => {
+      const colorIndex = parseInt(m.matchNumber, 10) % SEGMENT_PALETTE_SIZE;
+      const showLabel = stageTotalPoints > 0 && (m.points / stageTotalPoints) >= MIN_SEGMENT_LABEL_FRACTION;
+      const player = escapeHtml(playerName);
+      const matchNum = escapeHtml(String(m.matchNumber));
+      return `
+        <div class="race-bar-segment" style="flex-grow: ${m.points}; background: var(--seg-${colorIndex});"
+             onmouseenter="onSegmentMouseEnter(this, '${player}', '${matchNum}')"
+             onmouseleave="onSegmentMouseLeave()"
+             onclick="onSegmentClick(this, '${player}', '${matchNum}')">${showLabel ? m.points : ''}</div>
+      `;
+    })
+    .join('');
+}
+
+// Build the colored stage segments for one player's *main* (collapsed) bar:
+// one segment per RACE_STAGE_GROUPS stage the player has scored in, up to
+// (and including) the given frame index, colored by stage index using the
+// pastel --stage-pastel-* palette (deliberately distinct from the vivid
+// --seg-* palette used by the per-match segments inside the expanded
+// stage-breakdown panel). Segment widths are relative within the bar via
+// flex-grow, same mechanism as the per-match segments; the label threshold
+// is evaluated against raceMaxPoints, consistent with how the main bar's
+// overall width is scaled.
+function buildMainBarStageSegmentsHtml(playerName, frameIndex) {
+  const scoringMatches = raceScoringMatches.get(playerName) || [];
+  return RACE_STAGE_GROUPS.map((stage, stageIndex) => {
+    const points = scoringMatches
+      .filter(m => m.frameIndex <= frameIndex)
+      .filter(m => {
+        const n = parseInt(m.matchNumber, 10);
+        return n >= stage.lo && n <= stage.hi;
+      })
+      .reduce((sum, m) => sum + m.points, 0);
+    if (points <= 0) return '';
+    const showLabel = (points / raceMaxPoints) >= MIN_SEGMENT_LABEL_FRACTION;
+    return `<div class="race-bar-segment" style="flex-grow: ${points}; background: var(--stage-pastel-${stageIndex});">${showLabel ? points : ''}</div>`;
+  }).join('');
 }
 
 // Render a given frame, animating bar width and row order changes (FLIP technique)
@@ -1240,14 +1328,21 @@ function renderRaceFrame(frameIndex, animate) {
     rows.forEach(row => firstRects.set(row, row.getBoundingClientRect()));
   }
 
-  frame.standings.forEach((player, index) => {
+  frame.standings.forEach(player => {
     const row = raceRowsByName.get(player.name);
     if (!row) return;
 
     const pct = (player.points / raceMaxPoints) * 100;
-    row.querySelector('.race-bar-fill').style.width = `${pct}%`;
+    const fill = row.querySelector('.race-bar-fill');
+    fill.style.width = `${pct}%`;
+    fill.style.background = '';
+    fill.innerHTML = buildMainBarStageSegmentsHtml(player.name, frameIndex);
     row.querySelector('.race-points').textContent = `${player.points} pts`;
-    row.classList.toggle('race-row-leader', index === 0 && player.points > 0);
+
+    const panel = row.querySelector('.race-row-stage-panel');
+    if (panel && panel.style.display !== 'none') {
+      renderStagePanel(panel, player.name);
+    }
 
     raceBars.appendChild(row);
   });
@@ -1269,6 +1364,102 @@ function renderRaceFrame(frameIndex, animate) {
   });
 }
 
+// Tapping/clicking a row toggles its stage-breakdown panel open/closed, at
+// every screen width. Multiple rows may be open at once. Clicks that
+// originate inside an already-open panel (e.g. clicking a segment for its
+// tooltip) don't toggle the row.
+function onRaceRowClick(e, row, playerName) {
+  if (e.target.closest('.race-row-stage-panel')) return;
+  const panel = row.querySelector('.race-row-stage-panel');
+  const chevron = row.querySelector('.race-row-chevron');
+  if (!panel) return;
+
+  const isOpen = panel.style.display !== 'none';
+  if (isOpen) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    if (chevron) chevron.textContent = '▸';
+    row.classList.remove('race-row-expanded');
+  } else {
+    panel.style.display = 'flex';
+    if (chevron) chevron.textContent = '▾';
+    renderStagePanel(panel, playerName);
+    row.classList.add('race-row-expanded');
+  }
+}
+
+// Fixed tournament-stage buckets for the Race chart's stage-breakdown
+// panel, as inclusive matchNumber ranges (48-team World Cup format: 12
+// groups x 3 matchdays x 24 matches, then 16+8+4+2+1+1 knockout matches).
+const RACE_STAGE_GROUPS = [
+  { label: 'M1',    lo: 1,  hi: 24 },
+  { label: 'M2',    lo: 25, hi: 48 },
+  { label: 'M3',    lo: 49, hi: 72 },
+  { label: 'R32',   lo: 73, hi: 88 },
+  { label: 'R16',   lo: 89, hi: 96 },
+  { label: 'QF->F', lo: 97, hi: 104 }
+];
+
+// For each stage that has at least one resolved match (frames[1..frameIndex])
+// within its range, compute every player's point total in that stage so far
+// and the highest such total (used to scale that stage's bar width).
+// Unstarted stages are omitted from the result entirely.
+function computeStageBreakdown(scoringMatchesMap, playerNames, frames, frameIndex, stages) {
+  const startedIndexes = new Set();
+  for (let i = 1; i <= frameIndex; i++) {
+    const frame = frames[i];
+    if (!frame || frame.matchNumber == null) continue;
+    const n = parseInt(frame.matchNumber, 10);
+    stages.forEach((stage, idx) => {
+      if (n >= stage.lo && n <= stage.hi) startedIndexes.add(idx);
+    });
+  }
+
+  const result = [];
+  stages.forEach((stage, idx) => {
+    if (!startedIndexes.has(idx)) return;
+    const players = new Map();
+    let maxPoints = 0;
+    playerNames.forEach(name => {
+      const matches = scoringMatchesMap.get(name) || [];
+      const points = matches
+        .filter(m => m.frameIndex <= frameIndex)
+        .filter(m => {
+          const n = parseInt(m.matchNumber, 10);
+          return n >= stage.lo && n <= stage.hi;
+        })
+        .reduce((sum, m) => sum + m.points, 0);
+      players.set(name, points);
+      if (points > maxPoints) maxPoints = points;
+    });
+    result.push({ label: stage.label, lo: stage.lo, hi: stage.hi, maxPoints, players });
+  });
+  return result;
+}
+
+// Build the stage-breakdown panel's content for one player: one
+// .race-stage-row per started stage, each a mini stacked bar of that
+// player's per-match segments within that stage, scaled to the stage's
+// own leading scorer. Called both when a panel is first opened and again
+// on every subsequent frame tick while it stays open (see renderRaceFrame),
+// so it stays live-synced with Play/scrub.
+function renderStagePanel(panel, playerName) {
+  const playerNames = Array.from(raceRowsByName.keys());
+  const breakdown = computeStageBreakdown(raceScoringMatches, playerNames, raceFrames, raceCurrentFrame, RACE_STAGE_GROUPS);
+
+  panel.innerHTML = breakdown.map(stageEntry => {
+    const stagePoints = stageEntry.players.get(playerName) || 0;
+    const segmentsHtml = buildStageSegmentsHtml(playerName, raceCurrentFrame, stageEntry, stagePoints);
+    return `
+      <div class="race-stage-row">
+        <span class="race-stage-label">${escapeHtml(stageEntry.label)}</span>
+        <div class="race-stage-bar-track"><div class="race-stage-bar-fill" style="width: 100%;">${segmentsHtml}</div></div>
+        <span class="race-stage-points">${stagePoints} pts</span>
+      </div>
+    `;
+  }).join('');
+}
+
 // Play/Pause button handler
 function toggleRacePlayback() {
   if (racePlaying) {
@@ -1276,9 +1467,13 @@ function toggleRacePlayback() {
     return;
   }
 
-  raceCurrentFrame = 0;
-  raceScrubber.value = '0';
-  renderRaceFrame(0, false);
+  // Resume from wherever playback was paused/scrubbed to; only restart
+  // from the beginning if playback had already reached the end.
+  if (raceCurrentFrame >= raceFrames.length - 1) {
+    raceCurrentFrame = 0;
+    raceScrubber.value = '0';
+    renderRaceFrame(0, false);
+  }
 
   startRacePlayback();
 }
@@ -1339,6 +1534,90 @@ function buildFlagSpan(teamName, extraClass) {
   const fiClass = code ? `fi fi-${code}` : '';
   return `<span class="${extraClass} ${fiClass}" data-team="${escapeHtml(teamName)}"></span>`;
 }
+
+// Capability check: true on devices with real hover (mouse/trackpad),
+// false on touch-only devices. Drives whether segments react to
+// hover or to tap.
+const supportsHoverForSegments = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+function getSegmentTooltip() {
+  let tip = document.getElementById('race-segment-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'race-segment-tooltip';
+    tip.className = 'race-segment-tooltip';
+    tip.style.display = 'none';
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+
+// Show the race chart's match-result tooltip for the segment a user
+// hovered or tapped, positioned just above it.
+function showSegmentTooltip(segmentEl, playerName, matchNumber) {
+  const scoringMatches = raceScoringMatches.get(playerName) || [];
+  const matchInfo = scoringMatches.find(m => String(m.matchNumber) === String(matchNumber));
+  if (!matchInfo) return;
+
+  const isDraw = matchInfo.outcome === 'draw';
+  const scoreMid = matchInfo.score
+    ? `${matchInfo.score.scoreHome}-${matchInfo.score.scoreAway}`
+    : (isDraw ? 'Draw' : 'Win');
+
+  const tip = getSegmentTooltip();
+  tip.innerHTML = `
+    <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
+      ${buildFlagSpan(matchInfo.homeTeam, 'result-flag')}
+      <span class="form-score">${escapeHtml(scoreMid)}</span>
+      ${buildFlagSpan(matchInfo.awayTeam, 'result-flag')}
+    </span>
+    <div class="race-segment-tooltip-points">+${matchInfo.points} pts</div>
+  `;
+  tip.dataset.forSegment = `${playerName}|${matchNumber}`;
+  tip.style.display = 'block';
+
+  const rect = segmentEl.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - tipRect.width / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+  const top = rect.top - tipRect.height - 8;
+  tip.style.left = `${Math.round(left)}px`;
+  tip.style.top = `${Math.round(top)}px`;
+}
+
+function hideSegmentTooltip() {
+  const tip = document.getElementById('race-segment-tooltip');
+  if (tip) tip.style.display = 'none';
+}
+
+function onSegmentMouseEnter(el, playerName, matchNumber) {
+  if (!supportsHoverForSegments) return;
+  showSegmentTooltip(el, playerName, matchNumber);
+}
+
+function onSegmentMouseLeave() {
+  if (!supportsHoverForSegments) return;
+  hideSegmentTooltip();
+}
+
+function onSegmentClick(el, playerName, matchNumber) {
+  if (supportsHoverForSegments) return;
+  const tip = getSegmentTooltip();
+  const key = `${playerName}|${matchNumber}`;
+  const wasShowingForThis = tip.style.display === 'block' && tip.dataset.forSegment === key;
+  hideSegmentTooltip();
+  if (!wasShowingForThis) {
+    showSegmentTooltip(el, playerName, matchNumber);
+  }
+}
+
+// Tapping anywhere outside a segment or the tooltip itself dismisses it
+// (mobile/touch only — desktop relies on mouseleave instead).
+document.addEventListener('click', (e) => {
+  if (supportsHoverForSegments) return;
+  if (e.target.closest('.race-bar-segment') || e.target.closest('#race-segment-tooltip')) return;
+  hideSegmentTooltip();
+});
 
 function buildTeamFormHtml(teamName, apiForm) {
   let rows;

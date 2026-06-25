@@ -22,7 +22,30 @@
   --color-danger: #ff5252;
   --color-warning: #ffd600;
   --color-review: #7c4dff;
-  
+
+  /* Race chart per-match segment palette (cycles by matchNumber % 10) */
+  --seg-0: #00e676;
+  --seg-1: #29b6f6;
+  --seg-2: #ffb300;
+  --seg-3: #ff5252;
+  --seg-4: #7c4dff;
+  --seg-5: #ff9100;
+  --seg-6: #ec407a;
+  --seg-7: #26c6da;
+  --seg-8: #d4e157;
+  --seg-9: #8d6e63;
+
+  /* Race chart main-bar stage palette (one per RACE_STAGE_GROUPS entry,
+     by stage index: M1, M2, M3, R32, R16, F). Deliberately pastel/muted so
+     it reads as visually distinct from the vivid --seg-* per-match palette
+     used inside the expanded stage-breakdown panel. */
+  --stage-pastel-0: #ffadad;
+  --stage-pastel-1: #ffd6a5;
+  --stage-pastel-2: #fdffb6;
+  --stage-pastel-3: #9bf6ff;
+  --stage-pastel-4: #a0c4ff;
+  --stage-pastel-5: #bdb2ff;
+
   /* Shading */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -484,6 +507,24 @@ body {
   pointer-events: none;
 }
 
+.race-segment-tooltip {
+  position: fixed;
+  z-index: 9999;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  pointer-events: none;
+  text-align: center;
+}
+
+.race-segment-tooltip-points {
+  margin-top: 4px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--color-accent);
+}
+
 .vs-divider {
   color: var(--text-muted);
   font-weight: 800;
@@ -786,13 +827,25 @@ body {
 .race-bar-fill {
   height: 100%;
   width: 0%;
-  background: var(--color-accent);
+  display: flex;
   border-radius: var(--radius-sm);
+  overflow: hidden;
   transition: width 700ms ease;
 }
 
-.race-row-leader .race-bar-fill {
-  background: var(--color-gold);
+.race-bar-segment {
+  height: 100%;
+  flex-shrink: 0;
+  flex-basis: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: rgba(0, 0, 0, 0.75);
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .race-points {
@@ -802,10 +855,6 @@ body {
   font-weight: 800;
   font-size: 0.95rem;
   color: var(--color-accent);
-}
-
-.race-row-leader .race-points {
-  color: var(--color-gold);
 }
 
 .race-controls {
@@ -826,6 +875,77 @@ body {
   color: var(--text-muted);
   min-width: 64px;
   text-align: right;
+}
+
+.race-row {
+  flex-wrap: wrap;
+  cursor: pointer;
+}
+
+.race-row-expanded {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin: -8px -10px;
+}
+
+.race-row-chevron {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.race-row-stage-panel {
+  flex-basis: 100%;
+  margin-top: 8px;
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.race-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.race-stage-label {
+  width: 42px;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-stage-bar-track {
+  flex: 1;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.race-stage-bar-fill {
+  height: 100%;
+  width: 0%;
+  display: flex;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: width 700ms ease;
+}
+
+.race-stage-points {
+  width: 55px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-accent);
 }
 
 /* ===================== Ranking comparison (prev vs current) ===================== */
