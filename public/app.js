@@ -167,6 +167,8 @@ function switchTab(tabName) {
 
   if (tabName === 'predictions') {
     renderMatches();
+  } else if (tabName === 'bracket') {
+    renderBracketTab();
   } else if (tabName === 'results') {
     renderResults();
   } else if (tabName === 'leaderboard') {
@@ -335,6 +337,8 @@ async function loadDashboardData() {
 
     if (activeTab === 'predictions') {
       renderMatches();
+    } else if (activeTab === 'bracket') {
+      renderBracketTab();
     } else if (activeTab === 'results') {
       renderResults();
     }
@@ -1719,6 +1723,7 @@ function renderMatches() {
   // Same definition as the leaderboard "Not Yet Voted" column: not resolved, not
   // admin-locked, still before kickoff (or extension active), and no vote cast.
   const notVotedCount = matches.filter(match => {
+    if (match.matchType !== 'League') return false;
     if (match.status === 'resolved') return false;
     if (match.votingLocked) return false;
     const started = new Date(match.kickoff) <= now;
@@ -1730,6 +1735,7 @@ function renderMatches() {
   // Filter only scheduled matches whose kickoff is in the future,
   // OR matches with an active voting extension
   const filtered = matches.filter(match => {
+    if (match.matchType !== 'League') return false;
     const isStarted = new Date(match.kickoff) <= now;
     if (!isStarted && match.status === 'scheduled') return true;
     // Also show started matches with active extension
@@ -1858,8 +1864,18 @@ function renderMatches() {
 
     matchesGrid.appendChild(card);
   });
-  
+
   updateAllTimers();
+}
+
+// Renders the Bracket tab (knockout stage). Reuses submitVote/confirmVote
+// for the actual voting flow — clicking a bracket row is equivalent to
+// clicking a predict-btn in the old flat list.
+function renderBracketTab() {
+  const container = document.getElementById('bracketContainer');
+  if (!container) return;
+  const rounds = buildBracketRounds(matches, BRACKET_ROUNDS);
+  renderBracket(container, rounds, (match, side) => submitVote(match.id, side));
 }
 
 // Render results table (Live & resolved matches, latest first)
