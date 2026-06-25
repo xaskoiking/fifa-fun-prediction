@@ -19,6 +19,11 @@ const BRACKET_GAP = 16;
 const BRACKET_ROW_H = BRACKET_CARD_H + BRACKET_GAP;
 const BRACKET_COL_GAP = 56;
 const BRACKET_COL_PITCH = BRACKET_CARD_W + BRACKET_COL_GAP;
+// Vertical space reserved above row 0 for the per-column round-name label.
+// Applied only at render time (card.style.top / connector Y) — kept out of
+// computeBracketPositions itself so that function stays byte-identical to
+// the verified copy in verify_bracket_layout.js.
+const BRACKET_HEADER_H = 36;
 
 function computeBracketPositions(roundSizes, focusedIdx, rowHeight) {
   const positions = [];
@@ -72,50 +77,81 @@ let _bracketFocused = 0;
 let _bracketPositions = [];
 let _bracketOnPick = null;
 
+// Desktop (>=601px) disables horizontal scroll/swipe entirely in favor of
+// prev/next buttons that slide the track via CSS transform — a transform
+// isn't limited by scrollable distance the way scrollwrap.scrollTo() is,
+// which is what let the old scroll-based nav silently fail to align the
+// last round or two flush-left on wide viewports. Mobile (<=600px) keeps
+// native scroll/drag/swipe exactly as before. Matches this codebase's
+// existing 600px breakpoint convention (see style.css).
+function isBracketDesktop() {
+  return window.matchMedia('(min-width: 601px)').matches;
+}
+
 function renderBracket(rootEl, rounds, onPick) {
   _bracketOnPick = onPick;
   const roundSizes = rounds.map(r => r.size);
 
   rootEl.innerHTML = `
-    <div class="bracket-tabs" id="bracketTabs"></div>
     <div class="bracket-scrollwrap" id="bracketScrollwrap">
+      <button class="bracket-nav-btn bracket-nav-prev" id="bracketPrevBtn" aria-label="Previous round" type="button">&lsaquo;</button>
+      <button class="bracket-nav-btn bracket-nav-next" id="bracketNextBtn" aria-label="Next round" type="button">&rsaquo;</button>
       <div class="bracket-track" id="bracketTrack">
         <svg class="bracket-connectors" id="bracketSvg"></svg>
       </div>
     </div>
   `;
 
-  const tabsEl = rootEl.querySelector('#bracketTabs');
   const scrollwrap = rootEl.querySelector('#bracketScrollwrap');
   const track = rootEl.querySelector('#bracketTrack');
   const svg = rootEl.querySelector('#bracketSvg');
-
-  rounds.forEach((round, i) => {
-    const t = document.createElement('div');
-    t.className = 'bracket-tab' + (i === 0 ? ' active' : '');
-    t.textContent = round.label;
-    t.onclick = () => goToBracketRound(i, rounds, roundSizes, track, svg, scrollwrap, tabsEl);
-    tabsEl.appendChild(t);
-  });
+  const prevBtn = rootEl.querySelector('#bracketPrevBtn');
+  const nextBtn = rootEl.querySelector('#bracketNextBtn');
 
   const trackWidth = rounds.length * BRACKET_COL_PITCH + 240;
   track.style.width = trackWidth + 'px';
+  track.style.transform = 'translateX(0px)';
   svg.setAttribute('width', trackWidth);
 
   _bracketFocused = 0;
   _bracketPositions = computeBracketPositions(roundSizes, 0, BRACKET_ROW_H);
 
+  buildBracketColLabels(track, rounds);
   buildBracketCards(track, rounds);
   applyBracketPositions(rounds, track, svg);
+  updateBracketNavButtons(rounds.length, prevBtn, nextBtn);
 
-  scrollwrap.onscroll = debounceBracketScroll(() => {
-    const idx = Math.round(scrollwrap.scrollLeft / BRACKET_COL_PITCH);
-    if (idx !== _bracketFocused && idx >= 0 && idx < rounds.length) {
-      goToBracketRound(idx, rounds, roundSizes, track, svg, scrollwrap, tabsEl);
-    }
+  prevBtn.onclick = () => goToBracketRound(_bracketFocused - 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
+  nextBtn.onclick = () => goToBracketRound(_bracketFocused + 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
+
+  if (isBracketDesktop()) {
+    scrollwrap.onscroll = null;
+    scrollwrap.onmousedown = null;
+  } else {
+    scrollwrap.onscroll = debounceBracketScroll(() => {
+      const idx = Math.round(scrollwrap.scrollLeft / BRACKET_COL_PITCH);
+      if (idx !== _bracketFocused && idx >= 0 && idx < rounds.length) {
+        goToBracketRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
+      }
+    });
+    wireBracketDrag(scrollwrap);
+  }
+}
+
+function buildBracketColLabels(track, rounds) {
+  rounds.forEach((round, r) => {
+    const label = document.createElement('div');
+    label.className = 'bracket-col-label' + (r === 0 ? ' active' : '');
+    label.style.left = (r * BRACKET_COL_PITCH) + 'px';
+    label.textContent = round.label;
+    label.dataset.round = r;
+    track.appendChild(label);
   });
+}
 
-  wireBracketDrag(scrollwrap);
+function updateBracketNavButtons(roundCount, prevBtn, nextBtn) {
+  prevBtn.disabled = _bracketFocused === 0;
+  nextBtn.disabled = _bracketFocused === roundCount - 1;
 }
 
 function debounceBracketScroll(fn) {
@@ -190,7 +226,7 @@ function applyBracketPositions(rounds, track, svg) {
     if (!_bracketPositions[r]) return;
     round.slots.forEach((_, i) => {
       const card = track.querySelector(`.bracket-card[data-round="${r}"][data-slot="${i}"]`);
-      if (card) card.style.top = _bracketPositions[r][i] + 'px';
+      if (card) card.style.top = (_bracketPositions[r][i] + BRACKET_HEADER_H) + 'px';
     });
   });
   drawBracketConnectors(rounds, svg);
@@ -206,11 +242,11 @@ function drawBracketConnectors(rounds, svg) {
     const childX = (r + 1) * BRACKET_COL_PITCH;
     positions.forEach((y, i) => {
       const pairIdx = Math.floor(i / 2);
-      const childY = _bracketPositions[r + 1][pairIdx] + BRACKET_CARD_H / 2;
+      const childY = _bracketPositions[r + 1][pairIdx] + BRACKET_HEADER_H + BRACKET_CARD_H / 2;
       const startX = xOffset + BRACKET_CARD_W;
-      const startY = y + BRACKET_CARD_H / 2;
+      const startY = y + BRACKET_HEADER_H + BRACKET_CARD_H / 2;
       const midX = startX + BRACKET_COL_GAP / 2;
-      maxY = Math.max(maxY, y, childY);
+      maxY = Math.max(maxY, startY, childY);
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', `M ${startX} ${startY} H ${midX} V ${childY} H ${childX}`);
       svg.appendChild(path);
@@ -219,11 +255,21 @@ function drawBracketConnectors(rounds, svg) {
   svg.setAttribute('height', Math.max(maxY + BRACKET_CARD_H + 60, 600));
 }
 
-function goToBracketRound(idx, rounds, roundSizes, track, svg, scrollwrap, tabsEl) {
-  scrollwrap.scrollTo({ left: idx * BRACKET_COL_PITCH, behavior: 'smooth' });
+function goToBracketRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn) {
+  idx = Math.min(Math.max(idx, 0), rounds.length - 1);
+
+  if (isBracketDesktop()) {
+    track.style.transform = `translateX(-${idx * BRACKET_COL_PITCH}px)`;
+  } else {
+    scrollwrap.scrollTo({ left: idx * BRACKET_COL_PITCH, behavior: 'smooth' });
+  }
+
   if (idx === _bracketFocused) return;
   _bracketFocused = idx;
   _bracketPositions = computeBracketPositions(roundSizes, idx, BRACKET_ROW_H);
   applyBracketPositions(rounds, track, svg);
-  tabsEl.querySelectorAll('.bracket-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+  updateBracketNavButtons(rounds.length, prevBtn, nextBtn);
+  track.querySelectorAll('.bracket-col-label').forEach(label => {
+    label.classList.toggle('active', +label.dataset.round === idx);
+  });
 }

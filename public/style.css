@@ -2283,33 +2283,6 @@ body {
 }
 
 /* ===== Bracket tab (knockout stage) ===== */
-.bracket-tabs {
-  display: flex;
-  gap: 6px;
-  padding: 4px 4px 14px;
-  overflow-x: auto;
-  flex-wrap: wrap;
-}
-
-.bracket-tab {
-  flex-shrink: 0;
-  padding: 7px 14px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  border: 1px solid var(--border-color);
-  cursor: pointer;
-  transition: var(--transition-smooth);
-  user-select: none;
-}
-
-.bracket-tab.active {
-  background: rgba(0, 230, 118, 0.14);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
 .bracket-scrollwrap {
   overflow: auto;
   scroll-snap-type: x mandatory;
@@ -2319,12 +2292,79 @@ body {
   border-radius: var(--radius-md);
   background: var(--bg-card);
   border: 1px solid var(--border-color);
+  scrollbar-width: none;
+}
+
+.bracket-scrollwrap::-webkit-scrollbar {
+  display: none;
 }
 
 .bracket-track {
   position: relative;
   min-height: 100%;
   padding: 20px 0;
+  transition: transform 0.5s cubic-bezier(.22, .85, .25, 1);
+}
+
+.bracket-col-label {
+  position: absolute;
+  top: 8px;
+  width: 168px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: var(--transition-smooth);
+}
+
+.bracket-col-label.active {
+  color: var(--color-accent);
+}
+
+.bracket-nav-btn {
+  display: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 5;
+  transition: var(--transition-smooth);
+}
+
+.bracket-nav-prev { left: 10px; }
+.bracket-nav-next { right: 10px; }
+
+.bracket-nav-btn:hover:not(:disabled) {
+  background: rgba(0, 230, 118, 0.18);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.bracket-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+@media (min-width: 601px) {
+  .bracket-scrollwrap {
+    overflow-x: hidden;
+    cursor: default;
+  }
+  .bracket-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 .bracket-connectors {
@@ -2395,5 +2435,6 @@ body {
 
 @media (max-width: 600px) {
   .bracket-card { width: 150px; }
+  .bracket-col-label { width: 150px; }
   .bracket-row { font-size: 0.76rem; padding: 6px 8px; }
 }
