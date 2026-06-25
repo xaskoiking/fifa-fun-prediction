@@ -1444,6 +1444,14 @@ app.post('/api/admin/settings', verifyAdmin, (req, res) => {
   res.json({ openMatchStages: filtered, availableStages: TOURNAMENT_STAGES });
 });
 
+// Public (player-level) read of which stages are open — used by the
+// frontend to decide whether to show the legacy flat Predictions tab.
+app.get('/api/stages', authenticateSecret, (req, res) => {
+  const db = readData();
+  const settings = ensureSettings(db);
+  res.json({ openMatchStages: settings.openMatchStages });
+});
+
 app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
   const apiKey = process.env.FOOTBALL_DATA_API_KEY;
   if (!apiKey) {
