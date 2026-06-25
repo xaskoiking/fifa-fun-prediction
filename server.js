@@ -1400,18 +1400,50 @@ async function pollLiveScores() {
       });
     console.log(`[LIVE] Cache updated: ${_liveScoresCache.length} live/finished match(es)`);
 
-    // Sync ROUND_OF_32 fixtures into db.fantasyR32 so the fantasy bracket
-    // auto-populates without any manual step. Only write when something changes.
-    syncFantasyR32FromApi(allMatches);
+    // Sync ROUND_OF_32 fixtures into db.fantasyR32. The main poll only returns
+    // matches in football-data.org's rolling window (live/recent), so upcoming
+    // R32 fixtures may be missing from allMatches. Pass them along anyway —
+    // syncFantasyR32FromApi will fetch its own dedicated request when needed.
+    syncFantasyR32FromApi(allMatches, apiKey);
   } catch (err) {
     console.error('[LIVE] Poll failed:', err.message);
   }
 }
 
-function syncFantasyR32FromApi(apiMatches) {
-  const r32 = apiMatches
+async function syncFantasyR32FromApi(apiMatches, apiKey) {
+  // First try the matches already returned by the main poll.
+  let r32 = apiMatches
     .filter(m => m.stage === 'ROUND_OF_32')
     .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+
+  // If the main poll didn't include upcoming fixtures, fetch them explicitly.
+  // football-data.org's default window excludes SCHEDULED/TIMED matches that
+  // haven't started yet. Stop making the extra call once all 16 slots are
+  // populated with real team names.
+  if (r32.length === 0) {
+    const db = readData();
+    ensureFantasyR32(db);
+    const allReal = db.fantasyR32.length === 16 &&
+      db.fantasyR32.every(m => m.homeTeam !== 'TBD' && m.awayTeam !== 'TBD');
+    if (allReal) return; // nothing left to update
+
+    try {
+      const url = 'https://api.football-data.org/v4/competitions/WC/matches?status=SCHEDULED,TIMED,IN_PLAY,PAUSED,FINISHED';
+      const res = await fetch(url, { headers: { 'X-Auth-Token': apiKey } });
+      if (!res.ok) {
+        console.warn(`[R32 SYNC] API returned ${res.status}`);
+        return;
+      }
+      const data = await res.json();
+      r32 = (data.matches || [])
+        .filter(m => m.stage === 'ROUND_OF_32')
+        .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+    } catch (err) {
+      console.error('[R32 SYNC] Fetch failed:', err.message);
+      return;
+    }
+  }
+
   if (r32.length === 0) return;
 
   const db = readData();
@@ -1434,7 +1466,7 @@ function syncFantasyR32FromApi(apiMatches) {
   if (changed) {
     db.fantasyR32 = Array.from(slotMap.values()).sort((a, b) => a.bracketSlot - b.bracketSlot);
     writeData(db);
-    console.log(`[LIVE] fantasyR32 synced: ${db.fantasyR32.length} slot(s)`);
+    console.log(`[R32 SYNC] fantasyR32 updated: ${db.fantasyR32.length} slot(s)`);
   }
 }
 
