@@ -2281,3 +2281,119 @@ body {
   .live-dot { animation: none; }
   .chase-rect { animation: none; }
 }
+
+/* ===== Bracket tab (knockout stage) ===== */
+.bracket-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px 4px 14px;
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+
+.bracket-tab {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  user-select: none;
+}
+
+.bracket-tab.active {
+  background: rgba(0, 230, 118, 0.14);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.bracket-scrollwrap {
+  overflow: auto;
+  scroll-snap-type: x mandatory;
+  position: relative;
+  cursor: grab;
+  max-height: 70vh;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+}
+
+.bracket-track {
+  position: relative;
+  min-height: 100%;
+  padding: 20px 0;
+}
+
+.bracket-connectors {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.bracket-connectors path {
+  stroke: var(--border-color);
+  stroke-width: 2;
+  fill: none;
+}
+
+.bracket-card {
+  position: absolute;
+  left: 0;
+  width: 168px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: top 0.5s cubic-bezier(.22, .85, .25, 1);
+}
+
+.bracket-card.final {
+  border-color: var(--color-gold);
+}
+
+.bracket-row {
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  height: 50%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.bracket-card .bracket-row:last-child {
+  border-bottom: none;
+}
+
+.bracket-row.tbd {
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.bracket-row.pick {
+  color: var(--color-accent);
+  background: rgba(0, 230, 118, 0.08);
+}
+
+.bracket-row.votable {
+  cursor: pointer;
+}
+
+.bracket-row.votable:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 600px) {
+  .bracket-card { width: 150px; }
+  .bracket-row { font-size: 0.76rem; padding: 6px 8px; }
+}
