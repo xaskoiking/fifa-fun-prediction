@@ -2293,6 +2293,7 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   scrollbar-width: none;
+  transition: height 0.5s cubic-bezier(.22, .85, .25, 1);
 }
 
 .bracket-scrollwrap::-webkit-scrollbar {
@@ -2326,15 +2327,14 @@ body {
 .bracket-nav-btn {
   display: none;
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 40px;
-  height: 40px;
+  top: 4px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.45);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  font-size: 1.4rem;
+  font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
   z-index: 5;

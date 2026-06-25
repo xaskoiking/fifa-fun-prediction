@@ -24,6 +24,15 @@ const BRACKET_COL_PITCH = BRACKET_CARD_W + BRACKET_COL_GAP;
 // computeBracketPositions itself so that function stays byte-identical to
 // the verified copy in verify_bracket_layout.js.
 const BRACKET_HEADER_H = 36;
+// Desktop only: how far the focused column sits from the scrollwrap's left
+// edge, so the prev-button (which sits at a fixed left:10px over the
+// non-scrolling scrollwrap, not the track) never overlaps the focused
+// column's header/cards. Doesn't apply to mobile's scrollLeft nav — you
+// can't scroll past 0 to create a left margin the way a transform can.
+const BRACKET_LEFT_PAD = 44;
+// Extra bottom breathing room below the last card when sizing the
+// desktop scrollwrap to fit exactly the focused round's content height.
+const BRACKET_BOTTOM_PAD = 24;
 
 function computeBracketPositions(roundSizes, focusedIdx, rowHeight) {
   const positions = [];
@@ -88,6 +97,18 @@ function isBracketDesktop() {
   return window.matchMedia('(min-width: 601px)').matches;
 }
 
+// The focused round is always tight-stacked (see computeBracketPositions),
+// so its content height is just its own row count — and every later
+// round's positions are midpoints of it, which are always within that
+// same span, so sizing to the focused round alone never clips anything.
+function bracketContentHeight(roundSize) {
+  return BRACKET_HEADER_H + (roundSize - 1) * BRACKET_ROW_H + BRACKET_CARD_H + BRACKET_BOTTOM_PAD;
+}
+
+function applyBracketScrollwrapHeight(scrollwrap, roundSize) {
+  scrollwrap.style.height = isBracketDesktop() ? bracketContentHeight(roundSize) + 'px' : '';
+}
+
 function renderBracket(rootEl, rounds, onPick) {
   _bracketOnPick = onPick;
   const roundSizes = rounds.map(r => r.size);
@@ -132,15 +153,19 @@ function renderBracket(rootEl, rounds, onPick) {
   // goToBracketRound below) — overflow-x: hidden blocks scroll gestures
   // on desktop but NOT a programmatic scrollLeft assignment, so setting
   // both unconditionally compounds into a double offset away from round 0.
-  const prevTransition = track.style.transition;
+  const prevTrackTransition = track.style.transition;
+  const prevWrapTransition = scrollwrap.style.transition;
   track.style.transition = 'none';
+  scrollwrap.style.transition = 'none';
   if (isBracketDesktop()) {
-    track.style.transform = `translateX(-${focused * BRACKET_COL_PITCH}px)`;
+    track.style.transform = `translateX(${BRACKET_LEFT_PAD - focused * BRACKET_COL_PITCH}px)`;
   } else {
     scrollwrap.scrollLeft = focused * BRACKET_COL_PITCH;
   }
+  applyBracketScrollwrapHeight(scrollwrap, roundSizes[focused]);
   track.offsetHeight; // force reflow so the no-transition change applies before re-enabling it
-  track.style.transition = prevTransition;
+  track.style.transition = prevTrackTransition;
+  scrollwrap.style.transition = prevWrapTransition;
 
   prevBtn.onclick = () => goToBracketRound(_bracketFocused - 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
   nextBtn.onclick = () => goToBracketRound(_bracketFocused + 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
@@ -280,7 +305,8 @@ function goToBracketRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevB
   idx = Math.min(Math.max(idx, 0), rounds.length - 1);
 
   if (isBracketDesktop()) {
-    track.style.transform = `translateX(-${idx * BRACKET_COL_PITCH}px)`;
+    track.style.transform = `translateX(${BRACKET_LEFT_PAD - idx * BRACKET_COL_PITCH}px)`;
+    applyBracketScrollwrapHeight(scrollwrap, roundSizes[idx]);
   } else {
     scrollwrap.scrollTo({ left: idx * BRACKET_COL_PITCH, behavior: 'smooth' });
   }
