@@ -117,6 +117,7 @@ function setupUser() {
     usernameModal.style.display = 'none';
     currentUserNameDisplay.textContent = currentUsername;
     updateAdminTabVisibility();
+    loadStages();
     loadDashboardData();
   }
 }
@@ -136,6 +137,40 @@ function updateAdminTabVisibility() {
   }
 }
 
+// Fetch which tournament stages are currently open (player-level read,
+// no admin auth required) and update Predictions-tab visibility.
+async function loadStages() {
+  if (!currentUserSecret) return;
+  try {
+    const response = await fetch('/api/stages', {
+      headers: { 'x-user-secret': currentUserSecret }
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    openMatchStages = data.openMatchStages || [];
+    updatePredictionsTabVisibility();
+  } catch (err) {
+    console.error('Error loading stage settings:', err);
+  }
+}
+
+// Once Round of 32 opens, the flat-list Predictions tab has nothing left
+// to do — group-stage voting is done, and KO matches live in the Bracket
+// tab exclusively. Hide it and bounce off it if it's currently active.
+function updatePredictionsTabVisibility() {
+  const predictionsBtn = document.getElementById('tabBtnPredictions');
+  if (!predictionsBtn) return;
+  const last32Open = openMatchStages.includes('LAST_32');
+  if (last32Open) {
+    predictionsBtn.style.display = 'none';
+    if (activeTab === 'predictions') {
+      switchTab('bracket');
+    }
+  } else {
+    predictionsBtn.style.display = 'inline-flex';
+  }
+}
+
 // Start polling and timer updates
 function startIntervals() {
   if (countdownInterval) clearInterval(countdownInterval);
@@ -145,6 +180,7 @@ function startIntervals() {
   pollInterval = setInterval(() => {
     if (currentUserSecret) {
       loadDashboardData();
+      loadStages();
     }
   }, 10000);
 }
