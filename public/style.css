@@ -2547,17 +2547,50 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   position: relative;
+  overscroll-behavior: contain;
 }
 
-.fantasy-bracket-container .bracket-scrollwrap {
-  overflow-x: hidden;
-  cursor: default;
+.fantasy-bracket-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  padding: 4px 8px;
+  height: 40px;
 }
 
-.fantasy-bracket-container .bracket-nav-btn {
+.fantasy-bracket-active-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-accent);
+}
+
+.fantasy-bracket-header .bracket-nav-btn {
+  position: static;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.fantasy-bracket-container .bracket-scrollwrap {
+  overflow: hidden;
+  cursor: default;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* Override mobile card-width reduction so connector math stays correct */
+.fantasy-bracket-container .bracket-card,
+.fantasy-bracket-container .bracket-col-label {
+  width: 168px;
 }
 
 /* ── Fantasy bracket card accent ─────────────────────────────── */

@@ -4,6 +4,7 @@
 
 let _fantasyFocused = 0;
 let _fantasyPositions = [];
+let _fantasyLabelEl = null;
 
 function buildFantasyBracketRounds(r32Matches, picks, roundDefs) {
   const slotToMatch = new Map();
@@ -104,20 +105,23 @@ function drawFantasyConnectors(rounds, svg) {
       svg.appendChild(path);
     });
   }
-  svg.setAttribute('height', Math.max(maxY + BRACKET_CARD_H + 60, 600));
+  // Use BRACKET_CARD_H/2 + BRACKET_BOTTOM_PAD so the SVG height matches
+  // bracketContentHeight exactly, preventing a nested scroll container.
+  svg.setAttribute('height', Math.max(maxY + BRACKET_CARD_H / 2 + BRACKET_BOTTOM_PAD, 600));
 }
 
 function goToFantasyRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn) {
   idx = Math.min(Math.max(idx, 0), rounds.length - 1);
   track.style.transform = `translateX(${BRACKET_LEFT_PAD - idx * BRACKET_COL_PITCH}px)`;
-  scrollwrap.style.height = bracketContentHeight(roundSizes[idx]) + 'px';
   if (idx === _fantasyFocused) return;
   _fantasyFocused = idx;
   _fantasyPositions = computeBracketPositions(roundSizes, idx, BRACKET_ROW_H);
   prevBtn.disabled = idx === 0;
   nextBtn.disabled = idx === rounds.length - 1;
+  if (_fantasyLabelEl) _fantasyLabelEl.textContent = rounds[idx].label;
   requestAnimationFrame(() => {
     applyFantasyPositions(rounds, track, svg);
+    scrollwrap.style.height = (parseInt(svg.getAttribute('height')) + 40) + 'px';
     track.querySelectorAll('.bracket-col-label').forEach(label => {
       label.classList.toggle('active', +label.dataset.round === idx);
     });
@@ -128,9 +132,12 @@ function renderFantasyBracket(container, rounds, picks, locked, onPick) {
   const roundSizes = rounds.map(r => r.size);
 
   container.innerHTML = `
-    <div class="bracket-scrollwrap" id="fantasyScrollwrap">
+    <div class="fantasy-bracket-header" id="fantasyHeader">
       <button class="bracket-nav-btn bracket-nav-prev" id="fantasyPrevBtn" aria-label="Previous round" type="button">&lsaquo;</button>
+      <span class="fantasy-bracket-active-label" id="fantasyActiveLabel"></span>
       <button class="bracket-nav-btn bracket-nav-next" id="fantasyNextBtn" aria-label="Next round" type="button">&rsaquo;</button>
+    </div>
+    <div class="bracket-scrollwrap" id="fantasyScrollwrap">
       <div class="bracket-track" id="fantasyTrack">
         <svg class="bracket-connectors" id="fantasySvg"></svg>
       </div>
@@ -142,6 +149,7 @@ function renderFantasyBracket(container, rounds, picks, locked, onPick) {
   const svg       = container.querySelector('#fantasySvg');
   const prevBtn   = container.querySelector('#fantasyPrevBtn');
   const nextBtn   = container.querySelector('#fantasyNextBtn');
+  _fantasyLabelEl  = container.querySelector('#fantasyActiveLabel');
 
   const trackWidth = rounds.length * BRACKET_COL_PITCH + 240;
   track.style.width = trackWidth + 'px';
@@ -150,6 +158,8 @@ function renderFantasyBracket(container, rounds, picks, locked, onPick) {
   const focused = Math.min(_fantasyFocused, rounds.length - 1);
   _fantasyFocused = focused;
   _fantasyPositions = computeBracketPositions(roundSizes, focused, BRACKET_ROW_H);
+
+  if (_fantasyLabelEl) _fantasyLabelEl.textContent = rounds[focused].label;
 
   rounds.forEach((round, r) => {
     const label = document.createElement('div');
@@ -162,7 +172,7 @@ function renderFantasyBracket(container, rounds, picks, locked, onPick) {
 
   buildFantasyCards(track, rounds, picks, locked, onPick);
   applyFantasyPositions(rounds, track, svg);
-  scrollwrap.style.height = bracketContentHeight(roundSizes[focused]) + 'px';
+  scrollwrap.style.height = (parseInt(svg.getAttribute('height')) + 40) + 'px';
 
   const prevTransition = track.style.transition;
   track.style.transition = 'none';
