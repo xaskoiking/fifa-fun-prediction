@@ -314,9 +314,14 @@ function goToBracketRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevB
   if (idx === _bracketFocused) return;
   _bracketFocused = idx;
   _bracketPositions = computeBracketPositions(roundSizes, idx, BRACKET_ROW_H);
-  applyBracketPositions(rounds, track, svg);
+  // Update button state immediately to block rapid double-clicks
   updateBracketNavButtons(rounds.length, prevBtn, nextBtn);
-  track.querySelectorAll('.bracket-col-label').forEach(label => {
-    label.classList.toggle('active', +label.dataset.round === idx);
+  // Defer the heavy DOM work (querySelector loop + SVG redraw) so the
+  // transform above can paint before the event loop is occupied
+  requestAnimationFrame(() => {
+    applyBracketPositions(rounds, track, svg);
+    track.querySelectorAll('.bracket-col-label').forEach(label => {
+      label.classList.toggle('active', +label.dataset.round === idx);
+    });
   });
 }

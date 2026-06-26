@@ -118,11 +118,13 @@ function goToFantasyRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevB
   if (idx === _fantasyFocused) return;
   _fantasyFocused = idx;
   _fantasyPositions = computeBracketPositions(roundSizes, idx, BRACKET_ROW_H);
-  applyFantasyPositions(rounds, track, svg);
   prevBtn.disabled = idx === 0;
   nextBtn.disabled = idx === rounds.length - 1;
-  track.querySelectorAll('.bracket-col-label').forEach(label => {
-    label.classList.toggle('active', +label.dataset.round === idx);
+  requestAnimationFrame(() => {
+    applyFantasyPositions(rounds, track, svg);
+    track.querySelectorAll('.bracket-col-label').forEach(label => {
+      label.classList.toggle('active', +label.dataset.round === idx);
+    });
   });
 }
 
