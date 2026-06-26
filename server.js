@@ -716,7 +716,7 @@ app.get('/api/live-matches', (req, res) => {
 const TEAM_NAME_OVERRIDES = {
   'korea republic': 'south korea',
   "côte d'ivoire": 'ivory coast',
-  'cabo verde': 'cape verde',
+  'cabo verde': 'cape verde islands',
   'usa': 'united states',
   'ir iran': 'iran',
   'bosnia and herzegovina': 'bosnia-herzegovina'
