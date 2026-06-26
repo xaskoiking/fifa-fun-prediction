@@ -2549,6 +2549,17 @@ body {
   position: relative;
 }
 
+.fantasy-bracket-container .bracket-scrollwrap {
+  overflow-x: hidden;
+  cursor: default;
+}
+
+.fantasy-bracket-container .bracket-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ── Fantasy bracket card accent ─────────────────────────────── */
 
 .bracket-card--fantasy .bracket-row.fantasy-pick {

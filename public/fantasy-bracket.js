@@ -109,12 +109,8 @@ function drawFantasyConnectors(rounds, svg) {
 
 function goToFantasyRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn) {
   idx = Math.min(Math.max(idx, 0), rounds.length - 1);
-  if (isBracketDesktop()) {
-    track.style.transform = `translateX(${BRACKET_LEFT_PAD - idx * BRACKET_COL_PITCH}px)`;
-    applyBracketScrollwrapHeight(scrollwrap, roundSizes[idx]);
-  } else {
-    scrollwrap.scrollTo({ left: idx * BRACKET_COL_PITCH, behavior: 'smooth' });
-  }
+  track.style.transform = `translateX(${BRACKET_LEFT_PAD - idx * BRACKET_COL_PITCH}px)`;
+  scrollwrap.style.height = bracketContentHeight(roundSizes[idx]) + 'px';
   if (idx === _fantasyFocused) return;
   _fantasyFocused = idx;
   _fantasyPositions = computeBracketPositions(roundSizes, idx, BRACKET_ROW_H);
@@ -166,15 +162,11 @@ function renderFantasyBracket(container, rounds, picks, locked, onPick) {
 
   buildFantasyCards(track, rounds, picks, locked, onPick);
   applyFantasyPositions(rounds, track, svg);
-  applyBracketScrollwrapHeight(scrollwrap, roundSizes[focused]);
+  scrollwrap.style.height = bracketContentHeight(roundSizes[focused]) + 'px';
 
   const prevTransition = track.style.transition;
   track.style.transition = 'none';
-  if (isBracketDesktop()) {
-    track.style.transform = `translateX(${BRACKET_LEFT_PAD - focused * BRACKET_COL_PITCH}px)`;
-  } else {
-    scrollwrap.scrollLeft = focused * BRACKET_COL_PITCH;
-  }
+  track.style.transform = `translateX(${BRACKET_LEFT_PAD - focused * BRACKET_COL_PITCH}px)`;
   track.offsetHeight;
   track.style.transition = prevTransition;
 
@@ -184,15 +176,5 @@ function renderFantasyBracket(container, rounds, picks, locked, onPick) {
   prevBtn.onclick = () => goToFantasyRound(_fantasyFocused - 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
   nextBtn.onclick = () => goToFantasyRound(_fantasyFocused + 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
 
-  if (isBracketDesktop()) {
-    scrollwrap.onscroll = null;
-  } else {
-    scrollwrap.onscroll = debounceBracketScroll(() => {
-      const idx = Math.round(scrollwrap.scrollLeft / BRACKET_COL_PITCH);
-      if (idx !== _fantasyFocused && idx >= 0 && idx < rounds.length) {
-        goToFantasyRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
-      }
-    });
-    wireBracketDrag(scrollwrap);
-  }
+  scrollwrap.onscroll = null;
 }
