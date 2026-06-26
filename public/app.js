@@ -210,17 +210,31 @@ function getCachedRankString(teamName) {
 async function fetchRankings() {
   try {
     const response = await fetch('/api/ranking');
-    
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
-    }
+    if (!response.ok) throw new Error('Network response was not ok');
     const data = await response.json();
     globalRankings = data || {};
-
+    // persist for faster next-load
+    try { localStorage.setItem('fifa_rankings', JSON.stringify(globalRankings)); } catch (_) {}
   } catch (error) {
     console.error('Error fetching rankings from Node backend:', error);
-    globalRankings = await getFallbackRankingData() || {}; // Fallback to static rankings if available
+    globalRankings = (await getFallbackRankingData()) || {};
+    // also try to load cached rankings from localStorage
+    try {
+      const cached = localStorage.getItem('fifa_rankings');
+      if (cached) globalRankings = JSON.parse(cached);
+    } catch (_) {}
+  } finally {
+    // update DOM without re-rendering all matches
+    updateRankDisplays();
   }
+}
+
+function updateRankDisplays() {
+  document.querySelectorAll('.team-rank').forEach(el => {
+    const team = el.dataset.team;
+    if (!team) return;
+    el.textContent = getCachedRankString(team);
+  });
 }
 
 async function getFallbackRankingData() {
@@ -1499,7 +1513,7 @@ function renderMatches() {
           ${buildFlagSpan(match.homeTeam, 'team-flag')}
           <span style="display:flex; align-items:center; gap:6px;">
             <span class="team-name" title="${escapeHtml(match.homeTeam)}">${escapeHtml(match.homeTeam)}</span>
-            <span class="team-rank">${getCachedRankString(match.homeTeam)}</span>
+            <span class="team-rank" data-team="${escapeHtml(match.homeTeam)}">${getCachedRankString(match.homeTeam)}</span>
           </span>
           ${buildTeamFormHtml(match.homeTeam, match.homeTeamForm)}
         </div>
@@ -1508,7 +1522,7 @@ function renderMatches() {
           ${buildFlagSpan(match.awayTeam, 'team-flag')}
           <span style="display:flex; align-items:center; gap:6px;">
             <span class="team-name" title="${escapeHtml(match.awayTeam)}">${escapeHtml(match.awayTeam)}</span>
-            <span class="team-rank">${getCachedRankString(match.awayTeam)}</span>
+            <span class="team-rank" data-team="${escapeHtml(match.awayTeam)}">${getCachedRankString(match.awayTeam)}</span>
           </span>
           ${buildTeamFormHtml(match.awayTeam, match.awayTeamForm)}
         </div>
