@@ -2,6 +2,36 @@
 // Fantasy bracket renderer. Shares layout constants from bracket.js (loaded first).
 // Keep buildFantasyBracketRounds in sync with verify_fantasy_bracket.js.
 
+// ISO 3166-1 alpha-2 codes for teams that appear in this tournament.
+// Regional indicator pairs render as flag emoji in all modern browsers.
+const _TEAM_CODES = {
+  'Algeria': 'DZ', 'Argentina': 'AR', 'Australia': 'AU', 'Austria': 'AT',
+  'Belgium': 'BE', 'Bosnia & Herzegovina': 'BA', 'Brazil': 'BR',
+  'Canada': 'CA', 'Cape Verde': 'CV', 'Colombia': 'CO', 'Croatia': 'HR',
+  'Curaçao': 'CW', 'Czechia': 'CZ', 'Denmark': 'DK', 'DR Congo': 'CD',
+  'Ecuador': 'EC', 'Egypt': 'EG', 'France': 'FR', 'Germany': 'DE',
+  'Ghana': 'GH', 'Haiti': 'HT', 'Iceland': 'IS', 'Iran': 'IR',
+  'Iraq': 'IQ', 'Ivory Coast': 'CI', "Côte d'Ivoire": 'CI', 'Japan': 'JP',
+  'Jordan': 'JO', 'Mexico': 'MX', 'Morocco': 'MA', 'Netherlands': 'NL',
+  'New Zealand': 'NZ', 'Norway': 'NO', 'Panama': 'PA', 'Paraguay': 'PY',
+  'Poland': 'PL', 'Portugal': 'PT', 'Qatar': 'QA', 'Saudi Arabia': 'SA',
+  'Senegal': 'SN', 'Serbia': 'RS', 'South Africa': 'ZA', 'South Korea': 'KR',
+  'Spain': 'ES', 'Sweden': 'SE', 'Switzerland': 'CH', 'Tunisia': 'TN',
+  'Türkiye': 'TR', 'Turkey': 'TR', 'Ukraine': 'UA', 'United States': 'US',
+  'Uruguay': 'UY', 'USA': 'US', 'Uzbekistan': 'UZ', 'Venezuela': 'VE',
+  // Subdivision flags (tag sequences — widely supported since 2020)
+  'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+};
+
+function _teamFlag(name) {
+  const val = _TEAM_CODES[name];
+  if (!val) return '';
+  // Already a rendered emoji (subdivision flags stored as-is)
+  if (val.length > 2) return val;
+  // Convert 2-letter code → regional indicator pair
+  return [...val].map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('');
+}
+
 let _fantasyFocused = 0;
 let _fantasyPositions = [];
 
@@ -38,7 +68,8 @@ function buildFantasyRow(roundCode, slotIdx, team, side, picks, locked, onPick) 
   const isTbd = team === 'TBD';
   const isPick = picks[`${roundCode}:${slotIdx}`] === side;
   row.className = 'bracket-row' + (isTbd ? ' tbd' : '') + (isPick ? ' fantasy-pick' : '');
-  row.textContent = team;
+  const flag = isTbd ? '' : _teamFlag(team);
+  row.textContent = flag ? flag + ' ' + team : team;
   if (!locked && !isTbd) {
     row.classList.add('votable');
     row.onclick = () => onPick(roundCode, slotIdx, side);
