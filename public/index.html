@@ -26,19 +26,18 @@
         <div class="logo-area">
           <div class="ball-icon">⚽</div>
           <div>
-            <div class="title-row">
-              <h1>Prediction Arena</h1>
+            <h1>Prediction Arena</h1>
+            <div class="subtitle-row">
+              <p class="subtitle">FIFA Prediction Game</p>
               <span id="envPill" class="env-pill" style="display: none;"></span>
             </div>
-            <p class="subtitle">FIFA Prediction Game</p>
           </div>
         </div>
 
-        <button id="fantasyBracketBtn" class="btn btn-fantasy" style="display:none;" onclick="openFantasyBracket()">
-          ⭐<span class="fantasy-btn-label"> Fantasy Bracket</span><span id="fantasyLockBadge" class="fantasy-lock-badge" style="display:none;"> 🔒</span>
-        </button>
-
         <div class="user-status" id="userStatusArea">
+          <button id="fantasyBracketBtn" class="btn btn-fantasy" style="display:none;" onclick="openFantasyBracket()">
+            ⭐<span class="fantasy-btn-label"> Fantasy Bracket</span><span id="fantasyLockBadge" class="fantasy-lock-badge" style="display:none;"> 🔒</span>
+          </button>
           <span class="user-welcome">Welcome, <strong id="currentUserNameDisplay">Guest</strong></span>
           <span id="boosterStatusDisplay" style="display:none; font-size: 1rem; letter-spacing: 2px; margin-left: auto;"></span>
           <button id="changeUserBtn" class="btn btn-secondary btn-sm"><span class="switch-label">Switch Player</span><span class="switch-icon" aria-hidden="true">👤</span></button>
