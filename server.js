@@ -1465,10 +1465,14 @@ async function syncFantasyR32FromApi(apiMatches, apiKey) {
   let changed = false;
 
   r32.forEach((m, i) => {
-    const homeTeam = m.homeTeam?.name || 'TBD';
-    const awayTeam = m.awayTeam?.name || 'TBD';
+    const apiHome = m.homeTeam?.name || 'TBD';
+    const apiAway = m.awayTeam?.name || 'TBD';
     const kickoff = m.utcDate;
     const existing = slotMap.get(i);
+    // Never downgrade a real name to TBD — the API intermittently returns null
+    // for teams that were previously known. Only accept TBD if we have nothing.
+    const homeTeam = apiHome !== 'TBD' ? apiHome : (existing?.homeTeam || 'TBD');
+    const awayTeam = apiAway !== 'TBD' ? apiAway : (existing?.awayTeam || 'TBD');
     if (!existing || existing.homeTeam !== homeTeam || existing.awayTeam !== awayTeam || existing.kickoff !== kickoff) {
       slotMap.set(i, { bracketSlot: i, homeTeam, awayTeam, kickoff });
       changed = true;
