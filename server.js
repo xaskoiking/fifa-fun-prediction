@@ -718,6 +718,7 @@ const TEAM_NAME_OVERRIDES = {
   "côte d'ivoire": 'ivory coast',
   'cabo verde': 'cape verde islands',
   'usa': 'united states',
+  'türkiye': 'turkey',
   'ir iran': 'iran',
   'bosnia and herzegovina': 'bosnia-herzegovina'
 };
