@@ -60,9 +60,10 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --max-instances 1 \
-            --set-env-vars GCS_BUCKET_NAME=$BUCKET,APP_ENV=review,PR_NUMBER=${{ github.event.pull_request.number }}${FOOTBALL_KEY:+,FOOTBALL_DATA_API_KEY=$FOOTBALL_KEY}
+            --set-env-vars GCS_BUCKET_NAME=$BUCKET,APP_ENV=review,PR_NUMBER=${{ github.event.pull_request.number }}${FOOTBALL_KEY:+,FOOTBALL_DATA_API_KEY=$FOOTBALL_KEY}${RAPID_KEY:+,RAPIDAPI_KEY=$RAPID_KEY}
         env:
           FOOTBALL_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          RAPID_KEY: ${{ secrets.RAPIDAPI_KEY }}
 
       - name: Get review app URL
         id: url
