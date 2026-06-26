@@ -2543,7 +2543,8 @@ body {
 
 .fantasy-bracket-container {
   flex: 1;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
 }
 
