@@ -1901,8 +1901,12 @@ function renderResults() {
           const totalIncorrectVotes = (match.outcome === 'home' ? (counts.away + counts.draw) 
                                      : match.outcome === 'away' ? (counts.home + counts.draw)
                                      : (counts.home + counts.away));
-          const pts = totalIncorrectVotes + 1;
-          pickText = `🎉 ${escapeHtml(pickTeam)} (+${pts})`;
+          const basePts = totalIncorrectVotes + 1;
+          const boosterMultiplier = match.myBooster ? 2 : 1;
+          const pts = basePts * boosterMultiplier;
+          pickText = match.myBooster
+            ? `🎉 ${escapeHtml(pickTeam)} (+${pts} · booster x2)`
+            : `🎉 ${escapeHtml(pickTeam)} (+${pts})`;
           pickClass = 'text-active'; // Neon Green
         } else {
           pickText = `❌ ${escapeHtml(pickTeam)}`;
