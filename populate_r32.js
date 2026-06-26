@@ -20,7 +20,7 @@ const DIRECT = process.argv.includes('--direct');
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
 const DATA_FILE = path.join(__dirname, 'data.json');
 
-const R32_STAGE = 'ROUND_OF_32';
+const R32_STAGE = 'LAST_32';
 
 if (!API_KEY) {
   console.error('Error: FOOTBALL_DATA_API_KEY is required.');

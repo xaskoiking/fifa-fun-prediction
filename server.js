@@ -1420,7 +1420,7 @@ async function pollLiveScores() {
 async function syncFantasyR32FromApi(apiMatches, apiKey) {
   // First try the matches already returned by the main poll.
   let r32 = apiMatches
-    .filter(m => m.stage === 'ROUND_OF_32')
+    .filter(m => m.stage === 'LAST_32')
     .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
 
   // If the main poll didn't include upcoming fixtures, fetch them explicitly.
@@ -1448,7 +1448,7 @@ async function syncFantasyR32FromApi(apiMatches, apiKey) {
       }
       const data = await res.json();
       r32 = (data.matches || [])
-        .filter(m => m.stage === 'ROUND_OF_32')
+        .filter(m => m.stage === 'LAST_32')
         .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
     } catch (err) {
       console.error('[R32 SYNC] Fetch failed:', err.message);
