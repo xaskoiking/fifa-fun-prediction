@@ -1595,6 +1595,67 @@ app.post('/api/admin/fantasy-r32', verifyAdmin, (req, res) => {
   res.json({ ok: true, count: db.fantasyR32.length });
 });
 
+app.get('/api/admin/fantasy-status', verifyAdmin, (req, res) => {
+  const db = readData();
+  ensureFantasyR32(db);
+  ensureFantasyBrackets(db);
+  const backup = db._fantasyBackup || null;
+  res.json({
+    r32Count: db.fantasyR32.length,
+    r32Real: db.fantasyR32.filter(m => m.homeTeam !== 'TBD' || m.awayTeam !== 'TBD').length,
+    playerCount: Object.keys(db.fantasyBrackets).length,
+    hasBackup: !!backup,
+    backupTimestamp: backup ? backup.timestamp : null,
+    backupR32Count: backup ? backup.fantasyR32.length : 0,
+    backupPlayerCount: backup ? Object.keys(backup.fantasyBrackets).length : 0
+  });
+});
+
+app.post('/api/admin/fantasy-reset', verifyAdmin, async (req, res) => {
+  const apiKey = process.env.FOOTBALL_DATA_API_KEY;
+  const db = readData();
+  ensureFantasyR32(db);
+  ensureFantasyBrackets(db);
+
+  // Snapshot before clearing so undo can restore exactly
+  db._fantasyBackup = {
+    timestamp: new Date().toISOString(),
+    fantasyR32: JSON.parse(JSON.stringify(db.fantasyR32)),
+    fantasyBrackets: JSON.parse(JSON.stringify(db.fantasyBrackets))
+  };
+
+  db.fantasyR32 = [];
+  db.fantasyBrackets = {};
+  logAuditAction(db, 'FANTASY_RESET', `Admin ${req.adminUsername} reset fantasy bracket data`);
+  writeData(db);
+
+  // Reset cooldown so the next poll fetches immediately
+  _r32SyncLastFetch = 0;
+
+  // Kick off a background sync right now rather than waiting for the next poll
+  if (apiKey) {
+    syncFantasyR32FromApi([], apiKey).catch(err =>
+      console.error('[FANTASY RESET] Background sync failed:', err.message)
+    );
+  }
+
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/fantasy-undo', verifyAdmin, (req, res) => {
+  const db = readData();
+  if (!db._fantasyBackup) {
+    return res.status(404).json({ error: 'No backup available to restore.' });
+  }
+  db.fantasyR32 = db._fantasyBackup.fantasyR32;
+  db.fantasyBrackets = db._fantasyBackup.fantasyBrackets;
+  const ts = db._fantasyBackup.timestamp;
+  delete db._fantasyBackup;
+  logAuditAction(db, 'FANTASY_UNDO', `Admin ${req.adminUsername} restored fantasy bracket from backup (${ts})`);
+  writeData(db);
+  res.json({ ok: true });
+});
+
 app.post('/api/fantasy-bracket/pick', authenticateSecret, (req, res) => {
   const db = readData();
   ensureFantasyBrackets(db);

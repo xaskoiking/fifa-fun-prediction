@@ -603,6 +603,30 @@
             </div>
           </div>
 
+          <!-- Fantasy Bracket Card -->
+          <div class="rules-card" style="margin-top: 20px;">
+            <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 16px;">
+              <h3 style="margin: 0;">⭐ Fantasy Bracket</h3>
+            </div>
+            <div class="card-body">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                <div class="admin-stat-box">
+                  <div class="admin-stat-label">R32 slots populated</div>
+                  <div class="admin-stat-value" id="fantasyAdminR32Count">—</div>
+                </div>
+                <div class="admin-stat-box">
+                  <div class="admin-stat-label">Players with picks</div>
+                  <div class="admin-stat-value" id="fantasyAdminPlayerCount">—</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                <button class="btn btn-danger btn-sm" onclick="adminFantasyReset()">Reset &amp; Repopulate from API</button>
+                <button class="btn btn-secondary btn-sm" id="adminFantasyUndoBtn" style="display:none;" onclick="adminFantasyUndo()">↩ Undo Reset</button>
+              </div>
+              <div id="adminFantasyMsg" style="margin-top: 10px; font-size: 0.82rem; color: var(--text-muted);"></div>
+            </div>
+          </div>
+
           <!-- History Log Card -->
           <div class="rules-card" style="margin-top: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 12px;">

@@ -2344,6 +2344,7 @@ async function checkAdminState() {
     loadAdminVotes();
     loadAdminSettings();
     loadFixtures();
+    loadAdminFantasyStatus();
   } else {
     adminAuthCard.style.display = 'block';
     adminWorkspace.style.display = 'none';
@@ -3073,6 +3074,92 @@ function copyRecoveryData(btn, data) {
     console.error('Could not copy text: ', err);
     alert('Recovery Data:\n' + data);
   });
+}
+
+// ===================== FANTASY BRACKET ADMIN =====================
+
+async function loadAdminFantasyStatus() {
+  try {
+    const res = await fetch('/api/admin/fantasy-status', {
+      headers: { 'x-admin-passcode': adminPasscode, 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const r32El = document.getElementById('fantasyAdminR32Count');
+    const playerEl = document.getElementById('fantasyAdminPlayerCount');
+    const undoBtn = document.getElementById('adminFantasyUndoBtn');
+    const msg = document.getElementById('adminFantasyMsg');
+    if (r32El) r32El.textContent = `${data.r32Real} / ${data.r32Count} with teams`;
+    if (playerEl) playerEl.textContent = data.playerCount;
+    if (undoBtn) {
+      undoBtn.style.display = data.hasBackup ? 'inline-flex' : 'none';
+      if (data.hasBackup) {
+        const ts = new Date(data.backupTimestamp).toLocaleString();
+        undoBtn.title = `Restore backup from ${ts} (${data.backupR32Count} R32 slots, ${data.backupPlayerCount} players)`;
+      }
+    }
+    if (msg && data.hasBackup) {
+      const ts = new Date(data.backupTimestamp).toLocaleString();
+      msg.textContent = `Backup available from ${ts} — ${data.backupPlayerCount} player bracket(s) saved.`;
+    } else if (msg) {
+      msg.textContent = '';
+    }
+  } catch (e) {
+    console.error('Fantasy status load error:', e);
+  }
+}
+
+async function adminFantasyReset() {
+  if (!confirm(
+    'Reset the entire fantasy bracket?\n\n' +
+    'This will:\n' +
+    '  • Clear all R32 fixture data\n' +
+    '  • Delete all player picks\n' +
+    '  • Immediately re-fetch R32 fixtures from the API\n\n' +
+    'A backup will be saved so you can undo this.'
+  )) return;
+
+  const msg = document.getElementById('adminFantasyMsg');
+  if (msg) msg.textContent = 'Resetting…';
+  try {
+    const res = await fetch('/api/admin/fantasy-reset', {
+      method: 'POST',
+      headers: { 'x-admin-passcode': adminPasscode, 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      if (msg) msg.textContent = 'Error: ' + (err.error || res.status);
+      return;
+    }
+    if (msg) msg.textContent = 'Reset complete. R32 data will repopulate from the API within a minute.';
+    await loadAdminFantasyStatus();
+  } catch (e) {
+    if (msg) msg.textContent = 'Request failed — check server logs.';
+  }
+}
+
+async function adminFantasyUndo() {
+  const undoBtn = document.getElementById('adminFantasyUndoBtn');
+  const backupDesc = undoBtn ? undoBtn.title : 'the last backup';
+  if (!confirm(`Undo the reset and restore ${backupDesc}?\n\nThis will overwrite the current fantasy data.`)) return;
+
+  const msg = document.getElementById('adminFantasyMsg');
+  if (msg) msg.textContent = 'Restoring…';
+  try {
+    const res = await fetch('/api/admin/fantasy-undo', {
+      method: 'POST',
+      headers: { 'x-admin-passcode': adminPasscode, 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      if (msg) msg.textContent = 'Error: ' + (err.error || res.status);
+      return;
+    }
+    if (msg) msg.textContent = 'Restored successfully.';
+    await loadAdminFantasyStatus();
+  } catch (e) {
+    if (msg) msg.textContent = 'Request failed — check server logs.';
+  }
 }
 
 // ===================== MATCH STAGE SETTINGS (which stages allow "Create Match") =====================

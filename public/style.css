@@ -1536,6 +1536,23 @@ body {
   margin-bottom: 16px;
 }
 
+.admin-stat-box {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.admin-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.admin-stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
 /* Admin Match rows */
 .admin-matches-list {
   display: flex;
