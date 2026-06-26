@@ -239,22 +239,22 @@ function updateRankDisplays() {
 
 async function getFallbackRankingData() {
   return {
-    'argentina': 1, 'france': 3, 'brazil': 6, 'germany': 10,
-    'spain': 2, 'italy': 12, 'england': 4, 'usa': 17, 'united states': 17,
-    'portugal': 5, 'belgium': 9, 'netherlands': 8, 'uruguay': 16,
-    'mexico': 14, 'canada': 30, 'croatia': 11, 'morocco': 7,
-    'japan': 18, 'senegal': 15, 'switzerland': 19, 'denmark': 21,
-    'colombia': 13, 'iran': 20, 'türkiye': 22, 'turkey': 22, 'australia': 27,
-    'ecuador': 23, 'austria': 24, 'south korea': 25, 'nigeria': 26,
-    'algeria': 28, 'egypt': 29, 'ukraine': 32, 'norway': 31,
-    'ivory coast': 33, 'panama': 34, 'russia': 35, 'poland': 36,
-    'wales': 37, 'sweden': 38, 'hungary': 39, 'czechia': 40,
-    'paraguay': 41, 'scotland': 42, 'serbia': 43, 'cameroon': 44,
-    'tunisia': 45, 'dr congo': 46, 'congo dr': 46, 'slovakia': 47, 'greece': 48,
-    'qatar': 56, 'iraq': 57, 'south africa': 60,
-    'saudi arabia': 61, 'jordan': 63, 'bosnia & herzegovina': 64, 'bosnia-herzegovina': 64,
-    'cape verde': 67, 'cape verde islands': 67, 'curaçao': 82, 'ghana': 73, 'haiti': 83,
-    'new zealand': 85, 'uzbekistan': 50
+    'argentina': 1, 'france': 2, 'brazil': 5, 'germany': 12,
+    'spain': 3, 'italy': 15, 'england': 4, 'usa': 17, 'united states': 14,
+    'portugal': 8, 'belgium': 10, 'netherlands': 7, 'uruguay': 18,
+    'mexico': 9, 'canada': 31, 'croatia': 13, 'morocco': 6,
+    'japan': 17, 'senegal': 19, 'switzerland': 16, 'denmark': 20,
+    'colombia': 11, 'iran': 21, 'türkiye': 32, 'turkey': 22, 'australia': 26,
+    'ecuador': 24, 'austria': 23, 'south korea': 30, 'nigeria': 25,
+    'algeria': 28, 'egypt': 27, 'ukraine': 33, 'norway': 22,
+    'ivory coast': 29, 'panama': 42, 'russia': 34, 'poland': 35,
+    'wales': 38, 'sweden': 36, 'hungary': 39, 'czechia': 48,
+    'paraguay': 37, 'scotland': 41, 'serbia': 40, 'cameroon': 43,
+    'tunisia': 59, 'dr congo': 46, 'congo dr': 46, 'slovakia': 44, 'greece': 45,
+    'qatar': 61, 'iraq': 60, 'south africa': 54,
+    'saudi arabia': 58, 'jordan': 63, 'bosnia & herzegovina': 64, 'bosnia-herzegovina': 62,
+    'cape verde': 67, 'cape verde islands': 64, 'curaçao': 82, 'ghana': 65, 'haiti': 88,
+    'new zealand': 84, 'uzbekistan': 50
   };
 }
 

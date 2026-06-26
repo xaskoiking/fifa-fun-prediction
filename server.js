@@ -716,11 +716,10 @@ app.get('/api/live-matches', (req, res) => {
 const TEAM_NAME_OVERRIDES = {
   'korea republic': 'south korea',
   "côte d'ivoire": 'ivory coast',
-  'türkiye': 'turkey',
-  'united states': 'usa',
-  'cabo verde': 'cape verde islands',
+  'cabo verde': 'cape verde',
+  'usa': 'united states',
   'ir iran': 'iran',
-  'bosnia and herzegovina': 'bosnia & herzegovina'
+  'bosnia and herzegovina': 'bosnia-herzegovina'
 };
 
 async function getFootballRankings() {
