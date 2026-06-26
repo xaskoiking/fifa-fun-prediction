@@ -2310,7 +2310,7 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   scrollbar-width: none;
-  transition: height 0.5s cubic-bezier(.22, .85, .25, 1);
+  transition: height 0.2s ease-out;
 }
 
 .bracket-scrollwrap::-webkit-scrollbar {
@@ -2321,7 +2321,8 @@ body {
   position: relative;
   min-height: 100%;
   padding: 20px 0;
-  transition: transform 0.5s cubic-bezier(.22, .85, .25, 1);
+  transition: transform 0.2s ease-out;
+  will-change: transform;
 }
 
 .bracket-col-label {
