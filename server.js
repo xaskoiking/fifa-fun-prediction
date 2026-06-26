@@ -28,13 +28,10 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 const APP_ENV = process.env.APP_ENV || 'prod';
 const PR_NUMBER = process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null;
 
-<<<<<<< HEAD
 // Initialize cache with a 24-hour expiration (86400 seconds)
 const appCache = new NodeCache({ stdTTL: 86400 }); 
 const CACHE_KEY = 'world_football_ranking';
 
-=======
->>>>>>> 046ea5a (Add environment indicator pill + scope/tag CI workflows (#23) (#25))
 // ── Admin / default-credential configuration ─────────────────────────────────
 // For production, set ADMIN_PASSCODE in the environment. When set, it overrides
 // the adminPasscode stored in data.json (which ships as the placeholder below).
@@ -373,12 +370,8 @@ function buildLeaderboardHistory(db) {
     });
 
   resolvedMatches.forEach(match => {
-<<<<<<< HEAD
-    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
-    const matchPoints = {};
-=======
     const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
->>>>>>> 4399f91 (feat: add knockout booster support)
+    const matchPoints = {};
     Object.keys(pointsAllocated).forEach(user => {
       if (!standings[user]) {
         standings[user] = { name: user, points: 0, correct: 0 };
@@ -386,10 +379,7 @@ function buildLeaderboardHistory(db) {
       if (pointsAllocated[user] > 0) {
         standings[user].points += pointsAllocated[user];
         standings[user].correct += 1;
-<<<<<<< HEAD
         matchPoints[user] = pointsAllocated[user];
-=======
->>>>>>> a56136e (dynamic leaderboards  (#18))
       }
     });
 
@@ -807,7 +797,6 @@ app.get('/api/live-matches', (req, res) => {
   res.json(matched);
 });
 
-<<<<<<< HEAD
 const TEAM_NAME_OVERRIDES = {
   'korea republic': 'south korea',
   "côte d'ivoire": 'ivory coast',
@@ -874,8 +863,6 @@ app.get('/api/ranking', async (req, res) => {
   }
 });
 
-=======
->>>>>>> a56136e (dynamic leaderboards  (#18))
 // =================== ADMIN ENDPOINTS ===================
 
 // Validate Admin Passcode
@@ -1231,7 +1218,6 @@ let _fixturesCacheTime = 0;
 const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 
 let _liveScoresCache = [];
-<<<<<<< HEAD
 // football-data.org has been observed returning 'LIVE' as well as the
 // documented 'IN_PLAY' for an in-progress match — treat them as equivalent.
 const LIVE_STATUSES = new Set(['IN_PLAY', 'LIVE', 'PAUSED', 'FINISHED']);
@@ -1243,15 +1229,6 @@ const TEAM_NAME_ALIASES = {
   'cape verde':           'cape verde islands',
   'dr congo':             'congo dr',
   'bosnia & herzegovina': 'bosnia-herzegovina',
-=======
-const LIVE_STATUSES = new Set(['IN_PLAY', 'PAUSED', 'FINISHED']);
-
-// Aliases from DB names → canonical API names (all lowercase)
-const TEAM_NAME_ALIASES = {
-  'usa':        'united states',
-  'türkiye':    'turkey',
-  'cape verde': 'cape verde islands',
->>>>>>> a56136e (dynamic leaderboards  (#18))
 };
 function normalizeTeam(name) {
   const lower = name.trim().toLowerCase();
@@ -1366,12 +1343,8 @@ async function pollLiveScores() {
           awayTeam: m.awayTeam?.name || '',
           scoreHome: ft.home ?? null,
           scoreAway: ft.away ?? null,
-<<<<<<< HEAD
           status: m.status,
           utcDate: m.utcDate
-=======
-          status: m.status
->>>>>>> a56136e (dynamic leaderboards  (#18))
         };
       });
     console.log(`[LIVE] Cache updated: ${_liveScoresCache.length} live/finished match(es)`);
@@ -1380,7 +1353,6 @@ async function pollLiveScores() {
   }
 }
 
-<<<<<<< HEAD
 function getRecentForm(teamName, limit = 3) {
   const normalized = normalizeTeam(teamName);
   return _liveScoresCache
@@ -1416,8 +1388,6 @@ function getMatchScore(homeTeam, awayTeam) {
   return { scoreHome: entry.scoreHome, scoreAway: entry.scoreAway };
 }
 
-=======
->>>>>>> a56136e (dynamic leaderboards  (#18))
 // Get which tournament stages are currently open for "Create Match"
 app.get('/api/admin/settings', verifyAdmin, (req, res) => {
   const db = readData();
