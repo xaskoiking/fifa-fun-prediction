@@ -1440,7 +1440,7 @@ async function syncFantasyR32FromApi(apiMatches, apiKey) {
     _r32SyncLastFetch = now;
 
     try {
-      const url = 'https://api.football-data.org/v4/competitions/WC/matches?status=SCHEDULED,TIMED,IN_PLAY,PAUSED,FINISHED';
+      const url = 'https://api.football-data.org/v4/competitions/WC/matches';
       const res = await fetch(url, { headers: { 'X-Auth-Token': apiKey } });
       if (!res.ok) {
         console.warn(`[R32 SYNC] API returned ${res.status}`);
