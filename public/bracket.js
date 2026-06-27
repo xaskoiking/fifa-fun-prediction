@@ -191,6 +191,12 @@ function buildBracketCards(track, rounds) {
       card.dataset.slot = i;
       card.appendChild(buildBracketRow(slotData, 'home'));
       card.appendChild(buildBracketRow(slotData, 'away'));
+      if (match && match.myBooster) {
+        const bolt = document.createElement('span');
+        bolt.className = 'bracket-card-booster';
+        bolt.textContent = '⚡';
+        card.appendChild(bolt);
+      }
       track.appendChild(card);
     });
   });

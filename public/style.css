@@ -2494,6 +2494,16 @@ body {
   transition: top 0.5s cubic-bezier(.22, .85, .25, 1);
 }
 
+.bracket-card-booster {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 0.7rem;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
 .bracket-card.final {
   border-color: var(--color-gold);
 }
