@@ -284,6 +284,30 @@ function getTeamCountryCode(teamName) {
 }
 
 // Fetch matches (requires passcode header)
+function updateBoosterDisplay() {
+  const el = document.getElementById('boosterStatusDisplay');
+  if (!el) return;
+
+  const used = { LAST_32: false, LAST_16: false, QF_SF_FINAL: false };
+  matches.forEach(match => {
+    if (match.boosterStageCode && match.boosterStageUsed) {
+      used[match.boosterStageCode] = true;
+    }
+  });
+
+  const stages = [
+    { code: 'LAST_32',     label: 'R32 Booster' },
+    { code: 'LAST_16',     label: 'R16 Booster' },
+    { code: 'QF_SF_FINAL', label: 'QF/SF/Final Booster' },
+  ];
+
+  el.innerHTML = stages.map(s =>
+    `<span title="${s.label}" style="${used[s.code] ? 'opacity:0.25; filter:grayscale(1);' : ''}">⚡</span>`
+  ).join('');
+  el.style.display = 'inline-flex';
+  el.style.alignItems = 'center';
+}
+
 async function loadDashboardData() {
   if (!currentUserSecret) return;
   try {
@@ -307,7 +331,8 @@ async function loadDashboardData() {
       throw new Error('Failed to load matches');
     }
     matches = await response.json();
-    
+    updateBoosterDisplay();
+
     if (activeTab === 'predictions') {
       renderMatches();
     } else if (activeTab === 'results') {
@@ -1782,6 +1807,22 @@ function renderMatches() {
       </div>
     ` : '';
 
+    const koOutcomeNote = match.matchType === 'KO' ? `
+      <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 10px;">
+        ⚠️ Knockout matches are 2-way only: Home Win or Away Win.
+      </div>
+    ` : '';
+
+    const boosterCalloutHtml = match.matchType === 'KO' ? (
+      match.boosterEligible ?
+        `<div style="background: rgba(60,120,255,0.08); border: 1px solid rgba(60,120,255,0.24); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.84rem; color: #d5e8ff;">⚡ <strong>Knockout booster available</strong> for ${escapeHtml(match.boosterStageLabel || 'this stage')} — 2× points when correct.</div>` :
+      match.myBooster ?
+        `<div style="background: rgba(0,230,118,0.08); border: 1px solid rgba(0,230,118,0.24); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.84rem; color: #b8ffcc;">⚡ <strong>Booster active</strong> on your current pick.</div>` :
+      match.boosterStageUsed ?
+        `<div style="background: rgba(255,214,0,0.08); border: 1px solid rgba(255,214,0,0.24); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.84rem; color: #fff5cc;">⚡ Stage booster already used for ${escapeHtml(match.boosterStageLabel || 'this stage')}.</div>` :
+        ''
+    ) : '';
+
     card.innerHTML = `
       <div class="match-meta">
         ${badgeHtml}
@@ -1810,6 +1851,8 @@ function renderMatches() {
         📅 Kickoff: ${dateStr}
       </div>
       ${extensionBannerHtml}
+      ${koOutcomeNote}
+      ${boosterCalloutHtml}
       ${optionsHtml}
     `;
 
@@ -1883,8 +1926,12 @@ function renderResults() {
           const totalIncorrectVotes = (match.outcome === 'home' ? (counts.away + counts.draw) 
                                      : match.outcome === 'away' ? (counts.home + counts.draw)
                                      : (counts.home + counts.away));
-          const pts = totalIncorrectVotes + 1;
-          pickText = `🎉 ${escapeHtml(pickTeam)} (+${pts})`;
+          const basePts = totalIncorrectVotes + 1;
+          const boosterMultiplier = match.myBooster ? 2 : 1;
+          const pts = basePts * boosterMultiplier;
+          pickText = match.myBooster
+            ? `🎉 ${escapeHtml(pickTeam)} (+${pts} · booster x2)`
+            : `🎉 ${escapeHtml(pickTeam)} (+${pts})`;
           pickClass = 'text-active'; // Neon Green
         } else {
           pickText = `❌ ${escapeHtml(pickTeam)}`;
@@ -1896,18 +1943,22 @@ function renderResults() {
     }
 
     // Voters list formatting
+    const boosters = match.boosters || { home: [], away: [], draw: [] };
+    const tagVoter = (name, boostedList) =>
+      escapeHtml(name) + (boostedList.includes(name) ? ' ⚡' : '');
+
     let distHtml = `
       <div style="font-size: 0.8rem; line-height: 1.4;">
-        <span style="${isWinnerHome ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.homeTeam)} (${counts.home}):</span> 
-        <span style="color: var(--text-muted);">${voters.home.map(escapeHtml).join(', ') || 'None'}</span>
+        <span style="${isWinnerHome ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.homeTeam)} (${counts.home}):</span>
+        <span style="color: var(--text-muted);">${voters.home.map(v => tagVoter(v, boosters.home)).join(', ') || 'None'}</span>
         <br>
         ${match.matchType === 'League' ? `
-          <span style="${isWinnerDraw ? 'color: var(--color-accent); font-weight: 700;' : ''}">Draw (${counts.draw}):</span> 
-          <span style="color: var(--text-muted);">${voters.draw.map(escapeHtml).join(', ') || 'None'}</span>
+          <span style="${isWinnerDraw ? 'color: var(--color-accent); font-weight: 700;' : ''}">Draw (${counts.draw}):</span>
+          <span style="color: var(--text-muted);">${voters.draw.map(v => tagVoter(v, boosters.draw)).join(', ') || 'None'}</span>
           <br>
         ` : ''}
-        <span style="${isWinnerAway ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.awayTeam)} (${counts.away}):</span> 
-        <span style="color: var(--text-muted);">${voters.away.map(escapeHtml).join(', ') || 'None'}</span>
+        <span style="${isWinnerAway ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.awayTeam)} (${counts.away}):</span>
+        <span style="color: var(--text-muted);">${voters.away.map(v => tagVoter(v, boosters.away)).join(', ') || 'None'}</span>
       </div>
     `;
 
@@ -2007,6 +2058,23 @@ function submitVote(matchId, prediction) {
   document.getElementById('voteConfirmMatchup').textContent = matchup;
   document.getElementById('voteConfirmChoice').textContent = choiceText;
 
+  const boosterSection = document.getElementById('voteConfirmBoosterSection');
+  const boosterCheckbox = document.getElementById('voteConfirmUseBooster');
+  const boosterInfo = document.getElementById('voteConfirmBoosterInfo');
+  if (boosterSection && boosterCheckbox && boosterInfo) {
+    const showBooster = match.matchType === 'KO' && (match.boosterEligible || match.myMatchBooster);
+    if (showBooster) {
+      boosterSection.style.display = 'block';
+      boosterCheckbox.checked = match.myBooster && match.myVote === prediction;
+      boosterInfo.textContent = match.boosterEligible
+        ? `Use your one knockout booster for ${match.boosterStageLabel || 'this stage'} to double points on a correct pick.`
+        : `Boost this prediction on your current knockout match. If you switch picks, the booster will move with your selection.`;
+    } else {
+      boosterSection.style.display = 'none';
+      boosterCheckbox.checked = false;
+    }
+  }
+
   // Store pending state
   pendingVoteMatchId = matchId;
   pendingVotePrediction = prediction;
@@ -2028,6 +2096,7 @@ async function confirmVote() {
 
   const matchId = pendingVoteMatchId;
   const prediction = pendingVotePrediction;
+  const useBooster = document.getElementById('voteConfirmUseBooster')?.checked || false;
 
   // Close modal and optimistically update UI immediately
   closeVoteModal();
@@ -2044,7 +2113,7 @@ async function confirmVote() {
         'Content-Type': 'application/json',
         'x-user-secret': currentUserSecret
       },
-      body: JSON.stringify({ matchId, prediction })
+      body: JSON.stringify({ matchId, prediction, useBooster })
     });
 
     if (!response.ok) {

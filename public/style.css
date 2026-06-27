@@ -22,7 +22,6 @@
   --color-danger: #ff5252;
   --color-warning: #ffd600;
   --color-review: #7c4dff;
-
   /* Race chart per-match segment palette (cycles by matchNumber % 10) */
   --seg-0: #00e676;
   --seg-1: #29b6f6;
@@ -45,7 +44,6 @@
   --stage-pastel-3: #9bf6ff;
   --stage-pastel-4: #a0c4ff;
   --stage-pastel-5: #bdb2ff;
-
   /* Shading */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -213,6 +211,8 @@ body {
   color: var(--color-accent);
   font-weight: 600;
 }
+
+.switch-icon { display: none; }
 
 /* Navigation Tabs */
 .tab-nav {
@@ -1735,6 +1735,9 @@ body {
     width: 100%;
     justify-content: space-between;
   }
+
+  .switch-label { display: none; }
+  .switch-icon  { display: inline; }
 
   .admin-grid {
     grid-template-columns: 1fr;
