@@ -2386,6 +2386,89 @@ body {
   }
 }
 
+/* ── Prediction Bracket Header (mirrors fantasy-bracket-header) ── */
+
+.bracket-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  padding: 4px 8px;
+  height: 40px;
+}
+
+.bracket-active-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-accent);
+}
+
+.bracket-header .bracket-nav-btn {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#bracketContainer .bracket-scrollwrap {
+  overflow: hidden;
+  cursor: default;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* Keep 168px card width on mobile so connector math stays correct */
+#bracketContainer .bracket-card,
+#bracketContainer .bracket-col-label {
+  width: 168px;
+}
+
+.bracket-slot-num {
+  position: absolute;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Locked (admin lock or kicked off): grey out non-picked rows */
+.bracket-card--locked .bracket-row:not(.pick) {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* Live (game in progress): red border */
+.bracket-card--live {
+  border-color: rgba(220, 38, 38, 0.7);
+}
+
+/* Resolved: dim the loser row only; winner and pick stay vivid */
+.bracket-card--resolved .bracket-row:not(.pick):not(.bracket-row--winner) {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* Winner checkmark */
+.bracket-row-winner {
+  margin-left: auto;
+  padding-left: 6px;
+  color: var(--color-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
 .bracket-connectors {
   position: absolute;
   top: 0;

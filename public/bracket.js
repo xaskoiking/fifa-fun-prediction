@@ -15,7 +15,7 @@ const BRACKET_ROUNDS = [
 
 const BRACKET_CARD_W = 168;
 const BRACKET_CARD_H = 60;
-const BRACKET_GAP = 16;
+const BRACKET_GAP = 28;
 const BRACKET_ROW_H = BRACKET_CARD_H + BRACKET_GAP;
 const BRACKET_COL_GAP = 56;
 const BRACKET_COL_PITCH = BRACKET_CARD_W + BRACKET_COL_GAP;
@@ -23,15 +23,11 @@ const BRACKET_COL_PITCH = BRACKET_CARD_W + BRACKET_COL_GAP;
 // Applied only at render time (card.style.top / connector Y) — kept out of
 // computeBracketPositions itself so that function stays byte-identical to
 // the verified copy in verify_bracket_layout.js.
-const BRACKET_HEADER_H = 36;
+const BRACKET_HEADER_H = 44;
 // Desktop only: how far the focused column sits from the scrollwrap's left
-// edge, so the prev-button (which sits at a fixed left:10px over the
-// non-scrolling scrollwrap, not the track) never overlaps the focused
-// column's header/cards. Doesn't apply to mobile's scrollLeft nav — you
-// can't scroll past 0 to create a left margin the way a transform can.
+// edge, so the prev-button never overlaps the focused column.
 const BRACKET_LEFT_PAD = 44;
-// Extra bottom breathing room below the last card when sizing the
-// desktop scrollwrap to fit exactly the focused round's content height.
+// Extra bottom breathing room below the last card.
 const BRACKET_BOTTOM_PAD = 24;
 
 function computeBracketPositions(roundSizes, focusedIdx, rowHeight) {
@@ -62,16 +58,6 @@ function buildBracketRounds(matches, roundDefs) {
       if (match) {
         homeTeam = match.homeTeam;
         awayTeam = match.awayTeam;
-      } else if (r > 0) {
-        const prevCode = roundDefs[r - 1].code;
-        const parentA = byRoundSlot.get(`${prevCode}:${i * 2}`);
-        const parentB = byRoundSlot.get(`${prevCode}:${i * 2 + 1}`);
-        if (parentA && parentA.status === 'resolved') {
-          homeTeam = parentA.outcome === 'home' ? parentA.homeTeam : parentA.awayTeam;
-        }
-        if (parentB && parentB.status === 'resolved') {
-          awayTeam = parentB.outcome === 'home' ? parentB.homeTeam : parentB.awayTeam;
-        }
       }
       slots.push({ slot: i, match, homeTeam, awayTeam });
     }
@@ -85,28 +71,12 @@ function buildBracketRounds(matches, roundDefs) {
 let _bracketFocused = 0;
 let _bracketPositions = [];
 let _bracketOnPick = null;
-
-// Desktop (>=601px) disables horizontal scroll/swipe entirely in favor of
-// prev/next buttons that slide the track via CSS transform — a transform
-// isn't limited by scrollable distance the way scrollwrap.scrollTo() is,
-// which is what let the old scroll-based nav silently fail to align the
-// last round or two flush-left on wide viewports. Mobile (<=600px) keeps
-// native scroll/drag/swipe exactly as before. Matches this codebase's
-// existing 600px breakpoint convention (see style.css).
-function isBracketDesktop() {
-  return window.matchMedia('(min-width: 601px)').matches;
-}
+let _bracketLabelEl = null;
 
 // The focused round is always tight-stacked (see computeBracketPositions),
-// so its content height is just its own row count — and every later
-// round's positions are midpoints of it, which are always within that
-// same span, so sizing to the focused round alone never clips anything.
+// so its content height is just its own row count.
 function bracketContentHeight(roundSize) {
   return BRACKET_HEADER_H + (roundSize - 1) * BRACKET_ROW_H + BRACKET_CARD_H + BRACKET_BOTTOM_PAD;
-}
-
-function applyBracketScrollwrapHeight(scrollwrap, roundSize) {
-  scrollwrap.style.height = isBracketDesktop() ? bracketContentHeight(roundSize) + 'px' : '';
 }
 
 function renderBracket(rootEl, rounds, onPick) {
@@ -114,9 +84,12 @@ function renderBracket(rootEl, rounds, onPick) {
   const roundSizes = rounds.map(r => r.size);
 
   rootEl.innerHTML = `
-    <div class="bracket-scrollwrap" id="bracketScrollwrap">
+    <div class="bracket-header" id="bracketHeader">
       <button class="bracket-nav-btn bracket-nav-prev" id="bracketPrevBtn" aria-label="Previous round" type="button">&lsaquo;</button>
+      <span class="bracket-active-label" id="bracketActiveLabel"></span>
       <button class="bracket-nav-btn bracket-nav-next" id="bracketNextBtn" aria-label="Next round" type="button">&rsaquo;</button>
+    </div>
+    <div class="bracket-scrollwrap" id="bracketScrollwrap">
       <div class="bracket-track" id="bracketTrack">
         <svg class="bracket-connectors" id="bracketSvg"></svg>
       </div>
@@ -128,60 +101,37 @@ function renderBracket(rootEl, rounds, onPick) {
   const svg = rootEl.querySelector('#bracketSvg');
   const prevBtn = rootEl.querySelector('#bracketPrevBtn');
   const nextBtn = rootEl.querySelector('#bracketNextBtn');
+  _bracketLabelEl = rootEl.querySelector('#bracketActiveLabel');
 
   const trackWidth = rounds.length * BRACKET_COL_PITCH + 240;
   track.style.width = trackWidth + 'px';
   svg.setAttribute('width', trackWidth);
 
   // renderBracket() is called on every data poll while the Bracket tab is
-  // open, not just on first mount — preserve whichever round the player
-  // was viewing instead of snapping back to round 0 every refresh. Clamp
-  // defensively in case round count ever changes.
+  // open — preserve whichever round the player was viewing.
   const focused = Math.min(_bracketFocused, rounds.length - 1);
   _bracketFocused = focused;
   _bracketPositions = computeBracketPositions(roundSizes, focused, BRACKET_ROW_H);
+
+  if (_bracketLabelEl) _bracketLabelEl.textContent = rounds[focused].label;
 
   buildBracketColLabels(track, rounds, focused);
   buildBracketCards(track, rounds);
   applyBracketPositions(rounds, track, svg);
   updateBracketNavButtons(rounds.length, prevBtn, nextBtn);
 
-  // The DOM was just rebuilt, so it currently sits at the visual start —
-  // re-apply the preserved position instantly (no transition), so a
-  // silent background refresh doesn't visibly move anything. Only ONE of
-  // transform/scrollLeft is the "live" mechanism per mode (matching
-  // goToBracketRound below) — overflow-x: hidden blocks scroll gestures
-  // on desktop but NOT a programmatic scrollLeft assignment, so setting
-  // both unconditionally compounds into a double offset away from round 0.
+  scrollwrap.style.height = bracketContentHeight(roundSizes[focused]) + 'px';
+
+  // Re-apply preserved position instantly (no transition) so a silent
+  // background refresh doesn't visibly move anything.
   const prevTrackTransition = track.style.transition;
-  const prevWrapTransition = scrollwrap.style.transition;
   track.style.transition = 'none';
-  scrollwrap.style.transition = 'none';
-  if (isBracketDesktop()) {
-    track.style.transform = `translateX(${BRACKET_LEFT_PAD - focused * BRACKET_COL_PITCH}px)`;
-  } else {
-    scrollwrap.scrollLeft = focused * BRACKET_COL_PITCH;
-  }
-  applyBracketScrollwrapHeight(scrollwrap, roundSizes[focused]);
-  track.offsetHeight; // force reflow so the no-transition change applies before re-enabling it
+  track.style.transform = `translateX(${BRACKET_LEFT_PAD - focused * BRACKET_COL_PITCH}px)`;
+  track.offsetHeight; // force reflow before re-enabling transition
   track.style.transition = prevTrackTransition;
-  scrollwrap.style.transition = prevWrapTransition;
 
   prevBtn.onclick = () => goToBracketRound(_bracketFocused - 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
   nextBtn.onclick = () => goToBracketRound(_bracketFocused + 1, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
-
-  if (isBracketDesktop()) {
-    scrollwrap.onscroll = null;
-    scrollwrap.onmousedown = null;
-  } else {
-    scrollwrap.onscroll = debounceBracketScroll(() => {
-      const idx = Math.round(scrollwrap.scrollLeft / BRACKET_COL_PITCH);
-      if (idx !== _bracketFocused && idx >= 0 && idx < rounds.length) {
-        goToBracketRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn);
-      }
-    });
-    wireBracketDrag(scrollwrap);
-  }
 }
 
 function buildBracketColLabels(track, rounds, focused) {
@@ -200,45 +150,42 @@ function updateBracketNavButtons(roundCount, prevBtn, nextBtn) {
   nextBtn.disabled = _bracketFocused === roundCount - 1;
 }
 
-function debounceBracketScroll(fn) {
-  let t;
-  return () => {
-    clearTimeout(t);
-    t = setTimeout(fn, 140);
-  };
-}
-
-let _bracketDragHandlers = null;
-
-function wireBracketDrag(scrollwrap) {
-  if (_bracketDragHandlers) {
-    window.removeEventListener('mouseup', _bracketDragHandlers.up);
-    window.removeEventListener('mousemove', _bracketDragHandlers.move);
-  }
-  let isDown = false, startX, scrollStart;
-  scrollwrap.onmousedown = e => {
-    isDown = true;
-    startX = e.pageX;
-    scrollStart = scrollwrap.scrollLeft;
-    scrollwrap.style.cursor = 'grabbing';
-  };
-  const onMouseUp = () => { isDown = false; scrollwrap.style.cursor = 'grab'; };
-  const onMouseMove = e => {
-    if (!isDown) return;
-    scrollwrap.scrollLeft = scrollStart - (e.pageX - startX);
-  };
-  window.addEventListener('mouseup', onMouseUp);
-  window.addEventListener('mousemove', onMouseMove);
-  _bracketDragHandlers = { up: onMouseUp, move: onMouseMove };
+function formatBracketKickoff(isoString) {
+  const d = new Date(isoString);
+  const mon = d.toLocaleString(undefined, { month: 'short' });
+  const day = d.getDate();
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return `${mon} ${day} · ${time}`;
 }
 
 function buildBracketCards(track, rounds) {
-  track.querySelectorAll('.bracket-card').forEach(el => el.remove());
+  track.querySelectorAll('.bracket-card, .bracket-slot-num').forEach(el => el.remove());
   rounds.forEach((round, r) => {
     const xOffset = r * BRACKET_COL_PITCH;
     round.slots.forEach((slotData, i) => {
+      const match = slotData.match;
+      const isResolved = match && match.status === 'resolved';
+      const isLocked = !isResolved && match
+        && (match.votingLocked || (match.hasStarted && !match.extensionActive));
+      const isLive = !isResolved && match && match.hasStarted && !match.extensionActive;
+      const hasKickoff = match && match.kickoff;
+
+      if (hasKickoff) {
+        const num = document.createElement('div');
+        num.className = 'bracket-slot-num';
+        num.style.left = xOffset + 'px';
+        num.dataset.round = r;
+        num.dataset.slot = i;
+        num.textContent = formatBracketKickoff(match.kickoff);
+        track.appendChild(num);
+      }
+
       const card = document.createElement('div');
-      card.className = 'bracket-card' + (round.code === 'FINAL' ? ' final' : '');
+      card.className = 'bracket-card'
+        + (round.code === 'FINAL' ? ' final' : '')
+        + (isResolved ? ' bracket-card--resolved' : '')
+        + (isLocked   ? ' bracket-card--locked'   : '')
+        + (isLive     ? ' bracket-card--live'      : '');
       card.style.left = xOffset + 'px';
       card.dataset.round = r;
       card.dataset.slot = i;
@@ -256,10 +203,33 @@ function buildBracketRow(slotData, side) {
   const match = slotData.match;
   const myVote = match ? match.myVote : null;
   const isPick = myVote === side;
-  const votable = !!match && match.status !== 'resolved' && !match.votingLocked;
+  // Locked once the game has started (unless admin extension is active)
+  const votable = !!match && match.status !== 'resolved' && !match.votingLocked
+    && (!match.hasStarted || match.extensionActive);
 
   row.className = 'bracket-row' + (isTbd ? ' tbd' : '') + (isPick ? ' pick' : '');
-  row.textContent = team;
+
+  if (!isTbd) {
+    const code = getTeamCountryCode(team);
+    if (code) {
+      const flag = document.createElement('span');
+      flag.className = 'fi fi-' + code + ' bracket-row-flag';
+      row.appendChild(flag);
+    }
+  }
+
+  const name = document.createElement('span');
+  name.textContent = team;
+  row.appendChild(name);
+
+  if (match && match.status === 'resolved' && match.outcome === side) {
+    row.classList.add('bracket-row--winner');
+    const check = document.createElement('span');
+    check.className = 'bracket-row-winner';
+    check.textContent = '✓';
+    row.appendChild(check);
+  }
+
   if (votable && !isTbd) {
     row.classList.add('votable');
     row.onclick = () => _bracketOnPick(match, side);
@@ -271,8 +241,11 @@ function applyBracketPositions(rounds, track, svg) {
   rounds.forEach((round, r) => {
     if (!_bracketPositions[r]) return;
     round.slots.forEach((_, i) => {
+      const cardTop = _bracketPositions[r][i] + BRACKET_HEADER_H;
       const card = track.querySelector(`.bracket-card[data-round="${r}"][data-slot="${i}"]`);
-      if (card) card.style.top = (_bracketPositions[r][i] + BRACKET_HEADER_H) + 'px';
+      if (card) card.style.top = cardTop + 'px';
+      const num = track.querySelector(`.bracket-slot-num[data-round="${r}"][data-slot="${i}"]`);
+      if (num) num.style.top = (cardTop - BRACKET_GAP / 2) + 'px';
     });
   });
   drawBracketConnectors(rounds, svg);
@@ -303,21 +276,13 @@ function drawBracketConnectors(rounds, svg) {
 
 function goToBracketRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn) {
   idx = Math.min(Math.max(idx, 0), rounds.length - 1);
-
-  if (isBracketDesktop()) {
-    track.style.transform = `translateX(${BRACKET_LEFT_PAD - idx * BRACKET_COL_PITCH}px)`;
-    applyBracketScrollwrapHeight(scrollwrap, roundSizes[idx]);
-  } else {
-    scrollwrap.scrollTo({ left: idx * BRACKET_COL_PITCH, behavior: 'smooth' });
-  }
-
+  track.style.transform = `translateX(${BRACKET_LEFT_PAD - idx * BRACKET_COL_PITCH}px)`;
+  scrollwrap.style.height = bracketContentHeight(roundSizes[idx]) + 'px';
   if (idx === _bracketFocused) return;
   _bracketFocused = idx;
   _bracketPositions = computeBracketPositions(roundSizes, idx, BRACKET_ROW_H);
-  // Update button state immediately to block rapid double-clicks
   updateBracketNavButtons(rounds.length, prevBtn, nextBtn);
-  // Defer the heavy DOM work (querySelector loop + SVG redraw) so the
-  // transform above can paint before the event loop is occupied
+  if (_bracketLabelEl) _bracketLabelEl.textContent = rounds[idx].label;
   requestAnimationFrame(() => {
     applyBracketPositions(rounds, track, svg);
     track.querySelectorAll('.bracket-col-label').forEach(label => {

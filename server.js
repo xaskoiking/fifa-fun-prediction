@@ -1374,8 +1374,7 @@ function ensureFantasyR32(db) {
 }
 
 function isFantasyLocked(db) {
-  const r32 = Array.isArray(db.fantasyR32) ? db.fantasyR32 : [];
-  return r32.some(m => new Date(m.kickoff) <= new Date());
+  return !!db.fantasyLocked;
 }
 
 async function pollLiveScores() {
@@ -1605,6 +1604,7 @@ app.get('/api/admin/fantasy-status', verifyAdmin, (req, res) => {
   ensureFantasyBrackets(db);
   const backup = db._fantasyBackup || null;
   res.json({
+    locked: isFantasyLocked(db),
     r32Count: db.fantasyR32.length,
     r32Real: db.fantasyR32.filter(m => m.homeTeam !== 'TBD' || m.awayTeam !== 'TBD').length,
     playerCount: Object.keys(db.fantasyBrackets).length,
@@ -1613,6 +1613,20 @@ app.get('/api/admin/fantasy-status', verifyAdmin, (req, res) => {
     backupR32Count: backup ? backup.fantasyR32.length : 0,
     backupPlayerCount: backup ? Object.keys(backup.fantasyBrackets).length : 0
   });
+});
+
+app.post('/api/admin/fantasy-lock', verifyAdmin, (req, res) => {
+  const db = readData();
+  db.fantasyLocked = true;
+  writeData(db);
+  res.json({ locked: true });
+});
+
+app.post('/api/admin/fantasy-unlock', verifyAdmin, (req, res) => {
+  const db = readData();
+  db.fantasyLocked = false;
+  writeData(db);
+  res.json({ locked: false });
 });
 
 app.post('/api/admin/fantasy-reset', verifyAdmin, async (req, res) => {
@@ -1725,6 +1739,22 @@ app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
     }
 
     const data = await apiRes.json();
+
+    // Load persisted team names so we never downgrade a known name to TBD
+    // (football-data.org intermittently returns null for teams in future rounds
+    // while the tournament is in progress).
+    const db = readData();
+    if (!db.fixtureNames) db.fixtureNames = {};
+    let fixtureNamesDirty = false;
+
+    // Build kickoff → bracketSlot map from fantasyR32, which was synced from the
+    // API and carries the authoritative bracket draw order. Used below so that
+    // LAST_32 fixtures get the right bracketSlot when "Create Match" is clicked.
+    const r32SlotByKickoff = new Map(
+      (db.fantasyR32 || []).map(r => [r.kickoff, r.bracketSlot])
+    );
+
+    const stageSlotCounters = {};
     const fixtures = (data.matches || [])
       .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate))
       .map((m, i) => {
@@ -1736,14 +1766,43 @@ app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
         const ft = (m.score || {}).fullTime || {};
         const finished = m.status === 'FINISHED';
         const live = m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED';
+
+        const apiHome = m.homeTeam?.name || 'TBD';
+        const apiAway = m.awayTeam?.name || 'TBD';
+        const stored = db.fixtureNames[m.id] || {};
+        const homeTeam = apiHome !== 'TBD' ? apiHome : (stored.homeTeam || 'TBD');
+        const awayTeam = apiAway !== 'TBD' ? apiAway : (stored.awayTeam || 'TBD');
+
+        if (stored.homeTeam !== homeTeam || stored.awayTeam !== awayTeam) {
+          db.fixtureNames[m.id] = { homeTeam, awayTeam };
+          fixtureNamesDirty = true;
+        }
+
+        if (!stageSlotCounters[m.stage]) stageSlotCounters[m.stage] = 0;
+        const stageSlot = stageSlotCounters[m.stage]++;
+
+        // For KO fixtures, derive the bracketSlot to use when "Create Match" is clicked:
+        // - LAST_32: use fantasyR32 slot (reflects the actual bracket draw, not date order)
+        // - Other KO stages: date-sorted position, which FIFA schedules in bracket order
+        let bracketSlot;
+        if (!isGroup) {
+          if (m.stage === 'LAST_32') {
+            const r32Slot = r32SlotByKickoff.get(m.utcDate);
+            bracketSlot = r32Slot !== undefined ? r32Slot : stageSlot;
+          } else {
+            bracketSlot = stageSlot;
+          }
+        }
+
         return {
           apiId: m.id,
           matchNumber: String(i + 1),
-          homeTeam: m.homeTeam?.name || 'TBD',
-          awayTeam: m.awayTeam?.name || 'TBD',
+          homeTeam,
+          awayTeam,
           matchType,
           group,
           stage: m.stage,
+          bracketSlot,
           kickoff: m.utcDate,
           status: m.status,
           scoreHome: (finished || live) ? ft.home : null,
@@ -1751,6 +1810,8 @@ app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
           matchday: m.matchday
         };
       });
+
+    if (fixtureNamesDirty) writeData(db);
 
     _fixturesCache = fixtures;
     _fixturesCacheTime = Date.now();

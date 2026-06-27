@@ -619,6 +619,11 @@
                   <div class="admin-stat-value" id="fantasyAdminPlayerCount">—</div>
                 </div>
               </div>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
+                <button class="btn btn-danger btn-sm" id="adminFantasyLockBtn" onclick="adminFantasyLock()" style="display:none;">🔒 Lock Bracket</button>
+                <button class="btn btn-success btn-sm" id="adminFantasyUnlockBtn" onclick="adminFantasyUnlock()" style="display:none;">🔓 Unlock Bracket</button>
+                <span id="adminFantasyLockStatus" style="font-size: 0.82rem; color: var(--text-muted);"></span>
+              </div>
               <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
                 <button class="btn btn-danger btn-sm" onclick="adminFantasyReset()">Reset &amp; Repopulate from API</button>
                 <button class="btn btn-secondary btn-sm" id="adminFantasyUndoBtn" style="display:none;" onclick="adminFantasyUndo()">↩ Undo Reset</button>

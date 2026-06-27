@@ -167,21 +167,8 @@ async function loadStages() {
   }
 }
 
-// Once Round of 32 opens, the flat-list Predictions tab has nothing left
-// to do — group-stage voting is done, and KO matches live in the Bracket
-// tab exclusively. Hide it and bounce off it if it's currently active.
 function updatePredictionsTabVisibility() {
-  const predictionsBtn = document.getElementById('tabBtnPredictions');
-  if (!predictionsBtn) return;
-  const last32Open = openMatchStages.includes('LAST_32');
-  if (last32Open) {
-    predictionsBtn.style.display = 'none';
-    if (activeTab === 'predictions') {
-      switchTab('bracket');
-    }
-  } else {
-    predictionsBtn.style.display = 'inline-flex';
-  }
+  // Tab visibility managed manually — no auto-hide logic.
 }
 
 // Start polling and timer updates
@@ -2343,7 +2330,7 @@ async function checkAdminState() {
     loadAdminHistory();
     loadAdminVotes();
     loadAdminSettings();
-    loadFixtures();
+    loadFixtures(true);
     loadAdminFantasyStatus();
   } else {
     adminAuthCard.style.display = 'block';
@@ -3088,9 +3075,15 @@ async function loadAdminFantasyStatus() {
     const r32El = document.getElementById('fantasyAdminR32Count');
     const playerEl = document.getElementById('fantasyAdminPlayerCount');
     const undoBtn = document.getElementById('adminFantasyUndoBtn');
+    const lockBtn = document.getElementById('adminFantasyLockBtn');
+    const unlockBtn = document.getElementById('adminFantasyUnlockBtn');
+    const lockStatus = document.getElementById('adminFantasyLockStatus');
     const msg = document.getElementById('adminFantasyMsg');
     if (r32El) r32El.textContent = `${data.r32Real} / ${data.r32Count} with teams`;
     if (playerEl) playerEl.textContent = data.playerCount;
+    if (lockBtn) lockBtn.style.display = data.locked ? 'none' : 'inline-flex';
+    if (unlockBtn) unlockBtn.style.display = data.locked ? 'inline-flex' : 'none';
+    if (lockStatus) lockStatus.textContent = data.locked ? '🔒 Locked — picks frozen' : '🔓 Open — picks allowed';
     if (undoBtn) {
       undoBtn.style.display = data.hasBackup ? 'inline-flex' : 'none';
       if (data.hasBackup) {
@@ -3107,6 +3100,30 @@ async function loadAdminFantasyStatus() {
   } catch (e) {
     console.error('Fantasy status load error:', e);
   }
+}
+
+async function adminFantasyLock() {
+  if (!confirm('Lock the fantasy bracket? Players will no longer be able to change their picks.')) return;
+  try {
+    const res = await fetch('/api/admin/fantasy-lock', {
+      method: 'POST',
+      headers: { 'x-admin-passcode': adminPasscode, 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) { alert('Lock failed.'); return; }
+    await loadAdminFantasyStatus();
+  } catch (e) { alert('Request failed.'); }
+}
+
+async function adminFantasyUnlock() {
+  if (!confirm('Unlock the fantasy bracket? Players will be able to change their picks again.')) return;
+  try {
+    const res = await fetch('/api/admin/fantasy-unlock', {
+      method: 'POST',
+      headers: { 'x-admin-passcode': adminPasscode, 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) { alert('Unlock failed.'); return; }
+    await loadAdminFantasyStatus();
+  } catch (e) { alert('Request failed.'); }
 }
 
 async function adminFantasyReset() {
@@ -3338,9 +3355,14 @@ function renderMatchLog() {
   // Create Match button or "already added" note
   let actionHtml = '';
   if (isUpcoming) {
-    actionHtml = alreadyAdded
-      ? `<div style="margin-top:14px; text-align:center; color:var(--color-accent); font-size:0.85rem; font-weight:600;">✅ Already in database</div>`
-      : `<button class="btn btn-success btn-full" style="margin-top:14px;" onclick="createMatchFromFixture(${fixturesCurrentIndex})">➕ Create Match</button>`;
+    if (alreadyAdded) {
+      const undoBtn = f.matchType === 'KO'
+        ? `<button class="btn btn-secondary btn-sm" onclick="undoMatchFromFixture(${fixturesCurrentIndex})" style="font-size:0.8rem;">↩ Undo</button>`
+        : '';
+      actionHtml = `<div style="margin-top:14px; display:flex; gap:8px; align-items:center; justify-content:center;">${undoBtn}<span style="color:var(--color-accent); font-size:0.85rem; font-weight:600;">✅ Already in database</span></div>`;
+    } else {
+      actionHtml = `<button class="btn btn-success btn-full" style="margin-top:14px;" onclick="createMatchFromFixture(${fixturesCurrentIndex})">➕ Create Match</button>`;
+    }
   }
 
   contentEl.innerHTML = `
@@ -3381,6 +3403,14 @@ function renderMatchLog() {
       </div>
     </div>
 
+    ${f.matchType === 'KO' && f.bracketSlot !== undefined ? `
+    <div class="form-row">
+      <div class="form-group">
+        <label>Bracket Slot</label>
+        <div class="fixture-field">${f.stage} · Slot ${f.bracketSlot}</div>
+      </div>
+    </div>` : ''}
+
     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
       <span style="font-size:0.78rem; color:var(--text-muted);">Matchday ${f.matchday || '–'}</span>
       ${statusPill}
@@ -3420,6 +3450,10 @@ function matchLogJump() {
 async function createMatchFromFixture(index) {
   const f = fixturesData[index];
   if (!f) return;
+  if (f.matchType === 'KO' && f.bracketSlot === undefined) {
+    alert('Bracket slot data not loaded. Click ↻ Refresh in the match log, then try again.');
+    return;
+  }
   if (!confirm(`Create match: ${f.homeTeam} vs ${f.awayTeam}?\nKickoff: ${new Date(f.kickoff).toLocaleString()}`)) return;
 
   try {
@@ -3436,7 +3470,11 @@ async function createMatchFromFixture(index) {
         matchType: f.matchType,
         kickoff: f.kickoff,
         matchNumber: f.matchNumber,
-        group: f.group
+        group: f.group,
+        ...(f.matchType === 'KO' && {
+          bracketRound: f.stage,
+          bracketSlot: f.bracketSlot
+        })
       })
     });
 
@@ -3450,6 +3488,40 @@ async function createMatchFromFixture(index) {
     renderMatchLog();
   } catch (err) {
     console.error('[FIXTURES] Error creating match:', err);
+    alert('❌ Failed to connect to server.');
+  }
+}
+
+async function undoMatchFromFixture(index) {
+  const f = fixturesData[index];
+  if (!f) return;
+
+  const kickoffDay = new Date(f.kickoff).toDateString();
+  const match = matches.find(m =>
+    m.homeTeam.toLowerCase() === f.homeTeam.toLowerCase() &&
+    m.awayTeam.toLowerCase() === f.awayTeam.toLowerCase() &&
+    new Date(m.kickoff).toDateString() === kickoffDay
+  );
+
+  if (!match) { alert('Match not found in database.'); return; }
+  if (!confirm(`Remove match: ${f.homeTeam} vs ${f.awayTeam}?`)) return;
+
+  try {
+    const response = await fetch('/api/admin/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      },
+      body: JSON.stringify({ matchId: match.id })
+    });
+    const data = await response.json();
+    if (!response.ok) { alert(`❌ Error: ${data.error}`); return; }
+    await loadDashboardData();
+    renderMatchLog();
+  } catch (err) {
+    console.error('[FIXTURES] Error removing match:', err);
     alert('❌ Failed to connect to server.');
   }
 }
