@@ -176,7 +176,7 @@ function buildBracketCards(track, rounds) {
         num.style.left = xOffset + 'px';
         num.dataset.round = r;
         num.dataset.slot = i;
-        num.textContent = formatBracketKickoff(match.kickoff);
+        num.textContent = (match.matchNumber ? `#${match.matchNumber} · ` : '') + formatBracketKickoff(match.kickoff);
         track.appendChild(num);
       }
 
