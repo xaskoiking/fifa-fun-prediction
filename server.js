@@ -646,10 +646,11 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
   match.voteLog.push({
     timestamp: new Date().toISOString(),
     player: username,
-    vote: prediction
+    vote: prediction,
+    booster: useBoosterFlag
   });
 
-  logAuditAction(db, 'PREDICTION', `${username} voted "${prediction}" for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
+  logAuditAction(db, 'PREDICTION', `${username} voted "${prediction}"${useBoosterFlag ? ' with BOOSTER' : ''} for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
 
   writeData(db);
 

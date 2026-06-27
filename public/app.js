@@ -284,6 +284,30 @@ function getTeamCountryCode(teamName) {
 }
 
 // Fetch matches (requires passcode header)
+function updateBoosterDisplay() {
+  const el = document.getElementById('boosterStatusDisplay');
+  if (!el) return;
+
+  const used = { LAST_32: false, LAST_16: false, QF_SF_FINAL: false };
+  matches.forEach(match => {
+    if (match.boosterStageCode && match.boosterStageUsed) {
+      used[match.boosterStageCode] = true;
+    }
+  });
+
+  const stages = [
+    { code: 'LAST_32',     label: 'R32 Booster' },
+    { code: 'LAST_16',     label: 'R16 Booster' },
+    { code: 'QF_SF_FINAL', label: 'QF/SF/Final Booster' },
+  ];
+
+  el.innerHTML = stages.map(s =>
+    `<span title="${s.label}" style="${used[s.code] ? 'opacity:0.25; filter:grayscale(1);' : ''}">⚡</span>`
+  ).join('');
+  el.style.display = 'inline-flex';
+  el.style.alignItems = 'center';
+}
+
 async function loadDashboardData() {
   if (!currentUserSecret) return;
   try {
@@ -307,7 +331,8 @@ async function loadDashboardData() {
       throw new Error('Failed to load matches');
     }
     matches = await response.json();
-    
+    updateBoosterDisplay();
+
     if (activeTab === 'predictions') {
       renderMatches();
     } else if (activeTab === 'results') {
@@ -1918,18 +1943,22 @@ function renderResults() {
     }
 
     // Voters list formatting
+    const boosters = match.boosters || { home: [], away: [], draw: [] };
+    const tagVoter = (name, boostedList) =>
+      escapeHtml(name) + (boostedList.includes(name) ? ' ⚡' : '');
+
     let distHtml = `
       <div style="font-size: 0.8rem; line-height: 1.4;">
-        <span style="${isWinnerHome ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.homeTeam)} (${counts.home}):</span> 
-        <span style="color: var(--text-muted);">${voters.home.map(escapeHtml).join(', ') || 'None'}</span>
+        <span style="${isWinnerHome ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.homeTeam)} (${counts.home}):</span>
+        <span style="color: var(--text-muted);">${voters.home.map(v => tagVoter(v, boosters.home)).join(', ') || 'None'}</span>
         <br>
         ${match.matchType === 'League' ? `
-          <span style="${isWinnerDraw ? 'color: var(--color-accent); font-weight: 700;' : ''}">Draw (${counts.draw}):</span> 
-          <span style="color: var(--text-muted);">${voters.draw.map(escapeHtml).join(', ') || 'None'}</span>
+          <span style="${isWinnerDraw ? 'color: var(--color-accent); font-weight: 700;' : ''}">Draw (${counts.draw}):</span>
+          <span style="color: var(--text-muted);">${voters.draw.map(v => tagVoter(v, boosters.draw)).join(', ') || 'None'}</span>
           <br>
         ` : ''}
-        <span style="${isWinnerAway ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.awayTeam)} (${counts.away}):</span> 
-        <span style="color: var(--text-muted);">${voters.away.map(escapeHtml).join(', ') || 'None'}</span>
+        <span style="${isWinnerAway ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.awayTeam)} (${counts.away}):</span>
+        <span style="color: var(--text-muted);">${voters.away.map(v => tagVoter(v, boosters.away)).join(', ') || 'None'}</span>
       </div>
     `;
 

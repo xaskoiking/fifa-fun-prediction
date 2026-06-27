@@ -212,6 +212,8 @@ body {
   font-weight: 600;
 }
 
+.switch-icon { display: none; }
+
 /* Navigation Tabs */
 .tab-nav {
   display: flex;
@@ -1733,6 +1735,9 @@ body {
     width: 100%;
     justify-content: space-between;
   }
+
+  .switch-label { display: none; }
+  .switch-icon  { display: inline; }
 
   .admin-grid {
     grid-template-columns: 1fr;
