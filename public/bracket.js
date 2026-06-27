@@ -185,7 +185,8 @@ function buildBracketCards(track, rounds) {
         + (round.code === 'FINAL' ? ' final' : '')
         + (isResolved ? ' bracket-card--resolved' : '')
         + (isLocked   ? ' bracket-card--locked'   : '')
-        + (isLive     ? ' bracket-card--live'      : '');
+        + (isLive     ? ' bracket-card--live'      : '')
+        + (match && match.myBooster ? ' bracket-card--boosted' : '');
       card.style.left = xOffset + 'px';
       card.dataset.round = r;
       card.dataset.slot = i;

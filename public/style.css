@@ -2501,6 +2501,21 @@ body {
   user-select: none;
 }
 
+@keyframes bracket-electric {
+  0%   { border-color: #ffe500cc; box-shadow: 0 0 4px 1px #ffe500aa, 0 0 10px 3px #ffe50033; }
+  12%  { border-color: #ffffffff; box-shadow: 0 0 2px 1px #ffffff99, 0 0 6px  2px #40bfff55; }
+  20%  { border-color: #ffe500ee; box-shadow: 0 0 7px 2px #ffe500cc, 0 0 16px 5px #ff990033; }
+  38%  { border-color: #40bfffcc; box-shadow: 0 0 4px 1px #40bfffaa, 0 0 10px 3px #40bfff33; }
+  50%  { border-color: #ffee44ff; box-shadow: 0 0 9px 3px #ffe500dd, 0 0 20px 7px #ffe50044; }
+  65%  { border-color: #ffffffdd; box-shadow: 0 0 2px 0px #ffffff88, 0 0 5px  1px #ffe50066; }
+  78%  { border-color: #ffe500cc; box-shadow: 0 0 6px 2px #ffe500bb, 0 0 14px 4px #ff990033; }
+  100% { border-color: #ffe500cc; box-shadow: 0 0 4px 1px #ffe500aa, 0 0 10px 3px #ffe50033; }
+}
+
+.bracket-card--boosted {
+  animation: bracket-electric 2s ease-in-out infinite;
+}
+
 .bracket-card.final {
   border-color: var(--color-gold);
 }
