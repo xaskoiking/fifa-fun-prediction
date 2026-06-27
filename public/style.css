@@ -2610,6 +2610,14 @@ body {
   margin-left: auto;
 }
 
+.fantasy-bracket-notice {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  line-height: 1.5;
+}
+
 .fantasy-modal-close {
   background: none;
   border: none;
