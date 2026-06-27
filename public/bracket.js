@@ -191,12 +191,6 @@ function buildBracketCards(track, rounds) {
       card.dataset.slot = i;
       card.appendChild(buildBracketRow(slotData, 'home'));
       card.appendChild(buildBracketRow(slotData, 'away'));
-      if (match && match.myBooster) {
-        const bolt = document.createElement('span');
-        bolt.className = 'bracket-card-booster';
-        bolt.textContent = '⚡';
-        card.appendChild(bolt);
-      }
       track.appendChild(card);
     });
   });
@@ -214,6 +208,13 @@ function buildBracketRow(slotData, side) {
     && (!match.hasStarted || match.extensionActive);
 
   row.className = 'bracket-row' + (isTbd ? ' tbd' : '') + (isPick ? ' pick' : '');
+
+  if (!isTbd && isPick && match && match.myBooster) {
+    const bolt = document.createElement('span');
+    bolt.className = 'bracket-row-booster';
+    bolt.textContent = '⚡';
+    row.appendChild(bolt);
+  }
 
   if (!isTbd) {
     const code = getTeamCountryCode(team);

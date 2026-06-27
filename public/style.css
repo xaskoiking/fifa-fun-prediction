@@ -2494,13 +2494,10 @@ body {
   transition: top 0.5s cubic-bezier(.22, .85, .25, 1);
 }
 
-.bracket-card-booster {
-  position: absolute;
-  top: 3px;
-  right: 5px;
-  font-size: 0.7rem;
+.bracket-row-booster {
+  font-size: 0.65rem;
   line-height: 1;
-  pointer-events: none;
+  flex-shrink: 0;
   user-select: none;
 }
 
