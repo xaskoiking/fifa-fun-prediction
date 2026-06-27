@@ -1292,8 +1292,6 @@ const STAGE_LABELS = TOURNAMENT_STAGES.reduce((acc, s) => {
 }, {});
 STAGE_LABELS.QF_SF_FINAL = 'QF/SF/Final';
 
-const KNOCKOUT_BOOSTER_STAGES = ['LAST_32', 'LAST_16', 'QF_SF_FINAL'];
-
 function normalizeStageText(value) {
   return String(value || '')
     .trim()
@@ -1303,6 +1301,13 @@ function normalizeStageText(value) {
 }
 
 function getMatchStageCode(match) {
+  // Bracket round is the authoritative source for bracket-created matches
+  if (match.bracketRound) {
+    if (match.bracketRound === 'LAST_32') return 'LAST_32';
+    if (match.bracketRound === 'LAST_16') return 'LAST_16';
+    if (['QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'].includes(match.bracketRound)) return 'QF_SF_FINAL';
+  }
+
   const stageText = normalizeStageText(match.group || match.stage || match.round || '');
   if (stageText) {
     if (/(round of 32|last 32|r32)\b/.test(stageText)) return 'LAST_32';
