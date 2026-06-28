@@ -167,7 +167,7 @@ function buildBracketCards(track, rounds) {
       const isResolved = match && match.status === 'resolved';
       const isLocked = !isResolved && match
         && (match.votingLocked || (match.hasStarted && !match.extensionActive));
-      const isLive = !isResolved && match && match.hasStarted && !match.extensionActive;
+      const isLive = !isResolved && match && match.hasStarted;
       const hasKickoff = match && match.kickoff;
 
       if (hasKickoff) {
