@@ -50,10 +50,12 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --max-instances 1 \
-            --set-env-vars GCS_BUCKET_NAME=$BUCKET,APP_ENV=staging${FOOTBALL_KEY:+,FOOTBALL_DATA_API_KEY=$FOOTBALL_KEY}
+            --set-env-vars GCS_BUCKET_NAME=$BUCKET,APP_ENV=staging${FOOTBALL_KEY:+,FOOTBALL_DATA_API_KEY=$FOOTBALL_KEY}${RAPID_KEY:+,RAPIDAPI_KEY=$RAPID_KEY}
         env:
           # Optional: add a repo secret named FOOTBALL_DATA_API_KEY to enable fixtures.
           FOOTBALL_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+          # Optional: add a repo secret named RAPIDAPI_KEY to enable team rankings.
+          RAPID_KEY: ${{ secrets.RAPIDAPI_KEY }}
 
       - name: Show the staging URL
         run: |

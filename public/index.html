@@ -26,17 +26,21 @@
         <div class="logo-area">
           <div class="ball-icon">⚽</div>
           <div>
-            <div class="title-row">
-              <h1>Prediction Arena</h1>
+            <h1>Prediction Arena</h1>
+            <div class="subtitle-row">
+              <p class="subtitle">FIFA Prediction Game</p>
               <span id="envPill" class="env-pill" style="display: none;"></span>
             </div>
-            <p class="subtitle">FIFA Prediction Game</p>
           </div>
         </div>
-        
+
         <div class="user-status" id="userStatusArea">
+          <button id="fantasyBracketBtn" class="btn btn-fantasy" style="display:none;" onclick="openFantasyBracket()">
+            ⭐<span class="fantasy-btn-label"> Fantasy Bracket</span><span id="fantasyLockBadge" class="fantasy-lock-badge" style="display:none;"> 🔒</span>
+          </button>
           <span class="user-welcome">Welcome, <strong id="currentUserNameDisplay">Guest</strong></span>
-          <button id="changeUserBtn" class="btn btn-secondary btn-sm">Switch Player</button>
+          <span id="boosterStatusDisplay" style="display:none; font-size: 1rem; letter-spacing: 2px; margin-left: auto;"></span>
+          <button id="changeUserBtn" class="btn btn-secondary btn-sm"><span class="switch-label">Switch Player</span><span class="switch-icon" aria-hidden="true">👤</span></button>
         </div>
       </div>
       
@@ -45,8 +49,11 @@
 
       <!-- Tab Navigation -->
       <nav class="tab-nav">
-        <button class="tab-btn active" id="tabBtnPredictions" onclick="switchTab('predictions')">
+        <button class="tab-btn" id="tabBtnPredictions" onclick="switchTab('predictions')" style="display:none;">
           <span class="tab-icon">🔮</span> <span class="tab-label">Predictions</span>
+        </button>
+        <button class="tab-btn active" id="tabBtnBracket" onclick="switchTab('bracket')">
+          <span class="tab-icon">🎯</span> <span class="tab-label">Bracket</span>
         </button>
         <button class="tab-btn" id="tabBtnResults" onclick="switchTab('results')">
           <span class="tab-icon"><svg class="cal-icon" viewBox="0 0 24 24" role="img" aria-label="2026 calendar"><rect x="2.5" y="4.5" width="19" height="16.5" rx="3" fill="#0d2416" stroke="#1f7a45" stroke-width="1.5"/><rect x="2.5" y="4.5" width="19" height="5" rx="3" fill="#e53935"/><line x1="7.5" y1="2.5" x2="7.5" y2="6.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="16.5" y1="2.5" x2="16.5" y2="6.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><text x="12" y="18" text-anchor="middle" font-size="7.5" font-weight="800" fill="#fff" font-family="Arial, Helvetica, sans-serif">2026</text></svg></span> <span class="tab-label">Past Results</span>
@@ -67,7 +74,7 @@
     <main class="app-content">
 
       <!-- ================= PREDICTIONS TAB ================= -->
-      <section id="tabContentPredictions" class="tab-content active">
+      <section id="tabContentPredictions" class="tab-content">
         <div class="section-header">
           <h2>🔮 Open Predictions</h2>
           <p class="section-description">Cast your vote before kickoff starts and locks the match!</p>
@@ -78,6 +85,15 @@
         <div id="matchesGrid" class="matches-grid">
           <div class="loading-state">Loading matches...</div>
         </div>
+      </section>
+
+      <!-- ================= BRACKET TAB ================= -->
+      <section id="tabContentBracket" class="tab-content active">
+        <div class="section-header">
+          <h2>🎯 Knockout Bracket</h2>
+          <p class="section-description">Round of 32 onward. Use the ‹ › buttons to navigate between rounds — your picks light up green as you go.</p>
+        </div>
+        <div id="bracketContainer"></div>
       </section>
 
       <!-- ================= PAST RESULTS TAB ================= -->
@@ -461,13 +477,16 @@
                      </div>
                      <div class="form-group">
                        <label for="groupInput">Group / Stage (Optional)</label>
-                       <input type="text" id="groupInput" placeholder="e.g. Group A" class="form-control">
+                       <input type="text" id="groupInput" placeholder="e.g. Group A or Round of 32" class="form-control">
+                       <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 6px;">
+                         For knockout booster support, use Round of 32, Round of 16, or QF/SF/Final.
+                       </div>
                      </div>
                    </div>
                   <div class="form-row">
                     <div class="form-group">
                       <label for="matchTypeSelect">Match Type</label>
-                      <select id="matchTypeSelect" class="form-control">
+                      <select id="matchTypeSelect" class="form-control" onchange="toggleBracketFieldsRow()">
                         <option value="League">League Match (3-way)</option>
                         <option value="KO">Knockout Match (2-way)</option>
                       </select>
@@ -475,6 +494,23 @@
                     <div class="form-group">
                       <label for="kickoffInput">Kickoff Time (Local)</label>
                       <input type="datetime-local" id="kickoffInput" required class="form-control">
+                    </div>
+                  </div>
+                  <div class="form-row" id="bracketFieldsRow" style="display: none;">
+                    <div class="form-group">
+                      <label for="bracketRoundSelect">Bracket Round</label>
+                      <select id="bracketRoundSelect" class="form-control">
+                        <option value="">— none —</option>
+                        <option value="LAST_32">Round of 32</option>
+                        <option value="LAST_16">Round of 16</option>
+                        <option value="QUARTER_FINALS">Quarter-finals</option>
+                        <option value="SEMI_FINALS">Semi-finals</option>
+                        <option value="FINAL">Final</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label for="bracketSlotInput">Bracket Slot (0-indexed)</label>
+                      <input type="number" id="bracketSlotInput" min="0" placeholder="e.g. 0" class="form-control">
                     </div>
                   </div>
                   <button type="submit" class="btn btn-success btn-full">Create Match</button>
@@ -566,6 +602,37 @@
             </div>
           </div>
 
+          <!-- Fantasy Bracket Card -->
+          <div class="rules-card" style="margin-top: 20px;">
+            <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+              <h3 style="margin: 0;">⭐ Fantasy Bracket</h3>
+              <button class="btn btn-secondary btn-sm" onclick="loadAdminFantasyStatus()" style="font-size: 0.8rem; padding: 4px 12px;">↻ Refresh</button>
+            </div>
+            <div class="card-body">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                <div class="admin-stat-box">
+                  <div class="admin-stat-label">R32 slots populated</div>
+                  <div class="admin-stat-value" id="fantasyAdminR32Count">—</div>
+                </div>
+                <div class="admin-stat-box">
+                  <div class="admin-stat-label">Players with picks</div>
+                  <div class="admin-stat-value" id="fantasyAdminPlayerCount">—</div>
+                </div>
+              </div>
+              <div id="adminFantasyPickBreakdown" style="margin-bottom: 16px;"></div>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
+                <button class="btn btn-danger btn-sm" id="adminFantasyLockBtn" onclick="adminFantasyLock()" style="display:none;">🔒 Lock Bracket</button>
+                <button class="btn btn-success btn-sm" id="adminFantasyUnlockBtn" onclick="adminFantasyUnlock()" style="display:none;">🔓 Unlock Bracket</button>
+                <span id="adminFantasyLockStatus" style="font-size: 0.82rem; color: var(--text-muted);"></span>
+              </div>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                <button class="btn btn-danger btn-sm" onclick="adminFantasyReset()">Reset &amp; Repopulate from API</button>
+                <button class="btn btn-secondary btn-sm" id="adminFantasyUndoBtn" style="display:none;" onclick="adminFantasyUndo()">↩ Undo Reset</button>
+              </div>
+              <div id="adminFantasyMsg" style="margin-top: 10px; font-size: 0.82rem; color: var(--text-muted);"></div>
+            </div>
+          </div>
+
           <!-- History Log Card -->
           <div class="rules-card" style="margin-top: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px; margin-bottom: 12px;">
@@ -609,6 +676,22 @@
 
   </div>
 
+  <!-- Fantasy Bracket Modal -->
+  <div id="fantasyBracketModal" class="fantasy-modal" style="display:none;">
+    <div class="fantasy-modal-inner">
+      <div class="fantasy-modal-header">
+        <span class="fantasy-modal-title">⭐ Fantasy Bracket</span>
+        <span id="fantasyProgress" class="fantasy-progress">0 / 31 picks made</span>
+        <button id="fantasyModalClose" class="fantasy-modal-close" onclick="closeFantasyBracket()" type="button">✕</button>
+      </div>
+      <details class="fantasy-bracket-notice">
+        <summary class="fantasy-bracket-notice-toggle">ℹ How it works</summary>
+        Fill out the entire bracket — pick winners all the way to the Final. This bracket is separate from daily match scoring and won't affect your leaderboard points. The bracket will be locked once the first Round of 32 game kicks off.
+      </details>
+      <div id="fantasyBracketContainer" class="fantasy-bracket-container"></div>
+    </div>
+  </div>
+
   <!-- Passcode Login Modal (Overlay) -->
   <div class="modal-overlay" id="usernameModal" style="display: none;">
     <div class="modal-card">
@@ -641,6 +724,13 @@
           <div style="font-weight: 700; font-size: 1rem; margin-bottom: 10px;" id="voteConfirmMatchup"></div>
           <div style="display: inline-block; background: rgba(0,230,118,0.12); border: 1px solid var(--color-accent); color: var(--color-accent); padding: 6px 18px; border-radius: 20px; font-weight: 700; font-size: 1rem;" id="voteConfirmChoice"></div>
         </div>
+        <div id="voteConfirmBoosterSection" style="display:none; background: rgba(60,120,255,0.08); border: 1px solid rgba(60,120,255,0.16); border-radius: 12px; padding: 14px 16px; margin-bottom: 18px;">
+          <label style="display:flex; align-items:center; gap: 10px; font-weight: 700; cursor: pointer;">
+            <input type="checkbox" id="voteConfirmUseBooster" style="transform: scale(1.1);" />
+            Use knockout booster for this vote (2× points if correct)
+          </label>
+          <div id="voteConfirmBoosterInfo" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 8px;"></div>
+        </div>
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; text-align: center;">You can change your vote anytime before kickoff.</p>
         <div style="display: flex; gap: 10px;">
           <button class="btn btn-secondary" style="flex:1;" onclick="closeVoteModal()">Cancel</button>
@@ -652,6 +742,8 @@
 
   <!-- General Script -->
   <script src="vendor/html2canvas.min.js"></script>
+  <script src="bracket.js"></script>
+  <script src="fantasy-bracket.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

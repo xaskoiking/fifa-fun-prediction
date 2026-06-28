@@ -1,6 +1,7 @@
 // server.js
 require('dotenv').config();
 const express = require('express');
+const NodeCache = require('node-cache');
 const fs = require('fs');
 const path = require('path');
 
@@ -26,6 +27,10 @@ const DATA_FILE = path.join(__dirname, 'data.json');
 // ── Environment identification (drives the staging/review pill in the UI) ────
 const APP_ENV = process.env.APP_ENV || 'prod';
 const PR_NUMBER = process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null;
+
+// Initialize cache with a 24-hour expiration (86400 seconds)
+const appCache = new NodeCache({ stdTTL: 86400 }); 
+const CACHE_KEY = 'world_football_ranking';
 
 // ── Admin / default-credential configuration ─────────────────────────────────
 // For production, set ADMIN_PASSCODE in the environment. When set, it overrides
@@ -177,6 +182,21 @@ function readData() {
           changed = true;
           updated.votingExtendedUntil = null;
         }
+        if (!updated.boosters || typeof updated.boosters !== 'object') {
+          changed = true;
+          updated.boosters = { home: [], away: [], draw: [] };
+        } else {
+          updated.boosters = {
+            home: Array.isArray(updated.boosters.home) ? updated.boosters.home : [],
+            away: Array.isArray(updated.boosters.away) ? updated.boosters.away : [],
+            draw: Array.isArray(updated.boosters.draw) ? updated.boosters.draw : []
+          };
+          if (updated.boosters.home.length !== (match.boosters?.home?.length ?? 0)
+            || updated.boosters.away.length !== (match.boosters?.away?.length ?? 0)
+            || updated.boosters.draw.length !== (match.boosters?.draw?.length ?? 0)) {
+            changed = true;
+          }
+        }
         if (changed) migrated = true;
         return updated;
       });
@@ -283,7 +303,7 @@ function writeData(data) {
 }
 
 // Points Calculation Engine
-function calculatePointsForMatch(votes, outcome, matchType) {
+function calculatePointsForMatch(votes, outcome, matchType, boosters = {}) {
   const votersHome = votes.home || [];
   const votersAway = votes.away || [];
   const votersDraw = votes.draw || [];
@@ -298,13 +318,19 @@ function calculatePointsForMatch(votes, outcome, matchType) {
 
   if (outcome === 'home') {
     const pts = countAway + countDraw + 1;
-    votersHome.forEach(v => { pointsAllocated[v] = pts; });
+    votersHome.forEach(v => {
+      pointsAllocated[v] = pts * ((boosters.home || []).includes(v) ? 2 : 1);
+    });
   } else if (outcome === 'away') {
     const pts = countHome + countDraw + 1;
-    votersAway.forEach(v => { pointsAllocated[v] = pts; });
+    votersAway.forEach(v => {
+      pointsAllocated[v] = pts * ((boosters.away || []).includes(v) ? 2 : 1);
+    });
   } else if (outcome === 'draw' && matchType === 'League') {
     const pts = countHome + countAway + 1;
-    votersDraw.forEach(v => { pointsAllocated[v] = pts; });
+    votersDraw.forEach(v => {
+      pointsAllocated[v] = pts * ((boosters.draw || []).includes(v) ? 2 : 1);
+    });
   }
 
   return pointsAllocated;
@@ -344,7 +370,7 @@ function buildLeaderboardHistory(db) {
     });
 
   resolvedMatches.forEach(match => {
-    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
+    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
     const matchPoints = {};
     Object.keys(pointsAllocated).forEach(user => {
       if (!standings[user]) {
@@ -440,7 +466,10 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
   const now = new Date();
 
   // Process matches to respect privacy rules
+  const userBoosterStatus = getUserBoosterStatus(db, username);
+
   const processedMatches = db.matches.map(match => {
+    ensureMatchBoosterData(match);
     const kickoffTime = new Date(match.kickoff);
     const hasStarted = kickoffTime <= now;
     
@@ -453,6 +482,18 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
     if (match.votes.home.includes(username)) myVote = 'home';
     else if (match.votes.away.includes(username)) myVote = 'away';
     else if (match.votes.draw && match.votes.draw.includes(username)) myVote = 'draw';
+
+    const stageCode = getMatchStageCode(match);
+    const stageLabel = stageCode ? STAGE_LABELS[stageCode] || 'Knockout' : null;
+    const stageBoosterUsed = stageCode ? !!userBoosterStatus[stageCode] : false;
+    const votingOpen = !match.votingLocked && (kickoffTime > now || extensionActive);
+    const boosterEligible = match.matchType === 'KO' && !!stageCode && votingOpen && !stageBoosterUsed;
+    const myBooster = !!(myVote && match.boosters[myVote] && match.boosters[myVote].includes(username));
+    const myMatchBooster = !!(
+      (match.boosters.home || []).includes(username) ||
+      (match.boosters.away || []).includes(username) ||
+      (match.boosters.draw || []).includes(username)
+    );
 
     // Core Privacy Logic
     if (hasStarted || match.status === 'resolved') {
@@ -471,7 +512,13 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         voters: match.votes,
         homeTeamForm: getRecentForm(match.homeTeam),
         awayTeamForm: getRecentForm(match.awayTeam),
-        score: getMatchScore(match.homeTeam, match.awayTeam)
+        score: getMatchScore(match.homeTeam, match.awayTeam),
+        boosterStageCode: stageCode,
+        boosterStageLabel: stageLabel,
+        boosterEligible,
+        myBooster,
+        myMatchBooster,
+        boosterStageUsed: stageBoosterUsed
       };
     } else {
       // Hide details before kickoff
@@ -482,6 +529,8 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         homeTeam: match.homeTeam,
         awayTeam: match.awayTeam,
         matchType: match.matchType,
+        bracketRound: match.bracketRound || null,
+        bracketSlot: match.bracketSlot != null ? match.bracketSlot : null,
         kickoff: match.kickoff,
         status: match.status,
         outcome: match.outcome,
@@ -490,6 +539,12 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         extensionActive: false,
         votingExtendedUntil: null,
         myVote,
+        boosterStageCode: stageCode,
+        boosterStageLabel: stageLabel,
+        boosterEligible,
+        myBooster,
+        myMatchBooster,
+        boosterStageUsed: stageBoosterUsed,
         voteCounts: {
           home: null,
           away: null,
@@ -508,7 +563,8 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
 // Submit a prediction (Requires Passcode validation)
 app.post('/api/predict', authenticateSecret, (req, res) => {
   const username = req.username;
-  const { matchId, prediction } = req.body; // prediction: 'home', 'away', or 'draw'
+  const { matchId, prediction, useBooster } = req.body; // prediction: 'home', 'away', or 'draw'
+  const useBoosterFlag = !!useBooster;
   
   if (!matchId || !prediction) {
     return res.status(400).json({ error: 'matchId and prediction are required.' });
@@ -547,6 +603,24 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
     return res.status(400).json({ error: 'Invalid prediction option.' });
   }
 
+  const stageCode = getMatchStageCode(match);
+  const userBoosterStatus = getUserBoosterStatus(db, username);
+  const alreadyBoostedHere = stageCode && match.boosters && (
+    (match.boosters.home || []).includes(username) ||
+    (match.boosters.away || []).includes(username) ||
+    (match.boosters.draw || []).includes(username)
+  );
+  const stageAlreadyUsedElsewhere = stageCode && userBoosterStatus[stageCode] && !alreadyBoostedHere;
+
+  if (useBoosterFlag) {
+    if (match.matchType !== 'KO' || !stageCode) {
+      return res.status(400).json({ error: 'Boosters are only available on knockout matches.' });
+    }
+    if (stageAlreadyUsedElsewhere) {
+      return res.status(400).json({ error: 'You have already used your booster for this stage.' });
+    }
+  }
+
   // Remove existing vote by this user in this match (ensure we don't duplicate votes)
   match.votes.home = match.votes.home.filter(u => u !== username);
   match.votes.away = match.votes.away.filter(u => u !== username);
@@ -559,17 +633,26 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
   // Ensure voteLog exists
   if (!Array.isArray(match.voteLog)) match.voteLog = [];
 
+  ensureMatchBoosterData(match);
+  match.boosters.home = match.boosters.home.filter(u => u !== username);
+  match.boosters.away = match.boosters.away.filter(u => u !== username);
+  match.boosters.draw = match.boosters.draw.filter(u => u !== username);
+
   // Add new prediction
   match.votes[prediction].push(username);
+  if (useBoosterFlag) {
+    match.boosters[prediction].push(username);
+  }
 
   // Record timestamped vote log entry
   match.voteLog.push({
     timestamp: new Date().toISOString(),
     player: username,
-    vote: prediction
+    vote: prediction,
+    booster: useBoosterFlag
   });
 
-  logAuditAction(db, 'PREDICTION', `${username} voted "${prediction}" for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
+  logAuditAction(db, 'PREDICTION', `${username} voted "${prediction}"${useBoosterFlag ? ' with BOOSTER' : ''} for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
 
   writeData(db);
 
@@ -623,7 +706,7 @@ app.get('/api/leaderboard', (req, res) => {
       ensureStanding(user).totalPredictions += 1;
     });
 
-    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType);
+    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
     Object.keys(pointsAllocated).forEach(user => {
       const pts = pointsAllocated[user];
       if (pts > 0) {
@@ -656,7 +739,7 @@ app.get('/api/leaderboard', (req, res) => {
     else if (liveEntry.scoreAway > liveEntry.scoreHome) provisionalOutcome = 'away';
     else provisionalOutcome = 'draw';
 
-    const pts = calculatePointsForMatch(match.votes, provisionalOutcome, match.matchType);
+    const pts = calculatePointsForMatch(match.votes, provisionalOutcome, match.matchType, match.boosters);
     Object.keys(pts).forEach(user => {
       if (!standings[user]) ensureStanding(user);
       standings[user].provisionalDelta = (standings[user].provisionalDelta || 0) + pts[user];
@@ -715,6 +798,72 @@ app.get('/api/live-matches', (req, res) => {
   });
 
   res.json(matched);
+});
+
+const TEAM_NAME_OVERRIDES = {
+  'korea republic': 'south korea',
+  "côte d'ivoire": 'ivory coast',
+  'cabo verde': 'cape verde islands',
+  'usa': 'united states',
+  'türkiye': 'turkey',
+  'ir iran': 'iran',
+  'bosnia and herzegovina': 'bosnia-herzegovina'
+};
+
+async function getFootballRankings() {
+  const cachedData = appCache.get(CACHE_KEY);
+  if (cachedData) {
+    console.log('Serving from cache...');
+    return { data: cachedData, source: 'cache' };
+  }
+
+  console.log('Cache miss. Fetching from RapidAPI...');
+  const url = 'https://api.fifa.com/api/v3/fifarankings/rankings/live?gender=1&sportType=0&language=en';
+  const options = {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  };
+
+  const response = await fetch(url, options);
+  
+  if (!response.ok) {
+    throw new Error(`Ranking API responded with status: ${response.status}`);
+  }
+
+  const rawApiData = await response.json();
+
+  // Transformation logic using Array.prototype.reduce
+  const transformedData = rawApiData.Results.reduce((accumulator, currentTeam) => {
+    // Extract the team name description safely
+    const teamName = currentTeam.TeamName[0]?.Description.toLowerCase();
+    const finalName = TEAM_NAME_OVERRIDES[teamName] || teamName;
+    accumulator[finalName] = currentTeam.Rank;
+
+    return accumulator;
+  }, {});
+  
+  // Save to cache for subsequent requests
+  appCache.set(CACHE_KEY, transformedData);
+
+  return { data: transformedData, source: 'api' };
+}
+
+// Intercept the frontend call at /api/ranking
+app.get('/api/ranking', async (req, res) => {
+  try {
+    const { data, source } = await getFootballRankings();
+    
+    // Set a custom header so your frontend knows if it's cached or live
+    res.setHeader('X-Cache-Lookup', source === 'cache' ? 'HIT' : 'MISS');
+    
+    // Return the JSON data to the frontend
+    res.json(data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to retrieve ranking data' });
+  }
 });
 
 // =================== ADMIN ENDPOINTS ===================
@@ -812,7 +961,7 @@ app.post('/api/admin/users/delete', verifyAdmin, (req, res) => {
 
 // Add a Match
 app.post('/api/admin/match', verifyAdmin, (req, res) => {
-  const { homeTeam, awayTeam, matchType, kickoff, matchNumber, group } = req.body;
+  const { homeTeam, awayTeam, matchType, kickoff, matchNumber, group, bracketRound, bracketSlot } = req.body;
   if (!homeTeam || !awayTeam || !matchType || !kickoff) {
     return res.status(400).json({ error: 'homeTeam, awayTeam, matchType, and kickoff are required.' });
   }
@@ -826,6 +975,20 @@ app.post('/api/admin/match', verifyAdmin, (req, res) => {
     return res.status(400).json({ error: 'Invalid kickoff date.' });
   }
 
+  let resolvedBracketRound = null;
+  let resolvedBracketSlot = null;
+  if (bracketRound !== undefined && bracketRound !== null && bracketRound !== '') {
+    if (!Object.prototype.hasOwnProperty.call(BRACKET_ROUND_SIZES, bracketRound)) {
+      return res.status(400).json({ error: `bracketRound must be one of: ${Object.keys(BRACKET_ROUND_SIZES).join(', ')}` });
+    }
+    const slotNum = Number(bracketSlot);
+    if (!Number.isInteger(slotNum) || slotNum < 0 || slotNum >= BRACKET_ROUND_SIZES[bracketRound]) {
+      return res.status(400).json({ error: `bracketSlot must be an integer between 0 and ${BRACKET_ROUND_SIZES[bracketRound] - 1} for ${bracketRound}.` });
+    }
+    resolvedBracketRound = bracketRound;
+    resolvedBracketSlot = slotNum;
+  }
+
   const db = readData();
 
   const newMatch = {
@@ -835,6 +998,8 @@ app.post('/api/admin/match', verifyAdmin, (req, res) => {
     homeTeam: homeTeam.trim(),
     awayTeam: awayTeam.trim(),
     matchType,
+    bracketRound: resolvedBracketRound,
+    bracketSlot: resolvedBracketSlot,
     kickoff: kickoffDate.toISOString(),
     status: 'scheduled',
     votingLocked: false,
@@ -1071,6 +1236,36 @@ let _fixturesCache = null;
 let _fixturesCacheTime = 0;
 const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 
+// Cooldown for the dedicated R32 sync fetch. R32 fixtures change at most once
+// a day (as group stage results come in), so polling once per 10 minutes is
+// plenty. The main poll runs every 60s and already covers live/recent matches;
+// this extra call only fires when upcoming fixtures are missing from that response.
+let _r32SyncLastFetch = 0;
+const R32_SYNC_COOLDOWN = 10 * 60 * 1000;
+
+// Manually confirmed R32 fixtures keyed by football-data.org match ID.
+// Used as a fallback when the API returns TBD or no data for a slot.
+// Priority chain: API name > static name > existing DB name.
+// When the API eventually publishes the correct names, they automatically win.
+const FANTASY_R32_STATIC = {
+  537415: { homeTeam: 'Germany',             awayTeam: 'Paraguay',           kickoff: '2026-06-29T20:30:00Z' },
+  537416: { homeTeam: 'France',              awayTeam: 'Sweden',             kickoff: '2026-06-30T21:00:00Z' },
+  537417: { homeTeam: 'South Africa',        awayTeam: 'Canada',             kickoff: '2026-06-28T19:00:00Z' },
+  537418: { homeTeam: 'Netherlands',         awayTeam: 'Morocco',            kickoff: '2026-06-30T01:00:00Z' },
+  537419: { homeTeam: 'Portugal',            awayTeam: 'Croatia',            kickoff: '2026-07-02T23:00:00Z' },
+  537420: { homeTeam: 'Spain',               awayTeam: 'Austria',            kickoff: '2026-07-02T19:00:00Z' },
+  537421: { homeTeam: 'United States',       awayTeam: 'Bosnia-Herzegovina', kickoff: '2026-07-02T00:00:00Z' },
+  537422: { homeTeam: 'Belgium',             awayTeam: 'Senegal',            kickoff: '2026-07-01T20:00:00Z' },
+  537423: { homeTeam: 'Brazil',              awayTeam: 'Japan',              kickoff: '2026-06-29T17:00:00Z' },
+  537424: { homeTeam: 'Ivory Coast',         awayTeam: 'Norway',             kickoff: '2026-06-30T17:00:00Z' },
+  537425: { homeTeam: 'Mexico',              awayTeam: 'Ecuador',            kickoff: '2026-07-01T01:00:00Z' },
+  537426: { homeTeam: 'England',             awayTeam: 'Congo DR',           kickoff: '2026-07-01T16:00:00Z' },
+  537427: { homeTeam: 'Argentina',           awayTeam: 'Cape Verde Islands', kickoff: '2026-07-03T22:00:00Z' },
+  537428: { homeTeam: 'Australia',           awayTeam: 'Egypt',              kickoff: '2026-07-03T18:00:00Z' },
+  537429: { homeTeam: 'Switzerland',         awayTeam: 'Algeria',            kickoff: '2026-07-03T03:00:00Z' },
+  537430: { homeTeam: 'Colombia',            awayTeam: 'Ghana',              kickoff: '2026-07-04T01:30:00Z' },
+};
+
 let _liveScoresCache = [];
 // football-data.org has been observed returning 'LIVE' as well as the
 // documented 'IN_PLAY' for an in-progress match — treat them as equivalent.
@@ -1103,10 +1298,83 @@ const TOURNAMENT_STAGES = [
   { code: 'FINAL',          label: 'Final' }
 ];
 
+// Knockout bracket structure: code -> number of slots in that round.
+// Used to validate bracketSlot on match creation and (by the frontend,
+// mirrored in public/bracket.js) to lay out the bracket tree.
+const BRACKET_ROUND_SIZES = {
+  LAST_32: 16,
+  LAST_16: 8,
+  QUARTER_FINALS: 4,
+  SEMI_FINALS: 2,
+  FINAL: 1
+};
+
 const STAGE_LABELS = TOURNAMENT_STAGES.reduce((acc, s) => {
   if (s.code !== 'GROUP_STAGE') acc[s.code] = s.label;
   return acc;
 }, {});
+STAGE_LABELS.QF_SF_FINAL = 'QF/SF/Final';
+
+function normalizeStageText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+function getMatchStageCode(match) {
+  // Bracket round is the authoritative source for bracket-created matches
+  if (match.bracketRound) {
+    if (match.bracketRound === 'LAST_32') return 'LAST_32';
+    if (match.bracketRound === 'LAST_16') return 'LAST_16';
+    if (['QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'].includes(match.bracketRound)) return 'QF_SF_FINAL';
+  }
+
+  const stageText = normalizeStageText(match.group || match.stage || match.round || '');
+  if (stageText) {
+    if (/(round of 32|last 32|r32)\b/.test(stageText)) return 'LAST_32';
+    if (/(round of 16|last 16|r16)\b/.test(stageText)) return 'LAST_16';
+    if (/(quarter final|quarter-final|quarterfinal|semi final|semi-final|semifinal|final|qf\/sf\/final|qf sf final)\b/.test(stageText)) {
+      return 'QF_SF_FINAL';
+    }
+  }
+
+  const num = parseInt(match.matchNumber, 10);
+  if (!Number.isFinite(num)) return null;
+  if (num >= 73 && num <= 88) return 'LAST_32';
+  if (num >= 89 && num <= 96) return 'LAST_16';
+  if (num >= 97 && num <= 104) return 'QF_SF_FINAL';
+  return null;
+}
+
+function ensureMatchBoosterData(match) {
+  if (!match.boosters || typeof match.boosters !== 'object') {
+    match.boosters = { home: [], away: [], draw: [] };
+  } else {
+    match.boosters = {
+      home: Array.isArray(match.boosters.home) ? match.boosters.home : [],
+      away: Array.isArray(match.boosters.away) ? match.boosters.away : [],
+      draw: Array.isArray(match.boosters.draw) ? match.boosters.draw : []
+    };
+  }
+  return match;
+}
+
+function getUserBoosterStatus(db, username) {
+  const status = { LAST_32: false, LAST_16: false, QF_SF_FINAL: false };
+  db.matches.forEach(match => {
+    const stageCode = getMatchStageCode(match);
+    if (!stageCode) return;
+    ensureMatchBoosterData(match);
+    if (match.boosters.home.includes(username)
+      || match.boosters.away.includes(username)
+      || match.boosters.draw.includes(username)) {
+      status[stageCode] = true;
+    }
+  });
+  return status;
+}
 
 // Ensure db.settings.openMatchStages exists, defaulting to Group Stage only.
 function ensureSettings(db) {
@@ -1117,6 +1385,24 @@ function ensureSettings(db) {
     db.settings.openMatchStages = ['GROUP_STAGE'];
   }
   return db.settings;
+}
+
+function ensureFantasyBrackets(db) {
+  if (!db.fantasyBrackets || typeof db.fantasyBrackets !== 'object') {
+    db.fantasyBrackets = {};
+  }
+  return db.fantasyBrackets;
+}
+
+function ensureFantasyR32(db) {
+  if (!Array.isArray(db.fantasyR32)) {
+    db.fantasyR32 = [];
+  }
+  return db.fantasyR32;
+}
+
+function isFantasyLocked(db) {
+  return !!db.fantasyLocked;
 }
 
 async function pollLiveScores() {
@@ -1131,7 +1417,9 @@ async function pollLiveScores() {
       return;
     }
     const data = await res.json();
-    _liveScoresCache = (data.matches || [])
+    const allMatches = data.matches || [];
+
+    _liveScoresCache = allMatches
       .filter(m => LIVE_STATUSES.has(m.status))
       .map(m => {
         const ft = (m.score || {}).fullTime || {};
@@ -1145,8 +1433,128 @@ async function pollLiveScores() {
         };
       });
     console.log(`[LIVE] Cache updated: ${_liveScoresCache.length} live/finished match(es)`);
+
+    // Sync ROUND_OF_32 fixtures into db.fantasyR32. The main poll only returns
+    // matches in football-data.org's rolling window (live/recent), so upcoming
+    // R32 fixtures may be missing from allMatches. Pass them along anyway —
+    // syncFantasyR32FromApi will fetch its own dedicated request when needed.
+    syncFantasyR32FromApi(allMatches, apiKey);
   } catch (err) {
     console.error('[LIVE] Poll failed:', err.message);
+  }
+}
+
+// Apply FANTASY_R32_STATIC directly to db when the API has no R32 data at all.
+// Respects the never-downgrade rule: existing DB name wins over static.
+function mergeStaticR32Fallback(db) {
+  ensureFantasyR32(db);
+  const staticSlots = Object.entries(FANTASY_R32_STATIC)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([, fix], i) => ({ bracketSlot: i, ...fix }));
+
+  const slotMap = new Map(db.fantasyR32.map(m => [m.bracketSlot, m]));
+  let changed = false;
+
+  staticSlots.forEach(({ bracketSlot, homeTeam, awayTeam, kickoff }) => {
+    const existing = slotMap.get(bracketSlot);
+    const finalHome = (existing?.homeTeam && existing.homeTeam !== 'TBD') ? existing.homeTeam
+      : homeTeam !== 'TBD' ? homeTeam : 'TBD';
+    const finalAway = (existing?.awayTeam && existing.awayTeam !== 'TBD') ? existing.awayTeam
+      : awayTeam !== 'TBD' ? awayTeam : 'TBD';
+    if (!existing || existing.homeTeam !== finalHome || existing.awayTeam !== finalAway || existing.kickoff !== kickoff) {
+      slotMap.set(bracketSlot, { bracketSlot, homeTeam: finalHome, awayTeam: finalAway, kickoff });
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    db.fantasyR32 = Array.from(slotMap.values()).sort((a, b) => a.bracketSlot - b.bracketSlot);
+    writeData(db);
+    console.log(`[R32 SYNC] fantasyR32 updated from static fallback: ${db.fantasyR32.length} slot(s)`);
+  }
+}
+
+async function syncFantasyR32FromApi(apiMatches, apiKey) {
+  // First try the matches already returned by the main poll.
+  let r32 = apiMatches
+    .filter(m => m.stage === 'LAST_32')
+    .sort((a, b) => a.id - b.id);
+
+  // If the main poll didn't include upcoming fixtures, fetch them explicitly.
+  // football-data.org's default window excludes SCHEDULED/TIMED matches that
+  // haven't started yet. Guarded by a 10-minute cooldown so we don't burn
+  // API quota on every 60-second poll. Stops entirely once all 16 slots have
+  // real team names.
+  if (r32.length === 0) {
+    const db = readData();
+    ensureFantasyR32(db);
+    const allReal = db.fantasyR32.length === 16 &&
+      db.fantasyR32.every(m => m.homeTeam !== 'TBD' && m.awayTeam !== 'TBD');
+    if (allReal) return;
+
+    const now = Date.now();
+    if (now - _r32SyncLastFetch < R32_SYNC_COOLDOWN) {
+      // Under cooldown — still apply any static data we have
+      mergeStaticR32Fallback(db);
+      return;
+    }
+    _r32SyncLastFetch = now;
+
+    try {
+      const url = 'https://api.football-data.org/v4/competitions/WC/matches';
+      const res = await fetch(url, { headers: { 'X-Auth-Token': apiKey } });
+      if (!res.ok) {
+        console.warn(`[R32 SYNC] API returned ${res.status}`);
+        mergeStaticR32Fallback(db);
+        return;
+      }
+      const data = await res.json();
+      r32 = (data.matches || [])
+        .filter(m => m.stage === 'LAST_32')
+        .sort((a, b) => a.id - b.id);
+    } catch (err) {
+      console.error('[R32 SYNC] Fetch failed:', err.message);
+      mergeStaticR32Fallback(db);
+      return;
+    }
+  }
+
+  // API truly has no R32 data even after dedicated fetch — use static
+  if (r32.length === 0) {
+    mergeStaticR32Fallback(readData());
+    return;
+  }
+
+  const db = readData();
+  ensureFantasyR32(db);
+
+  const slotMap = new Map(db.fantasyR32.map(m => [m.bracketSlot, m]));
+  let changed = false;
+
+  r32.forEach((m, i) => {
+    const apiHome = m.homeTeam?.name || 'TBD';
+    const apiAway = m.awayTeam?.name || 'TBD';
+    const kickoff = m.utcDate;
+    const stat = FANTASY_R32_STATIC[m.id];
+    const existing = slotMap.get(i);
+    // Priority: API name > static known name > existing DB name > TBD.
+    // Never downgrade a real name to TBD at any tier.
+    const homeTeam = apiHome !== 'TBD' ? apiHome
+      : (stat?.homeTeam && stat.homeTeam !== 'TBD') ? stat.homeTeam
+      : (existing?.homeTeam || 'TBD');
+    const awayTeam = apiAway !== 'TBD' ? apiAway
+      : (stat?.awayTeam && stat.awayTeam !== 'TBD') ? stat.awayTeam
+      : (existing?.awayTeam || 'TBD');
+    if (!existing || existing.homeTeam !== homeTeam || existing.awayTeam !== awayTeam || existing.kickoff !== kickoff) {
+      slotMap.set(i, { bracketSlot: i, homeTeam, awayTeam, kickoff });
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    db.fantasyR32 = Array.from(slotMap.values()).sort((a, b) => a.bracketSlot - b.bracketSlot);
+    writeData(db);
+    console.log(`[R32 SYNC] fantasyR32 updated: ${db.fantasyR32.length} slot(s)`);
   }
 }
 
@@ -1211,6 +1619,187 @@ app.post('/api/admin/settings', verifyAdmin, (req, res) => {
   res.json({ openMatchStages: filtered, availableStages: TOURNAMENT_STAGES });
 });
 
+// Public (player-level) read of which stages are open — used by the
+// frontend to decide whether to show the legacy flat Predictions tab.
+app.get('/api/stages', authenticateSecret, (req, res) => {
+  const db = readData();
+  const settings = ensureSettings(db);
+  res.json({ openMatchStages: settings.openMatchStages });
+});
+
+app.get('/api/fantasy-bracket', authenticateSecret, (req, res) => {
+  const db = readData();
+  ensureFantasyBrackets(db);
+  ensureFantasyR32(db);
+  const username = req.username;
+  const locked = isFantasyLocked(db);
+  const userBracket = db.fantasyBrackets[username] || { picks: {} };
+  const r32Matches = db.fantasyR32
+    .slice()
+    .sort((a, b) => a.bracketSlot - b.bracketSlot);
+  res.json({ locked, picks: userBracket.picks, r32Matches });
+});
+
+app.post('/api/admin/fantasy-r32', verifyAdmin, (req, res) => {
+  const { fixtures } = req.body;
+  if (!Array.isArray(fixtures)) {
+    return res.status(400).json({ error: 'fixtures must be an array.' });
+  }
+  for (const f of fixtures) {
+    const slot = Number(f.bracketSlot);
+    if (!Number.isInteger(slot) || slot < 0 || slot > 15) {
+      return res.status(400).json({ error: `Invalid bracketSlot: ${f.bracketSlot}` });
+    }
+    if (!f.homeTeam || !f.awayTeam || !f.kickoff) {
+      return res.status(400).json({ error: `Missing homeTeam, awayTeam, or kickoff for slot ${slot}` });
+    }
+  }
+  const db = readData();
+  ensureFantasyR32(db);
+  const incoming = fixtures.map(f => ({
+    bracketSlot: Number(f.bracketSlot),
+    homeTeam: String(f.homeTeam),
+    awayTeam: String(f.awayTeam),
+    kickoff: String(f.kickoff)
+  }));
+  // Merge: replace existing slots, keep others
+  const slotMap = new Map(db.fantasyR32.map(m => [m.bracketSlot, m]));
+  incoming.forEach(m => slotMap.set(m.bracketSlot, m));
+  db.fantasyR32 = Array.from(slotMap.values()).sort((a, b) => a.bracketSlot - b.bracketSlot);
+  logAuditAction(db, 'FANTASY_R32_IMPORT', `Admin ${req.adminUsername} imported ${incoming.length} R32 fixtures`);
+  writeData(db);
+  res.json({ ok: true, count: db.fantasyR32.length });
+});
+
+app.get('/api/admin/fantasy-status', verifyAdmin, (req, res) => {
+  const db = readData();
+  ensureFantasyR32(db);
+  ensureFantasyBrackets(db);
+  const backup = db._fantasyBackup || null;
+  const TOTAL_PICKS = 31;
+  const playerBreakdown = db.users
+    .filter(u => u.name.toUpperCase() !== 'ADMIN')
+    .map(u => {
+      const bracket = db.fantasyBrackets[u.name];
+      const count = bracket ? Object.keys(bracket.picks || {}).length : 0;
+      return { name: u.name, picks: count, full: count >= TOTAL_PICKS };
+    })
+    .sort((a, b) => b.picks - a.picks || a.name.localeCompare(b.name));
+  res.json({
+    locked: isFantasyLocked(db),
+    r32Count: db.fantasyR32.length,
+    r32Real: db.fantasyR32.filter(m => m.homeTeam !== 'TBD' || m.awayTeam !== 'TBD').length,
+    playerCount: Object.keys(db.fantasyBrackets).length,
+    playerBreakdown,
+    hasBackup: !!backup,
+    backupTimestamp: backup ? backup.timestamp : null,
+    backupR32Count: backup ? backup.fantasyR32.length : 0,
+    backupPlayerCount: backup ? Object.keys(backup.fantasyBrackets).length : 0
+  });
+});
+
+app.post('/api/admin/fantasy-lock', verifyAdmin, (req, res) => {
+  const db = readData();
+  db.fantasyLocked = true;
+  writeData(db);
+  res.json({ locked: true });
+});
+
+app.post('/api/admin/fantasy-unlock', verifyAdmin, (req, res) => {
+  const db = readData();
+  db.fantasyLocked = false;
+  writeData(db);
+  res.json({ locked: false });
+});
+
+app.post('/api/admin/fantasy-reset', verifyAdmin, async (req, res) => {
+  const apiKey = process.env.FOOTBALL_DATA_API_KEY;
+  const db = readData();
+  ensureFantasyR32(db);
+  ensureFantasyBrackets(db);
+
+  // Snapshot before clearing so undo can restore exactly
+  db._fantasyBackup = {
+    timestamp: new Date().toISOString(),
+    fantasyR32: JSON.parse(JSON.stringify(db.fantasyR32)),
+    fantasyBrackets: JSON.parse(JSON.stringify(db.fantasyBrackets))
+  };
+
+  db.fantasyR32 = [];
+  db.fantasyBrackets = {};
+  logAuditAction(db, 'FANTASY_RESET', `Admin ${req.adminUsername} reset fantasy bracket data`);
+  writeData(db);
+
+  // Reset cooldown so the next poll fetches immediately
+  _r32SyncLastFetch = 0;
+
+  // Kick off a background sync right now rather than waiting for the next poll
+  if (apiKey) {
+    syncFantasyR32FromApi([], apiKey).catch(err =>
+      console.error('[FANTASY RESET] Background sync failed:', err.message)
+    );
+  }
+
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/fantasy-undo', verifyAdmin, (req, res) => {
+  const db = readData();
+  if (!db._fantasyBackup) {
+    return res.status(404).json({ error: 'No backup available to restore.' });
+  }
+  db.fantasyR32 = db._fantasyBackup.fantasyR32;
+  db.fantasyBrackets = db._fantasyBackup.fantasyBrackets;
+  const ts = db._fantasyBackup.timestamp;
+  delete db._fantasyBackup;
+  logAuditAction(db, 'FANTASY_UNDO', `Admin ${req.adminUsername} restored fantasy bracket from backup (${ts})`);
+  writeData(db);
+  res.json({ ok: true });
+});
+
+app.post('/api/fantasy-bracket/pick', authenticateSecret, (req, res) => {
+  const db = readData();
+  ensureFantasyBrackets(db);
+  const username = req.username;
+
+  if (isFantasyLocked(db)) {
+    return res.status(403).json({ error: 'Fantasy bracket is locked.' });
+  }
+
+  const { roundCode, slot, side } = req.body;
+
+  if (!Object.prototype.hasOwnProperty.call(BRACKET_ROUND_SIZES, roundCode)) {
+    return res.status(400).json({ error: `Invalid roundCode. Must be one of: ${Object.keys(BRACKET_ROUND_SIZES).join(', ')}` });
+  }
+  const slotNum = Number(slot);
+  if (!Number.isInteger(slotNum) || slotNum < 0 || slotNum >= BRACKET_ROUND_SIZES[roundCode]) {
+    return res.status(400).json({ error: `Invalid slot for ${roundCode}.` });
+  }
+  if (side !== 'home' && side !== 'away') {
+    return res.status(400).json({ error: 'side must be "home" or "away".' });
+  }
+
+  if (!db.fantasyBrackets[username]) {
+    db.fantasyBrackets[username] = { picks: {} };
+  }
+  const picks = db.fantasyBrackets[username].picks;
+
+  picks[`${roundCode}:${slotNum}`] = side;
+
+  // Cascade clear: wipe all downstream picks that depended on this slot
+  const FANTASY_ROUND_ORDER = ['LAST_32', 'LAST_16', 'QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'];
+  const startIdx = FANTASY_ROUND_ORDER.indexOf(roundCode);
+  let currentSlot = slotNum;
+  for (let i = startIdx + 1; i < FANTASY_ROUND_ORDER.length; i++) {
+    currentSlot = Math.floor(currentSlot / 2);
+    delete picks[`${FANTASY_ROUND_ORDER[i]}:${currentSlot}`];
+  }
+
+  logAuditAction(db, 'FANTASY_PICK', `${username} picked "${side}" for ${roundCode} slot ${slotNum}`);
+  writeData(db);
+  res.json({ ok: true, picks });
+});
+
 app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
   const apiKey = process.env.FOOTBALL_DATA_API_KEY;
   if (!apiKey) {
@@ -1233,6 +1822,22 @@ app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
     }
 
     const data = await apiRes.json();
+
+    // Load persisted team names so we never downgrade a known name to TBD
+    // (football-data.org intermittently returns null for teams in future rounds
+    // while the tournament is in progress).
+    const db = readData();
+    if (!db.fixtureNames) db.fixtureNames = {};
+    let fixtureNamesDirty = false;
+
+    // Build kickoff → bracketSlot map from fantasyR32, which was synced from the
+    // API and carries the authoritative bracket draw order. Used below so that
+    // LAST_32 fixtures get the right bracketSlot when "Create Match" is clicked.
+    const r32SlotByKickoff = new Map(
+      (db.fantasyR32 || []).map(r => [r.kickoff, r.bracketSlot])
+    );
+
+    const stageSlotCounters = {};
     const fixtures = (data.matches || [])
       .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate))
       .map((m, i) => {
@@ -1244,14 +1849,43 @@ app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
         const ft = (m.score || {}).fullTime || {};
         const finished = m.status === 'FINISHED';
         const live = m.status === 'IN_PLAY' || m.status === 'LIVE' || m.status === 'PAUSED';
+
+        const apiHome = m.homeTeam?.name || 'TBD';
+        const apiAway = m.awayTeam?.name || 'TBD';
+        const stored = db.fixtureNames[m.id] || {};
+        const homeTeam = apiHome !== 'TBD' ? apiHome : (stored.homeTeam || 'TBD');
+        const awayTeam = apiAway !== 'TBD' ? apiAway : (stored.awayTeam || 'TBD');
+
+        if (stored.homeTeam !== homeTeam || stored.awayTeam !== awayTeam) {
+          db.fixtureNames[m.id] = { homeTeam, awayTeam };
+          fixtureNamesDirty = true;
+        }
+
+        if (!stageSlotCounters[m.stage]) stageSlotCounters[m.stage] = 0;
+        const stageSlot = stageSlotCounters[m.stage]++;
+
+        // For KO fixtures, derive the bracketSlot to use when "Create Match" is clicked:
+        // - LAST_32: use fantasyR32 slot (reflects the actual bracket draw, not date order)
+        // - Other KO stages: date-sorted position, which FIFA schedules in bracket order
+        let bracketSlot;
+        if (!isGroup) {
+          if (m.stage === 'LAST_32') {
+            const r32Slot = r32SlotByKickoff.get(m.utcDate);
+            bracketSlot = r32Slot !== undefined ? r32Slot : stageSlot;
+          } else {
+            bracketSlot = stageSlot;
+          }
+        }
+
         return {
           apiId: m.id,
           matchNumber: String(i + 1),
-          homeTeam: m.homeTeam?.name || 'TBD',
-          awayTeam: m.awayTeam?.name || 'TBD',
+          homeTeam,
+          awayTeam,
           matchType,
           group,
           stage: m.stage,
+          bracketSlot,
           kickoff: m.utcDate,
           status: m.status,
           scoreHome: (finished || live) ? ft.home : null,
@@ -1259,6 +1893,8 @@ app.get('/api/admin/fixtures', verifyAdmin, async (req, res) => {
           matchday: m.matchday
         };
       });
+
+    if (fixtureNamesDirty) writeData(db);
 
     _fixturesCache = fixtures;
     _fixturesCacheTime = Date.now();
