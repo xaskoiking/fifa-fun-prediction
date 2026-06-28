@@ -1751,6 +1751,69 @@ function buildTeamFormHtml(teamName, apiForm) {
   return `<div class="team-form">${rowsHtml}</div>`;
 }
 
+// Helper: Build recent form HTML for a team
+function buildRecentFormHtml(teamName) {
+  const recentMatches = getRecentResolvedMatchesForTeam(teamName, 3);
+  if (!recentMatches || recentMatches.length === 0) return '';
+  
+  const rowsHtml = recentMatches.map(m => {
+    const code = getTeamCountryCode(m.opponent);
+    const fiClass = code ? `fi fi-${code}` : '';
+    const result = m.result === 'Win' ? 'W' : m.result === 'Lost' ? 'L' : 'D';
+    return `
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; margin-bottom: 6px;">
+        <span style="flex: 1;">${escapeHtml(teamName)}</span>
+        <span style="background: ${result === 'W' ? 'rgba(76,175,80,0.3); color: #4caf50;' : result === 'L' ? 'rgba(244,67,54,0.3); color: #f44336;' : 'rgba(158,158,158,0.3); color: #9e9e9e;'} padding: 2px 8px; border-radius: 4px; font-weight: 600; min-width: 20px; text-align: center;">${result}</span>
+        <span class="fi fi-${code}" style="font-size: 1.1rem;" ${code ? '' : 'style="display: none;"'}></span>
+        <span style="flex: 1; text-align: right;">${escapeHtml(m.opponent)}</span>
+      </div>
+    `;
+  }).join('');
+  
+  return `
+    <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; font-size: 0.75rem; color: var(--text-muted);">
+      <div style="font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Recent Form</div>
+      ${rowsHtml}
+    </div>
+  `;
+}
+
+// Update submitVote function - add this after setting voteConfirmChoice
+function submitVote(matchId, prediction) {
+  const match = matches.find(m => m.id === matchId);
+  if (!match || !currentUserSecret) return;
+
+  // Populate modal
+  const matchLabel = `#${match.matchNumber || '-'} · ${escapeHtml(match.group || match.matchType)}`;
+  const matchup = `${escapeHtml(match.homeTeam)} vs ${escapeHtml(match.awayTeam)}`;
+  const choiceText = prediction === 'home' ? `${escapeHtml(match.homeTeam)} Win`
+                   : prediction === 'away' ? `${escapeHtml(match.awayTeam)} Win`
+                   : 'Draw';
+
+  document.getElementById('voteConfirmMatchLabel').textContent = matchLabel;
+  document.getElementById('voteConfirmMatchup').textContent = matchup;
+  document.getElementById('voteConfirmChoice').textContent = choiceText;
+
+  // NEW: Populate recent form section
+  const homeForm = buildRecentFormHtml(match.homeTeam);
+  const awayForm = buildRecentFormHtml(match.awayTeam);
+  const recentFormSection = document.getElementById('voteConfirmRecentForm');
+  const homeFormDiv = document.getElementById('voteConfirmHomeForm');
+  const awayFormDiv = document.getElementById('voteConfirmAwayForm');
+  
+  if (homeForm || awayForm) {
+    homeFormDiv.innerHTML = homeForm;
+    awayFormDiv.innerHTML = awayForm;
+    recentFormSection.style.display = 'block';
+  } else {
+    recentFormSection.style.display = 'none';
+  }
+
+  // ... rest of the submitVote function remains the same
+  const boosterSection = document.getElementById('voteConfirmBoosterSection');
+  // ... etc
+}
+
 function renderMatches() {
   matchesGrid.innerHTML = '';
   const now = new Date();
