@@ -1253,7 +1253,7 @@ const FANTASY_R32_STATIC = {
   537417: { homeTeam: 'South Africa',        awayTeam: 'Canada',             kickoff: '2026-06-28T19:00:00Z' },
   537418: { homeTeam: 'Netherlands',         awayTeam: 'Morocco',            kickoff: '2026-06-30T01:00:00Z' },
   537419: { homeTeam: 'Portugal',            awayTeam: 'Croatia',            kickoff: '2026-07-02T23:00:00Z' },
-  537420: { homeTeam: 'Spain',               awayTeam: 'TBD',               kickoff: '2026-07-02T19:00:00Z' },
+  537420: { homeTeam: 'Spain',               awayTeam: 'Austria',            kickoff: '2026-07-02T19:00:00Z' },
   537421: { homeTeam: 'United States',       awayTeam: 'Bosnia-Herzegovina', kickoff: '2026-07-02T00:00:00Z' },
   537422: { homeTeam: 'Belgium',             awayTeam: 'Senegal',            kickoff: '2026-07-01T20:00:00Z' },
   537423: { homeTeam: 'Brazil',              awayTeam: 'Japan',              kickoff: '2026-06-29T17:00:00Z' },
@@ -1262,7 +1262,7 @@ const FANTASY_R32_STATIC = {
   537426: { homeTeam: 'England',             awayTeam: 'Congo DR',           kickoff: '2026-07-01T16:00:00Z' },
   537427: { homeTeam: 'Argentina',           awayTeam: 'Cape Verde Islands', kickoff: '2026-07-03T22:00:00Z' },
   537428: { homeTeam: 'Australia',           awayTeam: 'Egypt',              kickoff: '2026-07-03T18:00:00Z' },
-  537429: { homeTeam: 'Switzerland',         awayTeam: 'TBD',               kickoff: '2026-07-03T03:00:00Z' },
+  537429: { homeTeam: 'Switzerland',         awayTeam: 'Algeria',            kickoff: '2026-07-03T03:00:00Z' },
   537430: { homeTeam: 'Colombia',            awayTeam: 'Ghana',              kickoff: '2026-07-04T01:30:00Z' },
 };
 
