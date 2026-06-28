@@ -50,6 +50,17 @@ function buildFantasyRow(roundCode, slotIdx, team, side, picks, locked, onPick) 
   const name = document.createElement('span');
   name.textContent = team;
   row.appendChild(name);
+
+  if (!isTbd) {
+    const rank = document.createElement('span');
+    rank.className = 'bracket-rank';
+    // store the team string for later refresh; using dataset is safe
+    rank.dataset.team = team;
+    // call the same helper used in app.js (guard in case it's not present)
+    rank.textContent = (typeof getCachedRankString === 'function') ? getCachedRankString(team) : '';
+    row.appendChild(rank);
+  }
+  
   if (!locked && !isTbd) {
     row.classList.add('votable');
     row.onclick = () => onPick(roundCode, slotIdx, side);
