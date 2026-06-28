@@ -1243,6 +1243,29 @@ const FIXTURES_CACHE_TTL = 5 * 60 * 1000;
 let _r32SyncLastFetch = 0;
 const R32_SYNC_COOLDOWN = 10 * 60 * 1000;
 
+// Manually confirmed R32 fixtures keyed by football-data.org match ID.
+// Used as a fallback when the API returns TBD or no data for a slot.
+// Priority chain: API name > static name > existing DB name.
+// When the API eventually publishes the correct names, they automatically win.
+const FANTASY_R32_STATIC = {
+  537415: { homeTeam: 'Germany',             awayTeam: 'Paraguay',           kickoff: '2026-06-29T20:30:00Z' },
+  537416: { homeTeam: 'France',              awayTeam: 'Sweden',             kickoff: '2026-06-30T21:00:00Z' },
+  537417: { homeTeam: 'South Africa',        awayTeam: 'Canada',             kickoff: '2026-06-28T19:00:00Z' },
+  537418: { homeTeam: 'Netherlands',         awayTeam: 'Morocco',            kickoff: '2026-06-30T01:00:00Z' },
+  537419: { homeTeam: 'Portugal',            awayTeam: 'Croatia',            kickoff: '2026-07-02T23:00:00Z' },
+  537420: { homeTeam: 'Spain',               awayTeam: 'TBD',               kickoff: '2026-07-02T19:00:00Z' },
+  537421: { homeTeam: 'United States',       awayTeam: 'Bosnia-Herzegovina', kickoff: '2026-07-02T00:00:00Z' },
+  537422: { homeTeam: 'Belgium',             awayTeam: 'Senegal',            kickoff: '2026-07-01T20:00:00Z' },
+  537423: { homeTeam: 'Brazil',              awayTeam: 'Japan',              kickoff: '2026-06-29T17:00:00Z' },
+  537424: { homeTeam: 'Ivory Coast',         awayTeam: 'Norway',             kickoff: '2026-06-30T17:00:00Z' },
+  537425: { homeTeam: 'Mexico',              awayTeam: 'Ecuador',            kickoff: '2026-07-01T01:00:00Z' },
+  537426: { homeTeam: 'England',             awayTeam: 'Congo DR',           kickoff: '2026-07-01T16:00:00Z' },
+  537427: { homeTeam: 'Argentina',           awayTeam: 'Cape Verde Islands', kickoff: '2026-07-03T22:00:00Z' },
+  537428: { homeTeam: 'Australia',           awayTeam: 'Egypt',              kickoff: '2026-07-03T18:00:00Z' },
+  537429: { homeTeam: 'Switzerland',         awayTeam: 'TBD',               kickoff: '2026-07-03T03:00:00Z' },
+  537430: { homeTeam: 'Colombia',            awayTeam: 'Ghana',              kickoff: '2026-07-04T01:30:00Z' },
+};
+
 let _liveScoresCache = [];
 // football-data.org has been observed returning 'LIVE' as well as the
 // documented 'IN_PLAY' for an in-progress match — treat them as equivalent.
@@ -1421,6 +1444,36 @@ async function pollLiveScores() {
   }
 }
 
+// Apply FANTASY_R32_STATIC directly to db when the API has no R32 data at all.
+// Respects the never-downgrade rule: existing DB name wins over static.
+function mergeStaticR32Fallback(db) {
+  ensureFantasyR32(db);
+  const staticSlots = Object.entries(FANTASY_R32_STATIC)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([, fix], i) => ({ bracketSlot: i, ...fix }));
+
+  const slotMap = new Map(db.fantasyR32.map(m => [m.bracketSlot, m]));
+  let changed = false;
+
+  staticSlots.forEach(({ bracketSlot, homeTeam, awayTeam, kickoff }) => {
+    const existing = slotMap.get(bracketSlot);
+    const finalHome = (existing?.homeTeam && existing.homeTeam !== 'TBD') ? existing.homeTeam
+      : homeTeam !== 'TBD' ? homeTeam : 'TBD';
+    const finalAway = (existing?.awayTeam && existing.awayTeam !== 'TBD') ? existing.awayTeam
+      : awayTeam !== 'TBD' ? awayTeam : 'TBD';
+    if (!existing || existing.homeTeam !== finalHome || existing.awayTeam !== finalAway || existing.kickoff !== kickoff) {
+      slotMap.set(bracketSlot, { bracketSlot, homeTeam: finalHome, awayTeam: finalAway, kickoff });
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    db.fantasyR32 = Array.from(slotMap.values()).sort((a, b) => a.bracketSlot - b.bracketSlot);
+    writeData(db);
+    console.log(`[R32 SYNC] fantasyR32 updated from static fallback: ${db.fantasyR32.length} slot(s)`);
+  }
+}
+
 async function syncFantasyR32FromApi(apiMatches, apiKey) {
   // First try the matches already returned by the main poll.
   let r32 = apiMatches
@@ -1440,7 +1493,11 @@ async function syncFantasyR32FromApi(apiMatches, apiKey) {
     if (allReal) return;
 
     const now = Date.now();
-    if (now - _r32SyncLastFetch < R32_SYNC_COOLDOWN) return;
+    if (now - _r32SyncLastFetch < R32_SYNC_COOLDOWN) {
+      // Under cooldown — still apply any static data we have
+      mergeStaticR32Fallback(db);
+      return;
+    }
     _r32SyncLastFetch = now;
 
     try {
@@ -1448,6 +1505,7 @@ async function syncFantasyR32FromApi(apiMatches, apiKey) {
       const res = await fetch(url, { headers: { 'X-Auth-Token': apiKey } });
       if (!res.ok) {
         console.warn(`[R32 SYNC] API returned ${res.status}`);
+        mergeStaticR32Fallback(db);
         return;
       }
       const data = await res.json();
@@ -1456,11 +1514,16 @@ async function syncFantasyR32FromApi(apiMatches, apiKey) {
         .sort((a, b) => a.id - b.id);
     } catch (err) {
       console.error('[R32 SYNC] Fetch failed:', err.message);
+      mergeStaticR32Fallback(db);
       return;
     }
   }
 
-  if (r32.length === 0) return;
+  // API truly has no R32 data even after dedicated fetch — use static
+  if (r32.length === 0) {
+    mergeStaticR32Fallback(readData());
+    return;
+  }
 
   const db = readData();
   ensureFantasyR32(db);
@@ -1472,11 +1535,16 @@ async function syncFantasyR32FromApi(apiMatches, apiKey) {
     const apiHome = m.homeTeam?.name || 'TBD';
     const apiAway = m.awayTeam?.name || 'TBD';
     const kickoff = m.utcDate;
+    const stat = FANTASY_R32_STATIC[m.id];
     const existing = slotMap.get(i);
-    // Never downgrade a real name to TBD — the API intermittently returns null
-    // for teams that were previously known. Only accept TBD if we have nothing.
-    const homeTeam = apiHome !== 'TBD' ? apiHome : (existing?.homeTeam || 'TBD');
-    const awayTeam = apiAway !== 'TBD' ? apiAway : (existing?.awayTeam || 'TBD');
+    // Priority: API name > static known name > existing DB name > TBD.
+    // Never downgrade a real name to TBD at any tier.
+    const homeTeam = apiHome !== 'TBD' ? apiHome
+      : (stat?.homeTeam && stat.homeTeam !== 'TBD') ? stat.homeTeam
+      : (existing?.homeTeam || 'TBD');
+    const awayTeam = apiAway !== 'TBD' ? apiAway
+      : (stat?.awayTeam && stat.awayTeam !== 'TBD') ? stat.awayTeam
+      : (existing?.awayTeam || 'TBD');
     if (!existing || existing.homeTeam !== homeTeam || existing.awayTeam !== awayTeam || existing.kickoff !== kickoff) {
       slotMap.set(i, { bracketSlot: i, homeTeam, awayTeam, kickoff });
       changed = true;
