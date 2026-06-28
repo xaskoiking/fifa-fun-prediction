@@ -3097,6 +3097,26 @@ async function loadAdminFantasyStatus() {
     } else if (msg) {
       msg.textContent = '';
     }
+    const breakdownEl = document.getElementById('adminFantasyPickBreakdown');
+    if (breakdownEl && Array.isArray(data.playerBreakdown) && data.playerBreakdown.length > 0) {
+      const full = data.playerBreakdown.filter(p => p.full);
+      const partial = data.playerBreakdown.filter(p => !p.full);
+      const renderPills = (players) => players.map(p =>
+        `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,0.07);border-radius:6px;padding:3px 9px;font-size:0.8rem;">` +
+        `${p.name}<span style="color:var(--text-muted);font-size:0.75rem;">${p.picks}/31</span></span>`
+      ).join('');
+      breakdownEl.innerHTML =
+        `<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">` +
+        `<strong style="color:#4ade80;">✓ Full (${full.length})</strong> ` +
+        (full.length ? renderPills(full) : '<span style="opacity:0.5;">none yet</span>') +
+        `</div>` +
+        `<div style="font-size:0.8rem;color:var(--text-muted);">` +
+        `<strong style="color:#facc15;">⏳ Incomplete (${partial.length})</strong> ` +
+        (partial.length ? renderPills(partial) : '<span style="opacity:0.5;">—</span>') +
+        `</div>`;
+    } else if (breakdownEl) {
+      breakdownEl.innerHTML = '';
+    }
   } catch (e) {
     console.error('Fantasy status load error:', e);
   }

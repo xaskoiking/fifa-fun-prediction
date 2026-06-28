@@ -1676,11 +1676,21 @@ app.get('/api/admin/fantasy-status', verifyAdmin, (req, res) => {
   ensureFantasyR32(db);
   ensureFantasyBrackets(db);
   const backup = db._fantasyBackup || null;
+  const TOTAL_PICKS = 31;
+  const playerBreakdown = db.users
+    .filter(u => u.name.toUpperCase() !== 'ADMIN')
+    .map(u => {
+      const bracket = db.fantasyBrackets[u.name];
+      const count = bracket ? Object.keys(bracket.picks || {}).length : 0;
+      return { name: u.name, picks: count, full: count >= TOTAL_PICKS };
+    })
+    .sort((a, b) => b.picks - a.picks || a.name.localeCompare(b.name));
   res.json({
     locked: isFantasyLocked(db),
     r32Count: db.fantasyR32.length,
     r32Real: db.fantasyR32.filter(m => m.homeTeam !== 'TBD' || m.awayTeam !== 'TBD').length,
     playerCount: Object.keys(db.fantasyBrackets).length,
+    playerBreakdown,
     hasBackup: !!backup,
     backupTimestamp: backup ? backup.timestamp : null,
     backupR32Count: backup ? backup.fantasyR32.length : 0,
