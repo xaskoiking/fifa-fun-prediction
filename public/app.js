@@ -271,7 +271,7 @@ async function fetchRankings() {
 }
 
 function updateRankDisplays() {
-  document.querySelectorAll('.team-rank').forEach(el => {
+  document.querySelectorAll('.team-rank,.bracket-rank').forEach(el => {
     const team = el.dataset.team;
     if (!team) return;
     el.textContent = getCachedRankString(team);
