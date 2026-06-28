@@ -2639,6 +2639,28 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   line-height: 1.5;
 }
+.fantasy-bracket-notice-toggle {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  user-select: none;
+}
+.fantasy-bracket-notice-toggle::-webkit-details-marker { display: none; }
+.fantasy-bracket-notice-toggle::after {
+  content: '▸';
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+.fantasy-bracket-notice[open] .fantasy-bracket-notice-toggle::after {
+  transform: rotate(90deg);
+}
+.fantasy-bracket-notice[open] .fantasy-bracket-notice-toggle {
+  margin-bottom: 4px;
+}
 
 .fantasy-modal-close {
   background: none;
