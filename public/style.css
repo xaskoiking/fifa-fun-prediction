@@ -2756,4 +2756,5 @@ body {
 .bracket-rank {
   font-weight: lighter;
   font-size: smaller;
+  color: gray;
 }

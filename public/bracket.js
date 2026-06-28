@@ -197,6 +197,41 @@ function buildBracketCards(track, rounds) {
   });
 }
 
+// call this near the top of public/bracket.js (or wherever appropriate)
+function _updateBracketRankEl(rankEl, team) {
+  if (typeof getCachedRankString !== 'function') return;
+  try {
+    const res = getCachedRankString(team);
+    if (res && typeof res.then === 'function') {
+      // async
+      rankEl.textContent = ''; // or '…'
+      res.then(str => {
+        // make sure the DOM element still corresponds to the same team
+        if (rankEl.dataset.team === team) rankEl.textContent = str || '';
+      }).catch(() => {
+        if (rankEl.dataset.team === team) rankEl.textContent = '';
+      });
+    } else {
+      // sync result
+      rankEl.textContent = res || '';
+    }
+  } catch (err) {
+    rankEl.textContent = '';
+  }
+}
+
+function refreshBracketRanks() {
+  document.querySelectorAll('.bracket-rank').forEach(el => {
+    const team = el.dataset.team;
+    if (team) _updateBracketRankEl(el, team);
+  });
+}
+
+loadRanks().then(() => {
+  // ranks are cached; refresh any rendered brackets
+  if (typeof refreshBracketRanks === 'function') refreshBracketRanks();
+});
+
 function buildBracketRow(slotData, side) {
   const row = document.createElement('div');
   const team = side === 'home' ? slotData.homeTeam : slotData.awayTeam;
@@ -222,8 +257,7 @@ function buildBracketRow(slotData, side) {
     rank.className = 'bracket-rank';
     // store the team string for later refresh; using dataset is safe
     rank.dataset.team = team;
-    // call the same helper used in app.js (guard in case it's not present)
-    rank.textContent = (typeof getCachedRankString === 'function') ? getCachedRankString(team) : '';
+    _updateBracketRankEl(rank, team);
     row.appendChild(rank);
   }
 
