@@ -1751,31 +1751,72 @@ function buildTeamFormHtml(teamName, apiForm) {
   return `<div class="team-form">${rowsHtml}</div>`;
 }
 
-// Helper: Build recent form HTML for a team
+// Helper: Build recent form HTML for a team with match scores
 function buildRecentFormHtml(teamName) {
-  const recentMatches = getRecentResolvedMatchesForTeam(teamName, 3);
+  const recentMatches = getRecentResolvedMatchesForTeamWithScores(teamName, 3);
   if (!recentMatches || recentMatches.length === 0) return '';
   
   const rowsHtml = recentMatches.map(m => {
-    const code = getTeamCountryCode(m.opponent);
-    const fiClass = code ? `fi fi-${code}` : '';
-    const result = m.result === 'Win' ? 'W' : m.result === 'Lost' ? 'L' : 'D';
+    const opponentCode = getTeamCountryCode(m.opponent);
+    const opponentFiClass = opponentCode ? `fi fi-${opponentCode}` : '';
+    const scoreDisplay = m.scoreFor !== null && m.scoreAgainst !== null 
+      ? `${m.scoreFor}-${m.scoreAgainst}` 
+      : (m.result === 'Win' ? 'W' : m.result === 'Lost' ? 'L' : 'D');
+    const scoreColor = m.scoreFor !== null && m.scoreAgainst !== null
+      ? (m.scoreFor > m.scoreAgainst ? 'rgba(76,175,80,0.3)' : m.scoreFor < m.scoreAgainst ? 'rgba(244,67,54,0.3)' : 'rgba(158,158,158,0.3)')
+      : (m.result === 'Win' ? 'rgba(76,175,80,0.3)' : m.result === 'Lost' ? 'rgba(244,67,54,0.3)' : 'rgba(158,158,158,0.3)');
+    const scoreBorder = m.scoreFor !== null && m.scoreAgainst !== null
+      ? (m.scoreFor > m.scoreAgainst ? 'rgba(76,175,80,0.6)' : m.scoreFor < m.scoreAgainst ? 'rgba(244,67,54,0.6)' : 'rgba(158,158,158,0.6)')
+      : (m.result === 'Win' ? 'rgba(76,175,80,0.6)' : m.result === 'Lost' ? 'rgba(244,67,54,0.6)' : 'rgba(158,158,158,0.6)');
+    const scoreTextColor = m.scoreFor !== null && m.scoreAgainst !== null
+      ? (m.scoreFor > m.scoreAgainst ? '#4caf50' : m.scoreFor < m.scoreAgainst ? '#f44336' : '#9e9e9e')
+      : (m.result === 'Win' ? '#4caf50' : m.result === 'Lost' ? '#f44336' : '#9e9e9e');
+    
     return `
-      <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; margin-bottom: 6px;">
-        <span style="flex: 1;">${escapeHtml(teamName)}</span>
-        <span style="background: ${result === 'W' ? 'rgba(76,175,80,0.3); color: #4caf50;' : result === 'L' ? 'rgba(244,67,54,0.3); color: #f44336;' : 'rgba(158,158,158,0.3); color: #9e9e9e;'} padding: 2px 8px; border-radius: 4px; font-weight: 600; min-width: 20px; text-align: center;">${result}</span>
-        <span class="fi fi-${code}" style="font-size: 1.1rem;" ${code ? '' : 'style="display: none;"'}></span>
-        <span style="flex: 1; text-align: right;">${escapeHtml(m.opponent)}</span>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px; font-size: 0.8rem;">
+        <span class="${opponentFiClass}" style="font-size: 1rem; width: 16px; text-align: center;"></span>
+        <span style="background: ${scoreColor}; border: 1px solid ${scoreBorder}; color: ${scoreTextColor}; padding: 4px 12px; border-radius: 6px; font-weight: 700; min-width: 40px; text-align: center;">${scoreDisplay}</span>
+        <span class="${opponentFiClass}" style="font-size: 1rem; width: 16px; text-align: center;"></span>
       </div>
     `;
   }).join('');
   
   return `
-    <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; font-size: 0.75rem; color: var(--text-muted);">
-      <div style="font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Recent Form</div>
+    <div>
+      <div style="font-weight: 700; font-size: 0.85rem; margin-bottom: 10px;">${escapeHtml(teamName)}</div>
       ${rowsHtml}
     </div>
   `;
+}
+
+// Enhanced: Return recent resolved matches with scores
+function getRecentResolvedMatchesForTeamWithScores(teamName, limit = 3) {
+  if (!teamName) return [];
+  const nameLower = teamName.toLowerCase().trim();
+  const recent = matches
+    .filter(m => m && m.status === 'resolved' && (m.homeTeam || m.awayTeam))
+    .filter(m => (String(m.homeTeam).toLowerCase().trim() === nameLower) || (String(m.awayTeam).toLowerCase().trim() === nameLower))
+    .sort((a, b) => new Date(b.kickoff) - new Date(a.kickoff))
+    .slice(0, limit)
+    .map(m => {
+      const isHome = String(m.homeTeam).toLowerCase().trim() === nameLower;
+      const opponent = isHome ? m.awayTeam : m.homeTeam;
+      const scoreFor = isHome ? m.score?.scoreHome : m.score?.scoreAway;
+      const scoreAgainst = isHome ? m.score?.scoreAway : m.score?.scoreHome;
+      let result = 'Draw';
+      if (m.outcome === 'home') result = isHome ? 'Win' : 'Lost';
+      else if (m.outcome === 'away') result = isHome ? 'Lost' : 'Win';
+      else if (m.outcome === 'draw') result = 'Draw';
+      return { 
+        opponent, 
+        result, 
+        scoreFor: scoreFor !== undefined ? scoreFor : null, 
+        scoreAgainst: scoreAgainst !== undefined ? scoreAgainst : null,
+        kickoff: m.kickoff, 
+        raw: m 
+      };
+    });
+  return recent;
 }
 
 // Update submitVote function - add this after setting voteConfirmChoice

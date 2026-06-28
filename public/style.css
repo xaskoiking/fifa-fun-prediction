@@ -2754,6 +2754,7 @@ body {
 
 .bracket-rank {
   margin-left: 1px;
+  font-weight: lighter;
 }
 
 /* Vote confirmation modal recent form styling */
