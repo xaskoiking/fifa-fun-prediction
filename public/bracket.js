@@ -234,7 +234,7 @@ function buildBracketRow(slotData, side) {
 
   if (!isTbd) {
     const rank = document.createElement('span');
-    rank.className = 'team-rank';
+    rank.className = 'bracket-rank';
     // store the team string for later refresh; using dataset is safe
     rank.dataset.team = team;
     // call the same helper used in app.js (guard in case it's not present)

@@ -2751,3 +2751,7 @@ body {
   border-radius: 1px;
   vertical-align: middle;
 }
+
+.bracket-rank {
+  margin-left: 1px;
+}
