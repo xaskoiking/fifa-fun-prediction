@@ -143,10 +143,10 @@ body {
   50% { transform: translateY(-8px) rotate(15deg); }
 }
 
-.title-row {
+.subtitle-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -1536,6 +1536,23 @@ body {
   margin-bottom: 16px;
 }
 
+.admin-stat-box {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.admin-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.admin-stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
 /* Admin Match rows */
 .admin-matches-list {
   display: flex;
@@ -1728,7 +1745,8 @@ body {
   .header-main {
     flex-direction: column;
     align-items: flex-start;
-    margin-bottom: 16px;
+    gap: 8px;
+    margin-bottom: 10px;
   }
 
   .user-status {
@@ -2280,4 +2298,456 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .live-dot { animation: none; }
   .chase-rect { animation: none; }
+}
+
+/* ===== Bracket tab (knockout stage) ===== */
+.bracket-scrollwrap {
+  overflow: auto;
+  scroll-snap-type: x mandatory;
+  position: relative;
+  cursor: grab;
+  height: 70vh;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  scrollbar-width: none;
+  transition: height 0.2s ease-out;
+}
+
+.bracket-scrollwrap::-webkit-scrollbar {
+  display: none;
+}
+
+.bracket-track {
+  position: relative;
+  min-height: 100%;
+  padding: 20px 0;
+  transition: transform 0.2s ease-out;
+  will-change: transform;
+}
+
+.bracket-col-label {
+  position: absolute;
+  top: 8px;
+  width: 168px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: var(--transition-smooth);
+}
+
+.bracket-col-label.active {
+  color: var(--color-accent);
+}
+
+.bracket-nav-btn {
+  display: none;
+  position: absolute;
+  top: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 5;
+  transition: var(--transition-smooth);
+}
+
+.bracket-nav-prev { left: 10px; }
+.bracket-nav-next { right: 10px; }
+
+.bracket-nav-btn:hover:not(:disabled) {
+  background: rgba(0, 230, 118, 0.18);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.bracket-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+@media (min-width: 601px) {
+  .bracket-scrollwrap {
+    overflow-x: hidden;
+    cursor: default;
+  }
+  .bracket-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ── Prediction Bracket Header (mirrors fantasy-bracket-header) ── */
+
+.bracket-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  padding: 4px 8px;
+  height: 40px;
+}
+
+.bracket-active-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-accent);
+}
+
+.bracket-header .bracket-nav-btn {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#bracketContainer .bracket-scrollwrap {
+  overflow: hidden;
+  cursor: default;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* Keep 168px card width on mobile so connector math stays correct */
+#bracketContainer .bracket-card,
+#bracketContainer .bracket-col-label {
+  width: 168px;
+}
+
+.bracket-slot-num {
+  position: absolute;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Locked (admin lock or kicked off): grey out non-picked rows */
+.bracket-card--locked .bracket-row:not(.pick) {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* Live (game in progress): red border */
+.bracket-card--live {
+  border-color: rgba(220, 38, 38, 0.7);
+}
+
+/* Resolved: dim the loser row only; winner and pick stay vivid */
+.bracket-card--resolved .bracket-row:not(.pick):not(.bracket-row--winner) {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* Winner checkmark */
+.bracket-row-winner {
+  margin-left: auto;
+  padding-left: 6px;
+  color: var(--color-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.bracket-connectors {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.bracket-connectors path {
+  stroke: var(--border-color);
+  stroke-width: 2;
+  fill: none;
+}
+
+.bracket-card {
+  position: absolute;
+  left: 0;
+  width: 168px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: top 0.5s cubic-bezier(.22, .85, .25, 1);
+}
+
+.bracket-row-booster {
+  font-size: 0.65rem;
+  line-height: 1;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+@keyframes bracket-electric {
+  0%   { border-color: #ffe500cc; box-shadow: 0 0 4px 1px #ffe500aa, 0 0 10px 3px #ffe50033; }
+  12%  { border-color: #ffffffff; box-shadow: 0 0 2px 1px #ffffff99, 0 0 6px  2px #40bfff55; }
+  20%  { border-color: #ffe500ee; box-shadow: 0 0 7px 2px #ffe500cc, 0 0 16px 5px #ff990033; }
+  38%  { border-color: #40bfffcc; box-shadow: 0 0 4px 1px #40bfffaa, 0 0 10px 3px #40bfff33; }
+  50%  { border-color: #ffee44ff; box-shadow: 0 0 9px 3px #ffe500dd, 0 0 20px 7px #ffe50044; }
+  65%  { border-color: #ffffffdd; box-shadow: 0 0 2px 0px #ffffff88, 0 0 5px  1px #ffe50066; }
+  78%  { border-color: #ffe500cc; box-shadow: 0 0 6px 2px #ffe500bb, 0 0 14px 4px #ff990033; }
+  100% { border-color: #ffe500cc; box-shadow: 0 0 4px 1px #ffe500aa, 0 0 10px 3px #ffe50033; }
+}
+
+.bracket-card--boosted {
+  animation: bracket-electric 2s ease-in-out infinite;
+}
+
+.bracket-card.final {
+  border-color: var(--color-gold);
+}
+
+.bracket-row {
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  height: 50%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.bracket-card .bracket-row:last-child {
+  border-bottom: none;
+}
+
+.bracket-row.tbd {
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.bracket-row.pick {
+  color: var(--color-accent);
+  background: rgba(0, 230, 118, 0.08);
+}
+
+.bracket-row.votable {
+  cursor: pointer;
+}
+
+.bracket-row.votable:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 600px) {
+  .bracket-card { width: 150px; }
+  .bracket-col-label { width: 150px; }
+  .bracket-row { font-size: 0.76rem; padding: 6px 8px; }
+}
+
+/* ── Fantasy Bracket Button ───────────────────────────────────── */
+
+.btn-fantasy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.btn-fantasy:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+}
+
+@media (max-width: 600px) {
+  .fantasy-btn-label { display: none; }
+}
+
+/* ── Fantasy Bracket Modal ────────────────────────────────────── */
+
+.fantasy-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.fantasy-modal-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  background: var(--bg-primary);
+}
+
+.fantasy-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #0f1f17;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.fantasy-modal-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #fbbf24;
+}
+
+.fantasy-progress {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin-left: auto;
+}
+
+.fantasy-bracket-notice {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  line-height: 1.5;
+}
+.fantasy-bracket-notice-toggle {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  user-select: none;
+}
+.fantasy-bracket-notice-toggle::-webkit-details-marker { display: none; }
+.fantasy-bracket-notice-toggle::after {
+  content: '▸';
+  font-size: 0.65rem;
+  transition: transform 0.2s;
+}
+.fantasy-bracket-notice[open] .fantasy-bracket-notice-toggle::after {
+  transform: rotate(90deg);
+}
+.fantasy-bracket-notice[open] .fantasy-bracket-notice-toggle {
+  margin-bottom: 4px;
+}
+
+.fantasy-modal-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.fantasy-modal-close:hover {
+  color: #fff;
+}
+
+.fantasy-bracket-container {
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  position: relative;
+  overscroll-behavior: contain;
+}
+
+.fantasy-bracket-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  padding: 4px 8px;
+  height: 40px;
+}
+
+.fantasy-bracket-active-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-accent);
+}
+
+.fantasy-bracket-header .bracket-nav-btn {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fantasy-bracket-container .bracket-scrollwrap {
+  overflow: hidden;
+  cursor: default;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* Override mobile card-width reduction so connector math stays correct */
+.fantasy-bracket-container .bracket-card,
+.fantasy-bracket-container .bracket-col-label {
+  width: 168px;
+}
+
+/* ── Fantasy bracket card accent ─────────────────────────────── */
+
+.bracket-card--fantasy .bracket-row.fantasy-pick {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fcd34d;
+  font-weight: 700;
+  border-left: 3px solid #f59e0b;
+}
+
+.bracket-card--fantasy .bracket-row.votable:hover:not(.fantasy-pick) {
+  background: rgba(251, 191, 36, 0.08);
+  cursor: pointer;
+}
+
+.bracket-row-flag {
+  width: 16px;
+  height: 12px;
+  flex-shrink: 0;
+  margin-right: 5px;
+  border-radius: 1px;
+  vertical-align: middle;
 }

@@ -7,7 +7,7 @@ let currentUserIsAdmin = localStorage.getItem('soccer_prediction_is_admin') === 
 let adminPasscode = sessionStorage.getItem('admin_passcode') || '';
 let matches = [];
 let currentFilter = 'open'; // 'open' or 'past'
-let activeTab = 'predictions';
+let activeTab = 'bracket';
 let countdownInterval = null;
 let pollInterval = null;
 
@@ -117,6 +117,20 @@ function setupUser() {
     usernameModal.style.display = 'none';
     currentUserNameDisplay.textContent = currentUsername;
     updateAdminTabVisibility();
+    const fantasyBtn = document.getElementById('fantasyBracketBtn');
+    if (fantasyBtn) fantasyBtn.style.display = 'inline-flex';
+
+    // Set lock badge on login without requiring the modal to be opened
+    fetch('/api/fantasy-bracket', { headers: { 'x-user-secret': currentUserSecret } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        const lockBadge = document.getElementById('fantasyLockBadge');
+        if (lockBadge) lockBadge.style.display = data.locked ? 'inline' : 'none';
+      })
+      .catch(() => {});
+
+    loadStages();
     loadDashboardData();
   }
 }
@@ -130,10 +144,31 @@ function updateAdminTabVisibility() {
     } else {
       adminTabBtn.style.display = 'none';
       if (activeTab === 'admin') {
-        switchTab('predictions');
+        switchTab('bracket');
       }
     }
   }
+}
+
+// Fetch which tournament stages are currently open (player-level read,
+// no admin auth required) and update Predictions-tab visibility.
+async function loadStages() {
+  if (!currentUserSecret) return;
+  try {
+    const response = await fetch('/api/stages', {
+      headers: { 'x-user-secret': currentUserSecret }
+    });
+    if (!response.ok) return;
+    const data = await response.json();
+    openMatchStages = data.openMatchStages || [];
+    updatePredictionsTabVisibility();
+  } catch (err) {
+    console.error('Error loading stage settings:', err);
+  }
+}
+
+function updatePredictionsTabVisibility() {
+  // Tab visibility managed manually — no auto-hide logic.
 }
 
 // Start polling and timer updates
@@ -145,6 +180,7 @@ function startIntervals() {
   pollInterval = setInterval(() => {
     if (currentUserSecret) {
       loadDashboardData();
+      loadStages();
     }
   }, 10000);
 }
@@ -167,6 +203,8 @@ function switchTab(tabName) {
 
   if (tabName === 'predictions') {
     renderMatches();
+  } else if (tabName === 'bracket') {
+    renderBracketTab();
   } else if (tabName === 'results') {
     renderResults();
   } else if (tabName === 'leaderboard') {
@@ -335,6 +373,8 @@ async function loadDashboardData() {
 
     if (activeTab === 'predictions') {
       renderMatches();
+    } else if (activeTab === 'bracket') {
+      renderBracketTab();
     } else if (activeTab === 'results') {
       renderResults();
     }
@@ -1719,6 +1759,7 @@ function renderMatches() {
   // Same definition as the leaderboard "Not Yet Voted" column: not resolved, not
   // admin-locked, still before kickoff (or extension active), and no vote cast.
   const notVotedCount = matches.filter(match => {
+    if (match.matchType !== 'League') return false;
     if (match.status === 'resolved') return false;
     if (match.votingLocked) return false;
     const started = new Date(match.kickoff) <= now;
@@ -1730,6 +1771,7 @@ function renderMatches() {
   // Filter only scheduled matches whose kickoff is in the future,
   // OR matches with an active voting extension
   const filtered = matches.filter(match => {
+    if (match.matchType !== 'League') return false;
     const isStarted = new Date(match.kickoff) <= now;
     if (!isStarted && match.status === 'scheduled') return true;
     // Also show started matches with active extension
@@ -1858,8 +1900,82 @@ function renderMatches() {
 
     matchesGrid.appendChild(card);
   });
-  
+
   updateAllTimers();
+}
+
+// Renders the Bracket tab (knockout stage). Reuses submitVote/confirmVote
+// for the actual voting flow — clicking a bracket row is equivalent to
+// clicking a predict-btn in the old flat list.
+function renderBracketTab() {
+  const container = document.getElementById('bracketContainer');
+  if (!container) return;
+  const rounds = buildBracketRounds(matches, BRACKET_ROUNDS);
+  renderBracket(container, rounds, (match, side) => submitVote(match.id, side));
+}
+
+// ── Fantasy Bracket ───────────────────────────────────────────────
+
+let _fantasyData = null;
+
+async function openFantasyBracket() {
+  const modal = document.getElementById('fantasyBracketModal');
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  try {
+    const res = await fetch('/api/fantasy-bracket', {
+      headers: { 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) throw new Error('Failed to load fantasy bracket.');
+    _fantasyData = await res.json();
+    renderFantasyBracketModal(_fantasyData);
+  } catch (e) {
+    console.error('Fantasy bracket load error:', e);
+    const progress = document.getElementById('fantasyProgress');
+    if (progress) progress.textContent = 'Failed to load — please try again.';
+  }
+}
+
+function renderFantasyBracketModal(data) {
+  const { locked, picks, r32Matches } = data;
+  const pickCount = Object.keys(picks).length;
+
+  document.getElementById('fantasyProgress').textContent = locked
+    ? `${pickCount} / 31 complete 🔒`
+    : `${pickCount} / 31 picks made`;
+
+  const lockBadge = document.getElementById('fantasyLockBadge');
+  if (lockBadge) lockBadge.style.display = locked ? 'inline' : 'none';
+
+  const container = document.getElementById('fantasyBracketContainer');
+  const rounds = buildFantasyBracketRounds(r32Matches, picks, BRACKET_ROUNDS);
+  renderFantasyBracket(container, rounds, picks, locked, saveFantasyPick);
+}
+
+async function saveFantasyPick(roundCode, slot, side) {
+  if (!_fantasyData || _fantasyData.locked) return;
+  try {
+    const res = await fetch('/api/fantasy-bracket/pick', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-secret': currentUserSecret
+      },
+      body: JSON.stringify({ roundCode, slot, side })
+    });
+    if (!res.ok) throw new Error('Failed to save fantasy pick.');
+    const data = await res.json();
+    _fantasyData.picks = data.picks;
+    renderFantasyBracketModal(_fantasyData);
+  } catch (e) {
+    console.error('Fantasy pick save error:', e);
+  }
+}
+
+function closeFantasyBracket() {
+  document.getElementById('fantasyBracketModal').style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 // Render results table (Live & resolved matches, latest first)
@@ -2214,7 +2330,8 @@ async function checkAdminState() {
     loadAdminHistory();
     loadAdminVotes();
     loadAdminSettings();
-    loadFixtures();
+    loadFixtures(true);
+    loadAdminFantasyStatus();
   } else {
     adminAuthCard.style.display = 'block';
     adminWorkspace.style.display = 'none';
@@ -2522,6 +2639,11 @@ function loadAdminMatches() {
 }
 
 // Add Match Form submission
+function toggleBracketFieldsRow() {
+  const matchType = document.getElementById('matchTypeSelect').value;
+  document.getElementById('bracketFieldsRow').style.display = matchType === 'KO' ? 'flex' : 'none';
+}
+
 async function handleCreateMatch(event) {
   event.preventDefault();
   const homeTeam = document.getElementById('homeTeamInput').value.trim();
@@ -2530,6 +2652,9 @@ async function handleCreateMatch(event) {
   const kickoffStr = document.getElementById('kickoffInput').value;
   const matchNumber = document.getElementById('matchNumberInput').value.trim();
   const group = document.getElementById('groupInput').value.trim();
+  const bracketRound = document.getElementById('bracketRoundSelect').value || undefined;
+  const bracketSlotRaw = document.getElementById('bracketSlotInput').value;
+  const bracketSlot = bracketSlotRaw !== '' ? Number(bracketSlotRaw) : undefined;
 
   if (!homeTeam || !awayTeam || !kickoffStr) return;
 
@@ -2543,7 +2668,7 @@ async function handleCreateMatch(event) {
         'x-admin-passcode': adminPasscode,
         'x-user-secret': currentUserSecret
       },
-      body: JSON.stringify({ homeTeam, awayTeam, matchType, kickoff: kickoffISO, matchNumber, group })
+      body: JSON.stringify({ homeTeam, awayTeam, matchType, kickoff: kickoffISO, matchNumber, group, bracketRound, bracketSlot })
     });
 
     const data = await response.json();
@@ -2555,7 +2680,8 @@ async function handleCreateMatch(event) {
     showFeedback(addMatchMessage, `✅ Match ${homeTeam} vs ${awayTeam} created successfully!`, 'success');
     document.getElementById('addMatchForm').reset();
     initializeDefaultKickoff();
-    
+    toggleBracketFieldsRow();
+
     loadDashboardData();
   } catch (err) {
     console.error('Error creating match:', err);
@@ -2937,6 +3063,142 @@ function copyRecoveryData(btn, data) {
   });
 }
 
+// ===================== FANTASY BRACKET ADMIN =====================
+
+async function loadAdminFantasyStatus() {
+  try {
+    const res = await fetch('/api/admin/fantasy-status', {
+      headers: { 'x-admin-passcode': adminPasscode, 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const r32El = document.getElementById('fantasyAdminR32Count');
+    const playerEl = document.getElementById('fantasyAdminPlayerCount');
+    const undoBtn = document.getElementById('adminFantasyUndoBtn');
+    const lockBtn = document.getElementById('adminFantasyLockBtn');
+    const unlockBtn = document.getElementById('adminFantasyUnlockBtn');
+    const lockStatus = document.getElementById('adminFantasyLockStatus');
+    const msg = document.getElementById('adminFantasyMsg');
+    if (r32El) r32El.textContent = `${data.r32Real} / ${data.r32Count} with teams`;
+    if (playerEl) playerEl.textContent = data.playerCount;
+    if (lockBtn) lockBtn.style.display = data.locked ? 'none' : 'inline-flex';
+    if (unlockBtn) unlockBtn.style.display = data.locked ? 'inline-flex' : 'none';
+    if (lockStatus) lockStatus.textContent = data.locked ? '🔒 Locked — picks frozen' : '🔓 Open — picks allowed';
+    if (undoBtn) {
+      undoBtn.style.display = data.hasBackup ? 'inline-flex' : 'none';
+      if (data.hasBackup) {
+        const ts = new Date(data.backupTimestamp).toLocaleString();
+        undoBtn.title = `Restore backup from ${ts} (${data.backupR32Count} R32 slots, ${data.backupPlayerCount} players)`;
+      }
+    }
+    if (msg && data.hasBackup) {
+      const ts = new Date(data.backupTimestamp).toLocaleString();
+      msg.textContent = `Backup available from ${ts} — ${data.backupPlayerCount} player bracket(s) saved.`;
+    } else if (msg) {
+      msg.textContent = '';
+    }
+    const breakdownEl = document.getElementById('adminFantasyPickBreakdown');
+    if (breakdownEl && Array.isArray(data.playerBreakdown) && data.playerBreakdown.length > 0) {
+      const full = data.playerBreakdown.filter(p => p.full);
+      const partial = data.playerBreakdown.filter(p => !p.full);
+      const renderPills = (players) => players.map(p =>
+        `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,0.07);border-radius:6px;padding:3px 9px;font-size:0.8rem;">` +
+        `${p.name}<span style="color:var(--text-muted);font-size:0.75rem;">${p.picks}/31</span></span>`
+      ).join('');
+      breakdownEl.innerHTML =
+        `<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">` +
+        `<strong style="color:#4ade80;">✓ Full (${full.length})</strong> ` +
+        (full.length ? renderPills(full) : '<span style="opacity:0.5;">none yet</span>') +
+        `</div>` +
+        `<div style="font-size:0.8rem;color:var(--text-muted);">` +
+        `<strong style="color:#facc15;">⏳ Incomplete (${partial.length})</strong> ` +
+        (partial.length ? renderPills(partial) : '<span style="opacity:0.5;">—</span>') +
+        `</div>`;
+    } else if (breakdownEl) {
+      breakdownEl.innerHTML = '';
+    }
+  } catch (e) {
+    console.error('Fantasy status load error:', e);
+  }
+}
+
+async function adminFantasyLock() {
+  if (!confirm('Lock the fantasy bracket? Players will no longer be able to change their picks.')) return;
+  try {
+    const res = await fetch('/api/admin/fantasy-lock', {
+      method: 'POST',
+      headers: { 'x-admin-passcode': adminPasscode, 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) { alert('Lock failed.'); return; }
+    await loadAdminFantasyStatus();
+  } catch (e) { alert('Request failed.'); }
+}
+
+async function adminFantasyUnlock() {
+  if (!confirm('Unlock the fantasy bracket? Players will be able to change their picks again.')) return;
+  try {
+    const res = await fetch('/api/admin/fantasy-unlock', {
+      method: 'POST',
+      headers: { 'x-admin-passcode': adminPasscode, 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) { alert('Unlock failed.'); return; }
+    await loadAdminFantasyStatus();
+  } catch (e) { alert('Request failed.'); }
+}
+
+async function adminFantasyReset() {
+  if (!confirm(
+    'Reset the entire fantasy bracket?\n\n' +
+    'This will:\n' +
+    '  • Clear all R32 fixture data\n' +
+    '  • Delete all player picks\n' +
+    '  • Immediately re-fetch R32 fixtures from the API\n\n' +
+    'A backup will be saved so you can undo this.'
+  )) return;
+
+  const msg = document.getElementById('adminFantasyMsg');
+  if (msg) msg.textContent = 'Resetting…';
+  try {
+    const res = await fetch('/api/admin/fantasy-reset', {
+      method: 'POST',
+      headers: { 'x-admin-passcode': adminPasscode, 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      if (msg) msg.textContent = 'Error: ' + (err.error || res.status);
+      return;
+    }
+    if (msg) msg.textContent = 'Reset complete. R32 data will repopulate from the API within a minute.';
+    await loadAdminFantasyStatus();
+  } catch (e) {
+    if (msg) msg.textContent = 'Request failed — check server logs.';
+  }
+}
+
+async function adminFantasyUndo() {
+  const undoBtn = document.getElementById('adminFantasyUndoBtn');
+  const backupDesc = undoBtn ? undoBtn.title : 'the last backup';
+  if (!confirm(`Undo the reset and restore ${backupDesc}?\n\nThis will overwrite the current fantasy data.`)) return;
+
+  const msg = document.getElementById('adminFantasyMsg');
+  if (msg) msg.textContent = 'Restoring…';
+  try {
+    const res = await fetch('/api/admin/fantasy-undo', {
+      method: 'POST',
+      headers: { 'x-admin-passcode': adminPasscode, 'x-user-secret': currentUserSecret }
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      if (msg) msg.textContent = 'Error: ' + (err.error || res.status);
+      return;
+    }
+    if (msg) msg.textContent = 'Restored successfully.';
+    await loadAdminFantasyStatus();
+  } catch (e) {
+    if (msg) msg.textContent = 'Request failed — check server logs.';
+  }
+}
+
 // ===================== MATCH STAGE SETTINGS (which stages allow "Create Match") =====================
 
 async function loadAdminSettings() {
@@ -3113,9 +3375,14 @@ function renderMatchLog() {
   // Create Match button or "already added" note
   let actionHtml = '';
   if (isUpcoming) {
-    actionHtml = alreadyAdded
-      ? `<div style="margin-top:14px; text-align:center; color:var(--color-accent); font-size:0.85rem; font-weight:600;">✅ Already in database</div>`
-      : `<button class="btn btn-success btn-full" style="margin-top:14px;" onclick="createMatchFromFixture(${fixturesCurrentIndex})">➕ Create Match</button>`;
+    if (alreadyAdded) {
+      const undoBtn = f.matchType === 'KO'
+        ? `<button class="btn btn-secondary btn-sm" onclick="undoMatchFromFixture(${fixturesCurrentIndex})" style="font-size:0.8rem;">↩ Undo</button>`
+        : '';
+      actionHtml = `<div style="margin-top:14px; display:flex; gap:8px; align-items:center; justify-content:center;">${undoBtn}<span style="color:var(--color-accent); font-size:0.85rem; font-weight:600;">✅ Already in database</span></div>`;
+    } else {
+      actionHtml = `<button class="btn btn-success btn-full" style="margin-top:14px;" onclick="createMatchFromFixture(${fixturesCurrentIndex})">➕ Create Match</button>`;
+    }
   }
 
   contentEl.innerHTML = `
@@ -3156,6 +3423,14 @@ function renderMatchLog() {
       </div>
     </div>
 
+    ${f.matchType === 'KO' && f.bracketSlot !== undefined ? `
+    <div class="form-row">
+      <div class="form-group">
+        <label>Bracket Slot</label>
+        <div class="fixture-field">${f.stage} · Slot ${f.bracketSlot}</div>
+      </div>
+    </div>` : ''}
+
     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
       <span style="font-size:0.78rem; color:var(--text-muted);">Matchday ${f.matchday || '–'}</span>
       ${statusPill}
@@ -3195,6 +3470,10 @@ function matchLogJump() {
 async function createMatchFromFixture(index) {
   const f = fixturesData[index];
   if (!f) return;
+  if (f.matchType === 'KO' && f.bracketSlot === undefined) {
+    alert('Bracket slot data not loaded. Click ↻ Refresh in the match log, then try again.');
+    return;
+  }
   if (!confirm(`Create match: ${f.homeTeam} vs ${f.awayTeam}?\nKickoff: ${new Date(f.kickoff).toLocaleString()}`)) return;
 
   try {
@@ -3211,7 +3490,11 @@ async function createMatchFromFixture(index) {
         matchType: f.matchType,
         kickoff: f.kickoff,
         matchNumber: f.matchNumber,
-        group: f.group
+        group: f.group,
+        ...(f.matchType === 'KO' && {
+          bracketRound: f.stage,
+          bracketSlot: f.bracketSlot
+        })
       })
     });
 
@@ -3225,6 +3508,40 @@ async function createMatchFromFixture(index) {
     renderMatchLog();
   } catch (err) {
     console.error('[FIXTURES] Error creating match:', err);
+    alert('❌ Failed to connect to server.');
+  }
+}
+
+async function undoMatchFromFixture(index) {
+  const f = fixturesData[index];
+  if (!f) return;
+
+  const kickoffDay = new Date(f.kickoff).toDateString();
+  const match = matches.find(m =>
+    m.homeTeam.toLowerCase() === f.homeTeam.toLowerCase() &&
+    m.awayTeam.toLowerCase() === f.awayTeam.toLowerCase() &&
+    new Date(m.kickoff).toDateString() === kickoffDay
+  );
+
+  if (!match) { alert('Match not found in database.'); return; }
+  if (!confirm(`Remove match: ${f.homeTeam} vs ${f.awayTeam}?`)) return;
+
+  try {
+    const response = await fetch('/api/admin/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      },
+      body: JSON.stringify({ matchId: match.id })
+    });
+    const data = await response.json();
+    if (!response.ok) { alert(`❌ Error: ${data.error}`); return; }
+    await loadDashboardData();
+    renderMatchLog();
+  } catch (err) {
+    console.error('[FIXTURES] Error removing match:', err);
     alert('❌ Failed to connect to server.');
   }
 }
