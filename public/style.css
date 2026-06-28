@@ -2469,6 +2469,27 @@ body {
   flex-shrink: 0;
 }
 
+.bracket-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-row-score {
+  padding-left: 6px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* When a score is present, the winner checkmark doesn't need margin-left: auto */
+.bracket-row-score ~ .bracket-row-winner {
+  margin-left: 0;
+}
+
 .bracket-connectors {
   position: absolute;
   top: 0;

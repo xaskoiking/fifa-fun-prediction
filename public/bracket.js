@@ -227,8 +227,19 @@ function buildBracketRow(slotData, side) {
   }
 
   const name = document.createElement('span');
+  name.className = 'bracket-row-name';
   name.textContent = team;
   row.appendChild(name);
+
+  const scoreVal = match && match.score != null
+    ? (side === 'home' ? match.score.scoreHome : match.score.scoreAway)
+    : null;
+  if (scoreVal != null) {
+    const scoreEl = document.createElement('span');
+    scoreEl.className = 'bracket-row-score';
+    scoreEl.textContent = scoreVal;
+    row.appendChild(scoreEl);
+  }
 
   if (match && match.status === 'resolved' && match.outcome === side) {
     row.classList.add('bracket-row--winner');
