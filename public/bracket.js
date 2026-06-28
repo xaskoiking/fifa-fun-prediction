@@ -227,10 +227,12 @@ function refreshBracketRanks() {
   });
 }
 
-loadRanks().then(() => {
-  // ranks are cached; refresh any rendered brackets
-  if (typeof refreshBracketRanks === 'function') refreshBracketRanks();
-});
+// Wait for the application to signal that ranks are ready. The app should
+// either dispatch the 'ranks:loaded' event or call window.refreshBracketRanks()
+document.addEventListener('ranks:loaded', refreshBracketRanks);
+
+// also expose function for direct call from app.js
+window.refreshBracketRanks = refreshBracketRanks;
 
 function buildBracketRow(slotData, side) {
   const row = document.createElement('div');
