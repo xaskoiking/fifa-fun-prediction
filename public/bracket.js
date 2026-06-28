@@ -241,12 +241,14 @@ function buildBracketRow(slotData, side) {
     row.appendChild(scoreEl);
   }
 
-  if (match && match.status === 'resolved' && match.outcome === side) {
-    row.classList.add('bracket-row--winner');
-    const check = document.createElement('span');
-    check.className = 'bracket-row-winner';
-    check.textContent = '✓';
-    row.appendChild(check);
+  if (match && match.status === 'resolved') {
+    const winnerEl = document.createElement('span');
+    winnerEl.className = 'bracket-row-winner';
+    if (match.outcome === side) {
+      row.classList.add('bracket-row--winner');
+      winnerEl.textContent = '✓';
+    }
+    row.appendChild(winnerEl);
   }
 
   if (votable && !isTbd) {

@@ -2450,20 +2450,20 @@ body {
 }
 
 /* Live (game in progress): red border */
+/* Live: static red border + background-only breathe so it doesn't clash with booster */
 .bracket-card--live {
-  border-color: rgba(220, 38, 38, 0.6);
+  border-color: rgba(220, 38, 38, 0.65);
   animation: bracket-live-breathe 2.4s ease-in-out infinite;
 }
 
 @keyframes bracket-live-breathe {
-  0%, 100% {
-    background: rgba(220, 38, 38, 0.04);
-    border-color: rgba(220, 38, 38, 0.45);
-  }
-  50% {
-    background: rgba(220, 38, 38, 0.13);
-    border-color: rgba(220, 38, 38, 0.85);
-  }
+  0%, 100% { background: rgba(220, 38, 38, 0.04); }
+  50%       { background: rgba(220, 38, 38, 0.13); }
+}
+
+/* Boosted + live: electric border from booster, red bg pulse from live — no conflict */
+.bracket-card--live.bracket-card--boosted {
+  animation: bracket-electric 2s ease-in-out infinite, bracket-live-breathe 2.4s ease-in-out infinite;
 }
 
 /* Resolved: dim the loser row only; winner and pick stay vivid */
@@ -2472,11 +2472,12 @@ body {
   opacity: 0.6;
 }
 
-/* Winner checkmark */
+/* Winner checkmark — gold to distinguish from pick (green) */
 .bracket-row-winner {
   margin-left: auto;
-  padding-left: 6px;
-  color: var(--color-accent);
+  min-width: 20px;
+  text-align: center;
+  color: var(--color-gold);
   font-size: 0.78rem;
   font-weight: 800;
   flex-shrink: 0;
@@ -2492,13 +2493,15 @@ body {
 
 .bracket-row-score {
   padding-left: 6px;
+  min-width: 1.4em;
+  text-align: right;
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 700;
   flex-shrink: 0;
 }
 
-/* When a score is present, the winner checkmark doesn't need margin-left: auto */
+/* When a score is present, winner span sits immediately after — no auto-margin */
 .bracket-row-score ~ .bracket-row-winner {
   margin-left: 0;
 }
