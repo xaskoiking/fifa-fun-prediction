@@ -2298,6 +2298,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .live-dot { animation: none; }
   .chase-rect { animation: none; }
+  .bracket-card--live { animation: none; }
 }
 
 /* ===== Bracket tab (knockout stage) ===== */
@@ -2450,7 +2451,19 @@ body {
 
 /* Live (game in progress): red border */
 .bracket-card--live {
-  border-color: rgba(220, 38, 38, 0.7);
+  border-color: rgba(220, 38, 38, 0.6);
+  animation: bracket-live-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes bracket-live-breathe {
+  0%, 100% {
+    background: rgba(220, 38, 38, 0.04);
+    border-color: rgba(220, 38, 38, 0.45);
+  }
+  50% {
+    background: rgba(220, 38, 38, 0.13);
+    border-color: rgba(220, 38, 38, 0.85);
+  }
 }
 
 /* Resolved: dim the loser row only; winner and pick stay vivid */
