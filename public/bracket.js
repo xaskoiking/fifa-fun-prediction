@@ -218,6 +218,16 @@ function buildBracketRow(slotData, side) {
   }
 
   if (!isTbd) {
+    const rank = document.createElement('span');
+    rank.className = 'bracket-rank';
+    // store the team string for later refresh; using dataset is safe
+    rank.dataset.team = team;
+    // call the same helper used in app.js (guard in case it's not present)
+    rank.textContent = (typeof getCachedRankString === 'function') ? getCachedRankString(team) : '';
+    row.appendChild(rank);
+  }
+
+  if (!isTbd) {
     const code = getTeamCountryCode(team);
     if (code) {
       const flag = document.createElement('span');
@@ -230,17 +240,6 @@ function buildBracketRow(slotData, side) {
   name.className = 'bracket-row-name';
   name.textContent = team;
   row.appendChild(name);
-
-
-  if (!isTbd) {
-    const rank = document.createElement('span');
-    rank.className = 'bracket-rank';
-    // store the team string for later refresh; using dataset is safe
-    rank.dataset.team = team;
-    // call the same helper used in app.js (guard in case it's not present)
-    rank.textContent = (typeof getCachedRankString === 'function') ? getCachedRankString(team) : '';
-    row.appendChild(rank);
-  }
 
   if (match && match.status === 'resolved' && match.outcome === side) {
     row.classList.add('bracket-row--winner');

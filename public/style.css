@@ -2753,6 +2753,7 @@ body {
 }
 
 .bracket-rank {
-  margin-left: 1px;
+  margin-right: 1px;
   font-weight: lighter;
+  font-size: smaller;
 }
