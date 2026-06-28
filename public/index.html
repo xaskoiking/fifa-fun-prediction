@@ -49,10 +49,10 @@
 
       <!-- Tab Navigation -->
       <nav class="tab-nav">
-        <button class="tab-btn active" id="tabBtnPredictions" onclick="switchTab('predictions')">
+        <button class="tab-btn" id="tabBtnPredictions" onclick="switchTab('predictions')" style="display:none;">
           <span class="tab-icon">🔮</span> <span class="tab-label">Predictions</span>
         </button>
-        <button class="tab-btn" id="tabBtnBracket" onclick="switchTab('bracket')">
+        <button class="tab-btn active" id="tabBtnBracket" onclick="switchTab('bracket')">
           <span class="tab-icon">🎯</span> <span class="tab-label">Bracket</span>
         </button>
         <button class="tab-btn" id="tabBtnResults" onclick="switchTab('results')">
@@ -74,7 +74,7 @@
     <main class="app-content">
 
       <!-- ================= PREDICTIONS TAB ================= -->
-      <section id="tabContentPredictions" class="tab-content active">
+      <section id="tabContentPredictions" class="tab-content">
         <div class="section-header">
           <h2>🔮 Open Predictions</h2>
           <p class="section-description">Cast your vote before kickoff starts and locks the match!</p>
@@ -88,7 +88,7 @@
       </section>
 
       <!-- ================= BRACKET TAB ================= -->
-      <section id="tabContentBracket" class="tab-content">
+      <section id="tabContentBracket" class="tab-content active">
         <div class="section-header">
           <h2>🎯 Knockout Bracket</h2>
           <p class="section-description">Round of 32 onward. Use the ‹ › buttons to navigate between rounds — your picks light up green as you go.</p>

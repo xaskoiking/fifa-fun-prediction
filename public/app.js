@@ -7,7 +7,7 @@ let currentUserIsAdmin = localStorage.getItem('soccer_prediction_is_admin') === 
 let adminPasscode = sessionStorage.getItem('admin_passcode') || '';
 let matches = [];
 let currentFilter = 'open'; // 'open' or 'past'
-let activeTab = 'predictions';
+let activeTab = 'bracket';
 let countdownInterval = null;
 let pollInterval = null;
 
@@ -144,7 +144,7 @@ function updateAdminTabVisibility() {
     } else {
       adminTabBtn.style.display = 'none';
       if (activeTab === 'admin') {
-        switchTab('predictions');
+        switchTab('bracket');
       }
     }
   }
