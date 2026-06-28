@@ -210,10 +210,10 @@ function buildBracketRow(slotData, side) {
 
   row.className = 'bracket-row' + (isTbd ? ' tbd' : '') + (isPick ? ' pick' : '');
 
-  if (!isTbd && isPick && match && match.myBooster) {
+  if (!isTbd && match && match.myBooster) {
     const bolt = document.createElement('span');
     bolt.className = 'bracket-row-booster';
-    bolt.textContent = '⚡';
+    if (isPick) bolt.textContent = '⚡';
     row.appendChild(bolt);
   }
 

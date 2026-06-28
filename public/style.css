@@ -2536,6 +2536,8 @@ body {
   line-height: 1;
   flex-shrink: 0;
   user-select: none;
+  min-width: 1.1em;
+  text-align: center;
 }
 
 @keyframes bracket-electric {
