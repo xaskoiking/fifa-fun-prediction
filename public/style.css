@@ -2756,6 +2756,22 @@ body {
   margin-left: 1px;
 }
 
+/* Vote confirmation modal recent form styling */
+#voteConfirmRecentForm {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 #voteConfirmHomeForm,
 #voteConfirmAwayForm {
   display: flex;
@@ -2764,4 +2780,5 @@ body {
 
 .fi {
   display: inline-block !important;
+  width: auto !important;
 }

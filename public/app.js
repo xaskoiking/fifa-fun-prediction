@@ -1779,6 +1779,7 @@ function buildRecentFormHtml(teamName) {
 }
 
 // Update submitVote function - add this after setting voteConfirmChoice
+// Submit prediction — shows custom confirmation modal first
 function submitVote(matchId, prediction) {
   const match = matches.find(m => m.id === matchId);
   if (!match || !currentUserSecret) return;
@@ -1809,9 +1810,29 @@ function submitVote(matchId, prediction) {
     recentFormSection.style.display = 'none';
   }
 
-  // ... rest of the submitVote function remains the same
   const boosterSection = document.getElementById('voteConfirmBoosterSection');
-  // ... etc
+  const boosterCheckbox = document.getElementById('voteConfirmUseBooster');
+  const boosterInfo = document.getElementById('voteConfirmBoosterInfo');
+  if (boosterSection && boosterCheckbox && boosterInfo) {
+    const showBooster = match.matchType === 'KO' && (match.boosterEligible || match.myMatchBooster);
+    if (showBooster) {
+      boosterSection.style.display = 'block';
+      boosterCheckbox.checked = match.myBooster && match.myVote === prediction;
+      boosterInfo.textContent = match.boosterEligible
+        ? `Use your one knockout booster for ${match.boosterStageLabel || 'this stage'} to double points on a correct pick.`
+        : `Boost this prediction on your current knockout match. If you switch picks, the booster will move with your selection.`;
+    } else {
+      boosterSection.style.display = 'none';
+      boosterCheckbox.checked = false;
+    }
+  }
+
+  // Store pending state
+  pendingVoteMatchId = matchId;
+  pendingVotePrediction = prediction;
+
+  // Show modal
+  document.getElementById('voteConfirmModal').style.display = 'flex';
 }
 
 function renderMatches() {
