@@ -72,6 +72,7 @@ let _bracketFocused = 0;
 let _bracketPositions = [];
 let _bracketOnPick = null;
 let _bracketLabelEl = null;
+let _bracketHighlightDay = null;
 
 // The focused round is always tight-stacked (see computeBracketPositions),
 // so its content height is just its own row count.
@@ -79,8 +80,9 @@ function bracketContentHeight(roundSize) {
   return BRACKET_HEADER_H + (roundSize - 1) * BRACKET_ROW_H + BRACKET_CARD_H + BRACKET_BOTTOM_PAD;
 }
 
-function renderBracket(rootEl, rounds, onPick) {
+function renderBracket(rootEl, rounds, onPick, highlightDay) {
   _bracketOnPick = onPick;
+  _bracketHighlightDay = highlightDay ?? null;
   const roundSizes = rounds.map(r => r.size);
 
   rootEl.innerHTML = `
@@ -116,7 +118,7 @@ function renderBracket(rootEl, rounds, onPick) {
   if (_bracketLabelEl) _bracketLabelEl.textContent = rounds[focused].label;
 
   buildBracketColLabels(track, rounds, focused);
-  buildBracketCards(track, rounds);
+  buildBracketCards(track, rounds, _bracketHighlightDay);
   applyBracketPositions(rounds, track, svg);
   updateBracketNavButtons(rounds.length, prevBtn, nextBtn);
 
@@ -158,7 +160,7 @@ function formatBracketKickoff(isoString) {
   return `${mon} ${day} · ${time}`;
 }
 
-function buildBracketCards(track, rounds) {
+function buildBracketCards(track, rounds, highlightDay) {
   track.querySelectorAll('.bracket-card, .bracket-slot-num').forEach(el => el.remove());
   rounds.forEach((round, r) => {
     const xOffset = r * BRACKET_COL_PITCH;
@@ -171,8 +173,10 @@ function buildBracketCards(track, rounds) {
       const hasKickoff = match && match.kickoff;
 
       if (hasKickoff) {
+        const matchDay = new Date(match.kickoff).toDateString();
+        const isUpcoming = highlightDay && matchDay === highlightDay;
         const num = document.createElement('div');
-        num.className = 'bracket-slot-num';
+        num.className = 'bracket-slot-num' + (isUpcoming ? ' bracket-slot-num--upcoming' : '');
         num.style.left = xOffset + 'px';
         num.dataset.round = r;
         num.dataset.slot = i;

@@ -1907,11 +1907,32 @@ function renderMatches() {
 // Renders the Bracket tab (knockout stage). Reuses submitVote/confirmVote
 // for the actual voting flow — clicking a bracket row is equivalent to
 // clicking a predict-btn in the old flat list.
+function computeNextDayToHighlight(rounds) {
+  const todayStr = new Date().toDateString();
+  const allMatches = rounds.flatMap(r => r.slots.map(s => s.match)).filter(m => m && m.kickoff);
+
+  const todayMatches = allMatches.filter(m => new Date(m.kickoff).toDateString() === todayStr);
+  if (!todayMatches.length) return null;
+
+  const lastMs = Math.max(...todayMatches.map(m => new Date(m.kickoff).getTime()));
+  const lastMatch = todayMatches.find(m => new Date(m.kickoff).getTime() === lastMs);
+  if (!lastMatch || !lastMatch.hasStarted || lastMatch.status === 'resolved') return null;
+
+  const nextDays = [...new Set(
+    allMatches
+      .filter(m => new Date(m.kickoff).getTime() > lastMs)
+      .map(m => new Date(m.kickoff).toDateString())
+  )].sort((a, b) => new Date(a) - new Date(b));
+
+  return nextDays[0] ?? null;
+}
+
 function renderBracketTab() {
   const container = document.getElementById('bracketContainer');
   if (!container) return;
   const rounds = buildBracketRounds(matches, BRACKET_ROUNDS);
-  renderBracket(container, rounds, (match, side) => submitVote(match.id, side));
+  const highlightDay = computeNextDayToHighlight(rounds);
+  renderBracket(container, rounds, (match, side) => submitVote(match.id, side), highlightDay);
 }
 
 // ── Fantasy Bracket ───────────────────────────────────────────────

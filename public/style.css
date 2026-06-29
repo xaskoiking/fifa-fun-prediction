@@ -2299,6 +2299,7 @@ body {
   .live-dot { animation: none; }
   .chase-rect { animation: none; }
   .bracket-card--live { animation: none; }
+  .bracket-slot-num--upcoming { animation: none; }
 }
 
 /* ===== Bracket tab (knockout stage) ===== */
@@ -2441,6 +2442,16 @@ body {
   line-height: 1;
   white-space: nowrap;
   pointer-events: none;
+}
+
+.bracket-slot-num--upcoming {
+  color: var(--color-accent);
+  animation: slot-num-upcoming 2.5s ease-in-out infinite;
+}
+
+@keyframes slot-num-upcoming {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
 }
 
 /* Locked (admin lock or kicked off): grey out non-picked rows */
