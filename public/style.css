@@ -2445,7 +2445,7 @@ body {
 }
 
 .bracket-slot-num--upcoming {
-  color: var(--color-accent);
+  color: var(--color-warning);
   animation: slot-num-upcoming 2.5s ease-in-out infinite;
 }
 
