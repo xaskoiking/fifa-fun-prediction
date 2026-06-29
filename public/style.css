@@ -2331,7 +2331,7 @@ body {
 .bracket-col-label {
   position: absolute;
   top: 8px;
-  width: 168px;
+  width: 200px;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -2427,10 +2427,10 @@ body {
   border-top-right-radius: 0;
 }
 
-/* Keep 168px card width on mobile so connector math stays correct */
+/* Keep card width in sync with BRACKET_CARD_W so connector math stays correct */
 #bracketContainer .bracket-card,
 #bracketContainer .bracket-col-label {
-  width: 168px;
+  width: 200px;
 }
 
 .bracket-slot-num {
@@ -2533,7 +2533,7 @@ body {
 .bracket-card {
   position: absolute;
   left: 0;
-  width: 168px;
+  width: 200px;
   height: 60px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color);
@@ -2608,8 +2608,8 @@ body {
 }
 
 @media (max-width: 600px) {
-  .bracket-card { width: 150px; }
-  .bracket-col-label { width: 150px; }
+  .bracket-card { width: 200px; }
+  .bracket-col-label { width: 200px; }
   .bracket-row { font-size: 0.76rem; padding: 6px 8px; }
 }
 
@@ -2773,10 +2773,10 @@ body {
   border-top-right-radius: 0;
 }
 
-/* Override mobile card-width reduction so connector math stays correct */
+/* Keep fantasy bracket card width in sync with BRACKET_CARD_W */
 .fantasy-bracket-container .bracket-card,
 .fantasy-bracket-container .bracket-col-label {
-  width: 168px;
+  width: 200px;
 }
 
 /* ── Fantasy bracket card accent ─────────────────────────────── */

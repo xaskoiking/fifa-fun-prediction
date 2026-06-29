@@ -13,7 +13,7 @@ const BRACKET_ROUNDS = [
   { code: 'FINAL', label: 'Final', size: 1 }
 ];
 
-const BRACKET_CARD_W = 168;
+const BRACKET_CARD_W = 200;
 const BRACKET_CARD_H = 60;
 const BRACKET_GAP = 28;
 const BRACKET_ROW_H = BRACKET_CARD_H + BRACKET_GAP;
