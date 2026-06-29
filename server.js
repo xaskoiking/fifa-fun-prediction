@@ -1585,7 +1585,7 @@ function getMatchScore(homeTeam, awayTeam) {
   const homeNorm = normalizeTeam(homeTeam);
   const awayNorm = normalizeTeam(awayTeam);
   const entry = _liveScoresCache.find(m =>
-    m.status === 'FINISHED' &&
+    LIVE_STATUSES.has(m.status) &&
     normalizeTeam(m.homeTeam) === homeNorm &&
     normalizeTeam(m.awayTeam) === awayNorm
   );
