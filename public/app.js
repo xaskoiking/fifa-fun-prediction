@@ -1916,7 +1916,7 @@ function computeNextDayToHighlight(rounds) {
 
   const lastMs = Math.max(...todayMatches.map(m => new Date(m.kickoff).getTime()));
   const lastMatch = todayMatches.find(m => new Date(m.kickoff).getTime() === lastMs);
-  if (!lastMatch || !lastMatch.hasStarted || lastMatch.status === 'resolved') return null;
+  if (!lastMatch || !lastMatch.hasStarted) return null;
 
   const nextDays = [...new Set(
     allMatches
