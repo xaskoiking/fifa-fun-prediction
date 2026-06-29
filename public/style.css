@@ -2298,6 +2298,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .live-dot { animation: none; }
   .chase-rect { animation: none; }
+  .bracket-card--live { animation: none; }
+  .bracket-slot-num--upcoming { animation: none; }
 }
 
 /* ===== Bracket tab (knockout stage) ===== */
@@ -2329,7 +2331,7 @@ body {
 .bracket-col-label {
   position: absolute;
   top: 8px;
-  width: 168px;
+  width: 200px;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -2425,10 +2427,10 @@ body {
   border-top-right-radius: 0;
 }
 
-/* Keep 168px card width on mobile so connector math stays correct */
+/* Keep card width in sync with BRACKET_CARD_W so connector math stays correct */
 #bracketContainer .bracket-card,
 #bracketContainer .bracket-col-label {
-  width: 168px;
+  width: 200px;
 }
 
 .bracket-slot-num {
@@ -2442,6 +2444,16 @@ body {
   pointer-events: none;
 }
 
+.bracket-slot-num--upcoming {
+  color: var(--color-warning);
+  animation: slot-num-upcoming 2.5s ease-in-out infinite;
+}
+
+@keyframes slot-num-upcoming {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
 /* Locked (admin lock or kicked off): grey out non-picked rows */
 .bracket-card--locked .bracket-row:not(.pick) {
   color: var(--text-muted);
@@ -2449,8 +2461,20 @@ body {
 }
 
 /* Live (game in progress): red border */
+/* Live: static red border + background-only breathe so it doesn't clash with booster */
 .bracket-card--live {
-  border-color: rgba(220, 38, 38, 0.7);
+  border-color: rgba(220, 38, 38, 0.65);
+  animation: bracket-live-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes bracket-live-breathe {
+  0%, 100% { background: rgba(220, 38, 38, 0.04); }
+  50%       { background: rgba(220, 38, 38, 0.13); }
+}
+
+/* Boosted + live: electric border from booster, red bg pulse from live — no conflict */
+.bracket-card--live.bracket-card--boosted {
+  animation: bracket-electric 2s ease-in-out infinite, bracket-live-breathe 2.4s ease-in-out infinite;
 }
 
 /* Resolved: dim the loser row only; winner and pick stay vivid */
@@ -2459,14 +2483,38 @@ body {
   opacity: 0.6;
 }
 
-/* Winner checkmark */
+/* Winner checkmark — gold to distinguish from pick (green) */
 .bracket-row-winner {
   margin-left: auto;
-  padding-left: 6px;
-  color: var(--color-accent);
+  min-width: 20px;
+  text-align: center;
+  color: var(--color-gold);
   font-size: 0.78rem;
   font-weight: 800;
   flex-shrink: 0;
+}
+
+.bracket-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-row-score {
+  padding-left: 6px;
+  min-width: 1.4em;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* When a score is present, winner span sits immediately after — no auto-margin */
+.bracket-row-score ~ .bracket-row-winner {
+  margin-left: 0;
 }
 
 .bracket-connectors {
@@ -2485,7 +2533,7 @@ body {
 .bracket-card {
   position: absolute;
   left: 0;
-  width: 168px;
+  width: 200px;
   height: 60px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color);
@@ -2499,6 +2547,8 @@ body {
   line-height: 1;
   flex-shrink: 0;
   user-select: none;
+  min-width: 1.1em;
+  text-align: center;
 }
 
 @keyframes bracket-electric {
@@ -2558,8 +2608,8 @@ body {
 }
 
 @media (max-width: 600px) {
-  .bracket-card { width: 150px; }
-  .bracket-col-label { width: 150px; }
+  .bracket-card { width: 200px; }
+  .bracket-col-label { width: 200px; }
   .bracket-row { font-size: 0.76rem; padding: 6px 8px; }
 }
 
@@ -2723,10 +2773,10 @@ body {
   border-top-right-radius: 0;
 }
 
-/* Override mobile card-width reduction so connector math stays correct */
+/* Keep fantasy bracket card width in sync with BRACKET_CARD_W */
 .fantasy-bracket-container .bracket-card,
 .fantasy-bracket-container .bracket-col-label {
-  width: 168px;
+  width: 200px;
 }
 
 /* ── Fantasy bracket card accent ─────────────────────────────── */

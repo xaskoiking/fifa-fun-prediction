@@ -1907,11 +1907,39 @@ function renderMatches() {
 // Renders the Bracket tab (knockout stage). Reuses submitVote/confirmVote
 // for the actual voting flow — clicking a bracket row is equivalent to
 // clicking a predict-btn in the old flat list.
+function computeNextDayToHighlight(rounds) {
+  const allMatches = rounds.flatMap(r => r.slots.map(s => s.match)).filter(m => m && m.kickoff);
+
+  const startedMatches = allMatches.filter(m => m.hasStarted);
+  if (!startedMatches.length) return null;
+
+  // Find the most recent started kickoff and which day it belongs to
+  const lastStartedMs = Math.max(...startedMatches.map(m => new Date(m.kickoff).getTime()));
+  const lastStartedDay = new Date(lastStartedMs).toDateString();
+
+  // Only highlight when the LAST match of that day has started — if any match on
+  // that day has a later kickoff that hasn't started yet, it's still that day's turn
+  const lastKickoffOnThatDay = Math.max(
+    ...allMatches
+      .filter(m => new Date(m.kickoff).toDateString() === lastStartedDay)
+      .map(m => new Date(m.kickoff).getTime())
+  );
+  if (lastStartedMs < lastKickoffOnThatDay) return null;
+
+  // Find the first subsequent day that still has not-yet-started matches
+  const nextDays = [...new Set(
+    allMatches.filter(m => !m.hasStarted).map(m => new Date(m.kickoff).toDateString())
+  )].sort((a, b) => new Date(a) - new Date(b));
+
+  return nextDays[0] ?? null;
+}
+
 function renderBracketTab() {
   const container = document.getElementById('bracketContainer');
   if (!container) return;
   const rounds = buildBracketRounds(matches, BRACKET_ROUNDS);
-  renderBracket(container, rounds, (match, side) => submitVote(match.id, side));
+  const highlightDay = computeNextDayToHighlight(rounds);
+  renderBracket(container, rounds, (match, side) => submitVote(match.id, side), highlightDay);
 }
 
 // ── Fantasy Bracket ───────────────────────────────────────────────
