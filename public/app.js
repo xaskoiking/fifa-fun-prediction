@@ -2084,15 +2084,15 @@ function renderResults() {
     let distHtml = `
       <div style="font-size: 0.8rem; line-height: 1.4;">
         <span style="${isWinnerHome ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.homeTeam)} (${counts.home}):</span>
-        <span style="color: var(--text-muted);">${voters.home.map(v => tagVoter(v, boosters.home)).join(', ') || 'None'}</span>
+        <span style="color: var(--text-muted);">${[...voters.home].sort((a, b) => a.localeCompare(b)).map(v => tagVoter(v, boosters.home)).join(', ') || 'None'}</span>
         <br>
         ${match.matchType === 'League' ? `
           <span style="${isWinnerDraw ? 'color: var(--color-accent); font-weight: 700;' : ''}">Draw (${counts.draw}):</span>
-          <span style="color: var(--text-muted);">${voters.draw.map(v => tagVoter(v, boosters.draw)).join(', ') || 'None'}</span>
+          <span style="color: var(--text-muted);">${[...voters.draw].sort((a, b) => a.localeCompare(b)).map(v => tagVoter(v, boosters.draw)).join(', ') || 'None'}</span>
           <br>
         ` : ''}
         <span style="${isWinnerAway ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.awayTeam)} (${counts.away}):</span>
-        <span style="color: var(--text-muted);">${voters.away.map(v => tagVoter(v, boosters.away)).join(', ') || 'None'}</span>
+        <span style="color: var(--text-muted);">${[...voters.away].sort((a, b) => a.localeCompare(b)).map(v => tagVoter(v, boosters.away)).join(', ') || 'None'}</span>
       </div>
     `;
 
