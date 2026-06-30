@@ -1935,6 +1935,7 @@ function renderBracketTab() {
   const rounds = buildBracketRounds(matches, BRACKET_ROUNDS);
   const highlightDay = computeNextDayToHighlight(rounds);
   renderBracket(container, rounds, (match, side) => submitVote(match.id, side), highlightDay);
+  updateAllTimers();
 }
 
 // ── Fantasy Bracket ───────────────────────────────────────────────
@@ -2140,8 +2141,40 @@ function renderResults() {
 }
 
 function updateAllTimers() {
-  const elements = document.querySelectorAll('.match-countdown');
   const now = new Date().getTime();
+
+  // Bracket slot countdowns
+  document.querySelectorAll('.bracket-slot-countdown').forEach(el => {
+    const kickoffTime = new Date(el.dataset.kickoff).getTime();
+    const diff = kickoffTime - now;
+    if (diff <= 0) {
+      el.textContent = '';
+      el.classList.remove('bracket-slot-countdown--soon');
+    } else {
+      const hours   = Math.floor(diff / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      const soon = diff <= 3 * 3600000;
+      el.classList.toggle('bracket-slot-countdown--soon', soon);
+      if (!soon) {
+        if (hours >= 24) {
+          const days = Math.floor(hours / 24);
+          el.textContent = `${days}d ${hours % 24}h`;
+        } else {
+          el.textContent = `${hours}h ${minutes}m`;
+        }
+      } else {
+        if (hours > 0) {
+          el.textContent = `${hours}h ${minutes}m ${seconds}s`;
+        } else {
+          el.textContent = `${minutes}m ${seconds}s`;
+        }
+      }
+    }
+  });
+
+  const elements = document.querySelectorAll('.match-countdown');
+
 
   elements.forEach(el => {
     // Extension timer — counts down to when extension expires
