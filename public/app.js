@@ -421,7 +421,12 @@ async function loadLiveMatches() {
           ${statusTag(m.status)}
           <div class="live-match-teams">
             <span>${buildFlagSpan(m.homeTeam, 'result-flag')} ${escapeHtml(m.homeTeam)}</span>
-            <span class="live-match-score">${m.scoreHome ?? '&ndash;'} &mdash; ${m.scoreAway ?? '&ndash;'}</span>
+            <span class="live-match-score">${(() => {
+              if (m.duration === 'PENALTY_SHOOTOUT' && m.regularTimeHome != null) {
+                return `${m.regularTimeHome}(${m.scoreHome}) &mdash; ${m.regularTimeAway}(${m.scoreAway})`;
+              }
+              return `${m.scoreHome ?? '&ndash;'} &mdash; ${m.scoreAway ?? '&ndash;'}`;
+            })()}</span>
             <span>${escapeHtml(m.awayTeam)} ${buildFlagSpan(m.awayTeam, 'result-flag')}</span>
           </div>
         </div>
