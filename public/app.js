@@ -421,7 +421,12 @@ async function loadLiveMatches() {
           ${statusTag(m.status)}
           <div class="live-match-teams">
             <span>${buildFlagSpan(m.homeTeam, 'result-flag')} ${escapeHtml(m.homeTeam)}</span>
-            <span class="live-match-score">${m.scoreHome ?? '&ndash;'} &mdash; ${m.scoreAway ?? '&ndash;'}</span>
+            <span class="live-match-score">${(() => {
+              if (m.duration === 'PENALTY_SHOOTOUT' && m.regularTimeHome != null) {
+                return `${m.regularTimeHome}(${m.scoreHome}) &mdash; ${m.regularTimeAway}(${m.scoreAway})`;
+              }
+              return `${m.scoreHome ?? '&ndash;'} &mdash; ${m.scoreAway ?? '&ndash;'}`;
+            })()}</span>
             <span>${escapeHtml(m.awayTeam)} ${buildFlagSpan(m.awayTeam, 'result-flag')}</span>
           </div>
         </div>
@@ -1910,23 +1915,13 @@ function renderMatches() {
 function computeNextDayToHighlight(rounds) {
   const allMatches = rounds.flatMap(r => r.slots.map(s => s.match)).filter(m => m && m.kickoff);
 
-  const startedMatches = allMatches.filter(m => m.hasStarted);
-  if (!startedMatches.length) return null;
+  // Don't highlight anything until at least one game has kicked off
+  if (!allMatches.some(m => m.hasStarted)) return null;
 
-  // Find the most recent started kickoff and which day it belongs to
-  const lastStartedMs = Math.max(...startedMatches.map(m => new Date(m.kickoff).getTime()));
-  const lastStartedDay = new Date(lastStartedMs).toDateString();
-
-  // Only highlight when the LAST match of that day has started — if any match on
-  // that day has a later kickoff that hasn't started yet, it's still that day's turn
-  const lastKickoffOnThatDay = Math.max(
-    ...allMatches
-      .filter(m => new Date(m.kickoff).toDateString() === lastStartedDay)
-      .map(m => new Date(m.kickoff).getTime())
-  );
-  if (lastStartedMs < lastKickoffOnThatDay) return null;
-
-  // Find the first subsequent day that still has not-yet-started matches
+  // Highlight the first day that still has not-yet-started matches.
+  // This naturally covers two cases:
+  //   - Some games today have started but others haven't → highlight today's remaining games
+  //   - All today's games have started → highlight tomorrow's games
   const nextDays = [...new Set(
     allMatches.filter(m => !m.hasStarted).map(m => new Date(m.kickoff).toDateString())
   )].sort((a, b) => new Date(a) - new Date(b));
@@ -1940,6 +1935,7 @@ function renderBracketTab() {
   const rounds = buildBracketRounds(matches, BRACKET_ROUNDS);
   const highlightDay = computeNextDayToHighlight(rounds);
   renderBracket(container, rounds, (match, side) => submitVote(match.id, side), highlightDay);
+  updateAllTimers();
 }
 
 // ── Fantasy Bracket ───────────────────────────────────────────────
@@ -2044,7 +2040,14 @@ function renderResults() {
     if (isResolved) {
       const homeFlagClass = isWinnerHome ? 'result-flag result-flag-winner' : 'result-flag';
       const awayFlagClass = isWinnerAway ? 'result-flag result-flag-winner' : 'result-flag';
-      const scoreMid = match.score ? `${match.score.scoreHome}-${match.score.scoreAway}` : (isWinnerDraw ? 'Draw' : 'Win');
+      const scoreMid = (() => {
+        if (!match.score) return isWinnerDraw ? 'Draw' : 'Win';
+        const s = match.score;
+        if (s.duration === 'PENALTY_SHOOTOUT' && s.regularTimeHome != null) {
+          return `${s.regularTimeHome}(${s.scoreHome})-${s.regularTimeAway}(${s.scoreAway})`;
+        }
+        return `${s.scoreHome}-${s.scoreAway}`;
+      })();
       outcomeText = `
         <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
           ${buildFlagSpan(match.homeTeam, homeFlagClass)}
@@ -2094,15 +2097,15 @@ function renderResults() {
     let distHtml = `
       <div style="font-size: 0.8rem; line-height: 1.4;">
         <span style="${isWinnerHome ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.homeTeam)} (${counts.home}):</span>
-        <span style="color: var(--text-muted);">${voters.home.map(v => tagVoter(v, boosters.home)).join(', ') || 'None'}</span>
+        <span style="color: var(--text-muted);">${[...voters.home].sort((a, b) => a.localeCompare(b)).map(v => tagVoter(v, boosters.home)).join(', ') || 'None'}</span>
         <br>
         ${match.matchType === 'League' ? `
           <span style="${isWinnerDraw ? 'color: var(--color-accent); font-weight: 700;' : ''}">Draw (${counts.draw}):</span>
-          <span style="color: var(--text-muted);">${voters.draw.map(v => tagVoter(v, boosters.draw)).join(', ') || 'None'}</span>
+          <span style="color: var(--text-muted);">${[...voters.draw].sort((a, b) => a.localeCompare(b)).map(v => tagVoter(v, boosters.draw)).join(', ') || 'None'}</span>
           <br>
         ` : ''}
         <span style="${isWinnerAway ? 'color: var(--color-accent); font-weight: 700;' : ''}">${escapeHtml(match.awayTeam)} (${counts.away}):</span>
-        <span style="color: var(--text-muted);">${voters.away.map(v => tagVoter(v, boosters.away)).join(', ') || 'None'}</span>
+        <span style="color: var(--text-muted);">${[...voters.away].sort((a, b) => a.localeCompare(b)).map(v => tagVoter(v, boosters.away)).join(', ') || 'None'}</span>
       </div>
     `;
 
@@ -2138,8 +2141,40 @@ function renderResults() {
 }
 
 function updateAllTimers() {
-  const elements = document.querySelectorAll('.match-countdown');
   const now = new Date().getTime();
+
+  // Bracket slot countdowns
+  document.querySelectorAll('.bracket-slot-countdown').forEach(el => {
+    const kickoffTime = new Date(el.dataset.kickoff).getTime();
+    const diff = kickoffTime - now;
+    if (diff <= 0) {
+      el.textContent = '';
+      el.classList.remove('bracket-slot-countdown--soon');
+    } else {
+      const hours   = Math.floor(diff / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      const soon = diff <= 3 * 3600000;
+      el.classList.toggle('bracket-slot-countdown--soon', soon);
+      if (!soon) {
+        if (hours >= 24) {
+          const days = Math.floor(hours / 24);
+          el.textContent = `${days}d ${hours % 24}h`;
+        } else {
+          el.textContent = `${hours}h ${minutes}m`;
+        }
+      } else {
+        if (hours > 0) {
+          el.textContent = `${hours}h ${minutes}m ${seconds}s`;
+        } else {
+          el.textContent = `${minutes}m ${seconds}s`;
+        }
+      }
+    }
+  });
+
+  const elements = document.querySelectorAll('.match-countdown');
+
 
   elements.forEach(el => {
     // Extension timer — counts down to when extension expires

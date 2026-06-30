@@ -2435,6 +2435,10 @@ body {
 
 .bracket-slot-num {
   position: absolute;
+  width: 200px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-size: 0.6rem;
   font-weight: 700;
   color: var(--text-muted);
@@ -2447,6 +2451,16 @@ body {
 .bracket-slot-num--upcoming {
   color: var(--color-warning);
   animation: slot-num-upcoming 2.5s ease-in-out infinite;
+}
+
+.bracket-slot-countdown {
+  opacity: 0.75;
+  font-weight: 600;
+}
+
+.bracket-slot-countdown--soon {
+  color: var(--color-danger);
+  opacity: 1;
 }
 
 @keyframes slot-num-upcoming {
@@ -2540,6 +2554,16 @@ body {
   border-radius: var(--radius-sm);
   overflow: hidden;
   transition: top 0.5s cubic-bezier(.22, .85, .25, 1);
+}
+
+.bracket-card--pick-correct {
+  border-width: 2.5px;
+  border-color: var(--color-accent);
+}
+
+.bracket-card--pick-wrong {
+  border-width: 2.5px;
+  border-color: rgba(220, 38, 38, 0.7);
 }
 
 .bracket-row-booster {

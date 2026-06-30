@@ -180,9 +180,23 @@ function buildBracketCards(track, rounds, highlightDay) {
         num.style.left = xOffset + 'px';
         num.dataset.round = r;
         num.dataset.slot = i;
-        num.textContent = (match.matchNumber ? `#${match.matchNumber} · ` : '') + formatBracketKickoff(match.kickoff);
+        const label = document.createElement('span');
+        label.textContent = (match.matchNumber ? `#${match.matchNumber} · ` : '') + formatBracketKickoff(match.kickoff);
+        num.appendChild(label);
+
+        if (!isResolved && !match.hasStarted) {
+          const countdown = document.createElement('span');
+          countdown.className = 'bracket-slot-countdown';
+          countdown.dataset.kickoff = match.kickoff;
+          countdown.textContent = '';
+          num.appendChild(countdown);
+        }
+
         track.appendChild(num);
       }
+
+      const pickCorrect = isResolved && match.myVote && match.myVote === match.outcome;
+      const pickWrong   = isResolved && match.myVote && match.myVote !== match.outcome;
 
       const card = document.createElement('div');
       card.className = 'bracket-card'
@@ -190,7 +204,9 @@ function buildBracketCards(track, rounds, highlightDay) {
         + (isResolved ? ' bracket-card--resolved' : '')
         + (isLocked   ? ' bracket-card--locked'   : '')
         + (isLive     ? ' bracket-card--live'      : '')
-        + (match && match.myBooster ? ' bracket-card--boosted' : '');
+        + (match && match.myBooster ? ' bracket-card--boosted' : '')
+        + (pickCorrect ? ' bracket-card--pick-correct' : '')
+        + (pickWrong   ? ' bracket-card--pick-wrong'   : '');
       card.style.left = xOffset + 'px';
       card.dataset.round = r;
       card.dataset.slot = i;
@@ -245,13 +261,25 @@ function buildBracketRow(slotData, side) {
   name.textContent = team;
   row.appendChild(name);
 
-  const scoreVal = match && match.score != null
-    ? (side === 'home' ? match.score.scoreHome : match.score.scoreAway)
-    : null;
-  if (scoreVal != null) {
+  const scoreText = (() => {
+    if (!match || match.score == null) return null;
+    const s = match.score;
+    const isPen = s.duration === 'PENALTY_SHOOTOUT';
+    const isET = s.duration === 'EXTRA_TIME';
+    if (isPen && s.regularTimeHome != null) {
+      const reg = side === 'home' ? s.regularTimeHome : s.regularTimeAway;
+      const ft  = side === 'home' ? s.scoreHome : s.scoreAway;
+      return `${reg}(${ft})`;
+    }
+    if (isET && s.regularTimeHome != null) {
+      return side === 'home' ? String(s.scoreHome) : String(s.scoreAway);
+    }
+    return String(side === 'home' ? s.scoreHome : s.scoreAway);
+  })();
+  if (scoreText != null) {
     const scoreEl = document.createElement('span');
     scoreEl.className = 'bracket-row-score';
-    scoreEl.textContent = scoreVal;
+    scoreEl.textContent = scoreText;
     row.appendChild(scoreEl);
   }
 
@@ -301,8 +329,19 @@ function drawBracketConnectors(rounds, svg) {
       const startY = y + BRACKET_HEADER_H + BRACKET_CARD_H / 2;
       const midX = startX + BRACKET_COL_GAP / 2;
       maxY = Math.max(maxY, startY, childY);
+
+      const match = rounds[r].slots[i].match;
+      let stroke = null;
+      if (match && match.status === 'resolved' && match.myVote) {
+        stroke = match.myVote === match.outcome ? 'var(--color-accent)' : 'rgba(220,38,38,0.7)';
+      }
+
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', `M ${startX} ${startY} H ${midX} V ${childY} H ${childX}`);
+      if (stroke) {
+        path.style.stroke = stroke;
+        path.style.strokeWidth = '2.5px';
+      }
       svg.appendChild(path);
     });
   }
