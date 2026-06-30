@@ -2467,14 +2467,6 @@ body {
   animation: bracket-live-breathe 2.4s ease-in-out infinite;
 }
 
-.bracket-card--pick-correct {
-  border-color: var(--color-accent);
-}
-
-.bracket-card--pick-wrong {
-  border-color: rgba(220, 38, 38, 0.7);
-}
-
 @keyframes bracket-live-breathe {
   0%, 100% { background: rgba(220, 38, 38, 0.04); }
   50%       { background: rgba(220, 38, 38, 0.13); }
@@ -2548,6 +2540,14 @@ body {
   border-radius: var(--radius-sm);
   overflow: hidden;
   transition: top 0.5s cubic-bezier(.22, .85, .25, 1);
+}
+
+.bracket-card--pick-correct {
+  border-color: var(--color-accent);
+}
+
+.bracket-card--pick-wrong {
+  border-color: rgba(220, 38, 38, 0.7);
 }
 
 .bracket-row-booster {
