@@ -1910,23 +1910,13 @@ function renderMatches() {
 function computeNextDayToHighlight(rounds) {
   const allMatches = rounds.flatMap(r => r.slots.map(s => s.match)).filter(m => m && m.kickoff);
 
-  const startedMatches = allMatches.filter(m => m.hasStarted);
-  if (!startedMatches.length) return null;
+  // Don't highlight anything until at least one game has kicked off
+  if (!allMatches.some(m => m.hasStarted)) return null;
 
-  // Find the most recent started kickoff and which day it belongs to
-  const lastStartedMs = Math.max(...startedMatches.map(m => new Date(m.kickoff).getTime()));
-  const lastStartedDay = new Date(lastStartedMs).toDateString();
-
-  // Only highlight when the LAST match of that day has started — if any match on
-  // that day has a later kickoff that hasn't started yet, it's still that day's turn
-  const lastKickoffOnThatDay = Math.max(
-    ...allMatches
-      .filter(m => new Date(m.kickoff).toDateString() === lastStartedDay)
-      .map(m => new Date(m.kickoff).getTime())
-  );
-  if (lastStartedMs < lastKickoffOnThatDay) return null;
-
-  // Find the first subsequent day that still has not-yet-started matches
+  // Highlight the first day that still has not-yet-started matches.
+  // This naturally covers two cases:
+  //   - Some games today have started but others haven't → highlight today's remaining games
+  //   - All today's games have started → highlight tomorrow's games
   const nextDays = [...new Set(
     allMatches.filter(m => !m.hasStarted).map(m => new Date(m.kickoff).toDateString())
   )].sort((a, b) => new Date(a) - new Date(b));
