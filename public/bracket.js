@@ -313,8 +313,8 @@ function drawBracketConnectors(rounds, svg) {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', `M ${startX} ${startY} H ${midX} V ${childY} H ${childX}`);
       if (stroke) {
-        path.setAttribute('stroke', stroke);
-        path.setAttribute('stroke-width', '2.5');
+        path.style.stroke = stroke;
+        path.style.strokeWidth = '2.5px';
       }
       svg.appendChild(path);
     });
