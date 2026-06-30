@@ -180,7 +180,9 @@ function buildBracketCards(track, rounds, highlightDay) {
         num.style.left = xOffset + 'px';
         num.dataset.round = r;
         num.dataset.slot = i;
-        num.textContent = (match.matchNumber ? `#${match.matchNumber} · ` : '') + formatBracketKickoff(match.kickoff);
+        const label = document.createElement('span');
+        label.textContent = (match.matchNumber ? `#${match.matchNumber} · ` : '') + formatBracketKickoff(match.kickoff);
+        num.appendChild(label);
 
         if (!isResolved && !match.hasStarted) {
           const countdown = document.createElement('span');

@@ -2435,6 +2435,10 @@ body {
 
 .bracket-slot-num {
   position: absolute;
+  width: 200px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-size: 0.6rem;
   font-weight: 700;
   color: var(--text-muted);

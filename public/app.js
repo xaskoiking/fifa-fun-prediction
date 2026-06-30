@@ -2150,17 +2150,16 @@ function updateAllTimers() {
     if (diff <= 0) {
       el.textContent = '';
     } else {
-      const totalMinutes = Math.floor(diff / 60000);
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
+      const hours   = Math.floor(diff / 3600000);
+      const minutes = Math.floor((diff % 3600000) / 60000);
       const seconds = Math.floor((diff % 60000) / 1000);
       if (hours >= 24) {
         const days = Math.floor(hours / 24);
-        el.textContent = ` · ${days}d ${hours % 24}h`;
+        el.textContent = `${days}d ${hours % 24}h ${minutes}m ${seconds}s`;
       } else if (hours > 0) {
-        el.textContent = ` · ${hours}h ${minutes}m`;
+        el.textContent = `${hours}h ${minutes}m ${seconds}s`;
       } else {
-        el.textContent = ` · ${minutes}m ${seconds}s`;
+        el.textContent = `${minutes}m ${seconds}s`;
       }
     }
   });
