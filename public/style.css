@@ -2458,6 +2458,11 @@ body {
   font-weight: 600;
 }
 
+.bracket-slot-countdown--soon {
+  color: var(--color-danger);
+  opacity: 1;
+}
+
 @keyframes slot-num-upcoming {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.45; }

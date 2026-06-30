@@ -2149,17 +2149,26 @@ function updateAllTimers() {
     const diff = kickoffTime - now;
     if (diff <= 0) {
       el.textContent = '';
+      el.classList.remove('bracket-slot-countdown--soon');
     } else {
       const hours   = Math.floor(diff / 3600000);
       const minutes = Math.floor((diff % 3600000) / 60000);
       const seconds = Math.floor((diff % 60000) / 1000);
-      if (hours >= 24) {
-        const days = Math.floor(hours / 24);
-        el.textContent = `${days}d ${hours % 24}h ${minutes}m ${seconds}s`;
-      } else if (hours > 0) {
-        el.textContent = `${hours}h ${minutes}m ${seconds}s`;
+      const soon = diff <= 3 * 3600000;
+      el.classList.toggle('bracket-slot-countdown--soon', soon);
+      if (!soon) {
+        if (hours >= 24) {
+          const days = Math.floor(hours / 24);
+          el.textContent = `${days}d ${hours % 24}h`;
+        } else {
+          el.textContent = `${hours}h ${minutes}m`;
+        }
       } else {
-        el.textContent = `${minutes}m ${seconds}s`;
+        if (hours > 0) {
+          el.textContent = `${hours}h ${minutes}m ${seconds}s`;
+        } else {
+          el.textContent = `${minutes}m ${seconds}s`;
+        }
       }
     }
   });
