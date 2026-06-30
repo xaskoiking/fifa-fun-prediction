@@ -184,13 +184,18 @@ function buildBracketCards(track, rounds, highlightDay) {
         track.appendChild(num);
       }
 
+      const pickCorrect = isResolved && match.myVote && match.myVote === match.outcome;
+      const pickWrong   = isResolved && match.myVote && match.myVote !== match.outcome;
+
       const card = document.createElement('div');
       card.className = 'bracket-card'
         + (round.code === 'FINAL' ? ' final' : '')
         + (isResolved ? ' bracket-card--resolved' : '')
         + (isLocked   ? ' bracket-card--locked'   : '')
         + (isLive     ? ' bracket-card--live'      : '')
-        + (match && match.myBooster ? ' bracket-card--boosted' : '');
+        + (match && match.myBooster ? ' bracket-card--boosted' : '')
+        + (pickCorrect ? ' bracket-card--pick-correct' : '')
+        + (pickWrong   ? ' bracket-card--pick-wrong'   : '');
       card.style.left = xOffset + 'px';
       card.dataset.round = r;
       card.dataset.slot = i;
