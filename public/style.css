@@ -2543,10 +2543,12 @@ body {
 }
 
 .bracket-card--pick-correct {
+  border-width: 2.5px;
   border-color: var(--color-accent);
 }
 
 .bracket-card--pick-wrong {
+  border-width: 2.5px;
   border-color: rgba(220, 38, 38, 0.7);
 }
 
