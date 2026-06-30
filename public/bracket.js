@@ -303,8 +303,19 @@ function drawBracketConnectors(rounds, svg) {
       const startY = y + BRACKET_HEADER_H + BRACKET_CARD_H / 2;
       const midX = startX + BRACKET_COL_GAP / 2;
       maxY = Math.max(maxY, startY, childY);
+
+      const match = rounds[r].slots[i].match;
+      let stroke = null;
+      if (match && match.status === 'resolved' && match.myVote) {
+        stroke = match.myVote === match.outcome ? 'var(--color-accent)' : 'rgba(220,38,38,0.7)';
+      }
+
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       path.setAttribute('d', `M ${startX} ${startY} H ${midX} V ${childY} H ${childX}`);
+      if (stroke) {
+        path.setAttribute('stroke', stroke);
+        path.setAttribute('stroke-width', '2.5');
+      }
       svg.appendChild(path);
     });
   }
