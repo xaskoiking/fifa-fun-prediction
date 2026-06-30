@@ -2140,8 +2140,32 @@ function renderResults() {
 }
 
 function updateAllTimers() {
-  const elements = document.querySelectorAll('.match-countdown');
   const now = new Date().getTime();
+
+  // Bracket slot countdowns
+  document.querySelectorAll('.bracket-slot-countdown').forEach(el => {
+    const kickoffTime = new Date(el.dataset.kickoff).getTime();
+    const diff = kickoffTime - now;
+    if (diff <= 0) {
+      el.textContent = '';
+    } else {
+      const totalMinutes = Math.floor(diff / 60000);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      const seconds = Math.floor((diff % 60000) / 1000);
+      if (hours >= 24) {
+        const days = Math.floor(hours / 24);
+        el.textContent = ` · ${days}d ${hours % 24}h`;
+      } else if (hours > 0) {
+        el.textContent = ` · ${hours}h ${minutes}m`;
+      } else {
+        el.textContent = ` · ${minutes}m ${seconds}s`;
+      }
+    }
+  });
+
+  const elements = document.querySelectorAll('.match-countdown');
+
 
   elements.forEach(el => {
     // Extension timer — counts down to when extension expires

@@ -181,6 +181,15 @@ function buildBracketCards(track, rounds, highlightDay) {
         num.dataset.round = r;
         num.dataset.slot = i;
         num.textContent = (match.matchNumber ? `#${match.matchNumber} · ` : '') + formatBracketKickoff(match.kickoff);
+
+        if (!isResolved && !match.hasStarted) {
+          const countdown = document.createElement('span');
+          countdown.className = 'bracket-slot-countdown';
+          countdown.dataset.kickoff = match.kickoff;
+          countdown.textContent = '·  …';
+          num.appendChild(countdown);
+        }
+
         track.appendChild(num);
       }
 

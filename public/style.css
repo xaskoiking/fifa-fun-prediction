@@ -2449,6 +2449,11 @@ body {
   animation: slot-num-upcoming 2.5s ease-in-out infinite;
 }
 
+.bracket-slot-countdown {
+  opacity: 0.75;
+  font-weight: 600;
+}
+
 @keyframes slot-num-upcoming {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.45; }
