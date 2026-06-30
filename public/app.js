@@ -2037,8 +2037,8 @@ function renderResults() {
       const scoreMid = (() => {
         if (!match.score) return isWinnerDraw ? 'Draw' : 'Win';
         const s = match.score;
-        if (s.duration === 'PENALTY_SHOOTOUT' && s.regularTimeHome != null && s.penaltiesHome != null) {
-          return `${s.regularTimeHome}(${s.penaltiesHome})-${s.regularTimeAway}(${s.penaltiesAway})`;
+        if (s.duration === 'PENALTY_SHOOTOUT' && s.regularTimeHome != null) {
+          return `${s.regularTimeHome}(${s.scoreHome})-${s.regularTimeAway}(${s.scoreAway})`;
         }
         return `${s.scoreHome}-${s.scoreAway}`;
       })();

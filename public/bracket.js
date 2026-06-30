@@ -240,10 +240,10 @@ function buildBracketRow(slotData, side) {
     const s = match.score;
     const isPen = s.duration === 'PENALTY_SHOOTOUT';
     const isET = s.duration === 'EXTRA_TIME';
-    if (isPen && s.regularTimeHome != null && s.penaltiesHome != null) {
+    if (isPen && s.regularTimeHome != null) {
       const reg = side === 'home' ? s.regularTimeHome : s.regularTimeAway;
-      const pen = side === 'home' ? s.penaltiesHome : s.penaltiesAway;
-      return `${reg}(${pen})`;
+      const ft  = side === 'home' ? s.scoreHome : s.scoreAway;
+      return `${reg}(${ft})`;
     }
     if (isET && s.regularTimeHome != null) {
       return side === 'home' ? String(s.scoreHome) : String(s.scoreAway);
