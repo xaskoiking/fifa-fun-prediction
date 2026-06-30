@@ -235,13 +235,25 @@ function buildBracketRow(slotData, side) {
   name.textContent = team;
   row.appendChild(name);
 
-  const scoreVal = match && match.score != null
-    ? (side === 'home' ? match.score.scoreHome : match.score.scoreAway)
-    : null;
-  if (scoreVal != null) {
+  const scoreText = (() => {
+    if (!match || match.score == null) return null;
+    const s = match.score;
+    const isPen = s.duration === 'PENALTY_SHOOTOUT';
+    const isET = s.duration === 'EXTRA_TIME';
+    if (isPen && s.regularTimeHome != null && s.penaltiesHome != null) {
+      const reg = side === 'home' ? s.regularTimeHome : s.regularTimeAway;
+      const pen = side === 'home' ? s.penaltiesHome : s.penaltiesAway;
+      return `${reg}(${pen})`;
+    }
+    if (isET && s.regularTimeHome != null) {
+      return side === 'home' ? String(s.scoreHome) : String(s.scoreAway);
+    }
+    return String(side === 'home' ? s.scoreHome : s.scoreAway);
+  })();
+  if (scoreText != null) {
     const scoreEl = document.createElement('span');
     scoreEl.className = 'bracket-row-score';
-    scoreEl.textContent = scoreVal;
+    scoreEl.textContent = scoreText;
     row.appendChild(scoreEl);
   }
 

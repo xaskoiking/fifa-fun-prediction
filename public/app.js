@@ -2034,7 +2034,14 @@ function renderResults() {
     if (isResolved) {
       const homeFlagClass = isWinnerHome ? 'result-flag result-flag-winner' : 'result-flag';
       const awayFlagClass = isWinnerAway ? 'result-flag result-flag-winner' : 'result-flag';
-      const scoreMid = match.score ? `${match.score.scoreHome}-${match.score.scoreAway}` : (isWinnerDraw ? 'Draw' : 'Win');
+      const scoreMid = (() => {
+        if (!match.score) return isWinnerDraw ? 'Draw' : 'Win';
+        const s = match.score;
+        if (s.duration === 'PENALTY_SHOOTOUT' && s.regularTimeHome != null && s.penaltiesHome != null) {
+          return `${s.regularTimeHome}(${s.penaltiesHome})-${s.regularTimeAway}(${s.penaltiesAway})`;
+        }
+        return `${s.scoreHome}-${s.scoreAway}`;
+      })();
       outcomeText = `
         <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
           ${buildFlagSpan(match.homeTeam, homeFlagClass)}
