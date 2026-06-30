@@ -1935,6 +1935,7 @@ function renderBracketTab() {
   const rounds = buildBracketRounds(matches, BRACKET_ROUNDS);
   const highlightDay = computeNextDayToHighlight(rounds);
   renderBracket(container, rounds, (match, side) => submitVote(match.id, side), highlightDay);
+  updateAllTimers();
 }
 
 // ── Fantasy Bracket ───────────────────────────────────────────────

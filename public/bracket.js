@@ -186,7 +186,7 @@ function buildBracketCards(track, rounds, highlightDay) {
           const countdown = document.createElement('span');
           countdown.className = 'bracket-slot-countdown';
           countdown.dataset.kickoff = match.kickoff;
-          countdown.textContent = '·  …';
+          countdown.textContent = '';
           num.appendChild(countdown);
         }
 
