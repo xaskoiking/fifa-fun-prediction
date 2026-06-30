@@ -1422,12 +1422,21 @@ async function pollLiveScores() {
     _liveScoresCache = allMatches
       .filter(m => LIVE_STATUSES.has(m.status))
       .map(m => {
-        const ft = (m.score || {}).fullTime || {};
+        const s = m.score || {};
+        const ft = s.fullTime || {};
+        const rt = s.regularTime || {};
+        const pen = s.penalties || {};
+        const duration = s.duration || 'REGULAR';
         return {
           homeTeam: m.homeTeam?.name || '',
           awayTeam: m.awayTeam?.name || '',
           scoreHome: ft.home ?? null,
           scoreAway: ft.away ?? null,
+          duration,
+          regularTimeHome: rt.home ?? null,
+          regularTimeAway: rt.away ?? null,
+          penaltiesHome: pen.home ?? null,
+          penaltiesAway: pen.away ?? null,
           status: m.status,
           utcDate: m.utcDate
         };
@@ -1590,7 +1599,15 @@ function getMatchScore(homeTeam, awayTeam) {
     normalizeTeam(m.awayTeam) === awayNorm
   );
   if (!entry || entry.scoreHome === null || entry.scoreAway === null) return null;
-  return { scoreHome: entry.scoreHome, scoreAway: entry.scoreAway };
+  return {
+    scoreHome: entry.scoreHome,
+    scoreAway: entry.scoreAway,
+    duration: entry.duration,
+    regularTimeHome: entry.regularTimeHome,
+    regularTimeAway: entry.regularTimeAway,
+    penaltiesHome: entry.penaltiesHome,
+    penaltiesAway: entry.penaltiesAway
+  };
 }
 
 // Get which tournament stages are currently open for "Create Match"

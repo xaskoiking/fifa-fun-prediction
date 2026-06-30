@@ -2542,6 +2542,16 @@ body {
   transition: top 0.5s cubic-bezier(.22, .85, .25, 1);
 }
 
+.bracket-card--pick-correct {
+  border-width: 2.5px;
+  border-color: var(--color-accent);
+}
+
+.bracket-card--pick-wrong {
+  border-width: 2.5px;
+  border-color: rgba(220, 38, 38, 0.7);
+}
+
 .bracket-row-booster {
   font-size: 0.65rem;
   line-height: 1;
