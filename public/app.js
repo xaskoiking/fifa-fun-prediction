@@ -322,6 +322,12 @@ function getTeamCountryCode(teamName) {
 }
 
 // Fetch matches (requires passcode header)
+const BOOSTER_STAGE_LABELS = {
+  LAST_32:     'R32 Booster',
+  LAST_16:     'R16 Booster',
+  QF_SF_FINAL: 'QF/SF/Final Booster',
+};
+
 function updateBoosterDisplay() {
   const el = document.getElementById('boosterStatusDisplay');
   if (!el) return;
@@ -333,17 +339,20 @@ function updateBoosterDisplay() {
     }
   });
 
-  const stages = [
-    { code: 'LAST_32',     label: 'R32 Booster' },
-    { code: 'LAST_16',     label: 'R16 Booster' },
-    { code: 'QF_SF_FINAL', label: 'QF/SF/Final Booster' },
-  ];
-
-  el.innerHTML = stages.map(s =>
-    `<span title="${s.label}" style="${used[s.code] ? 'opacity:0.25; filter:grayscale(1);' : ''}">⚡</span>`
+  el.innerHTML = Object.keys(BOOSTER_STAGE_LABELS).map(code =>
+    `<span title="${BOOSTER_STAGE_LABELS[code]}" style="${used[code] ? 'opacity:0.25; filter:grayscale(1);' : ''}">⚡</span>`
   ).join('');
   el.style.display = 'inline-flex';
   el.style.alignItems = 'center';
+}
+
+function renderBoosterCell(stage, status) {
+  if (!status) return '';
+  const label = BOOSTER_STAGE_LABELS[stage] || 'Booster';
+  if (status === 'used') {
+    return `<span title="${label} — Used" style="opacity:0.25; filter:grayscale(1);">⚡</span>`;
+  }
+  return `<span title="${label} — Available">⚡</span>`;
 }
 
 async function loadDashboardData() {
@@ -465,7 +474,7 @@ async function loadLeaderboard() {
     leaderboardBody.innerHTML = '';
 
     if (sorted.length === 0) {
-      leaderboardBody.innerHTML = `<tr><td colspan="7" class="loading-state">No players registered yet.</td></tr>`;
+      leaderboardBody.innerHTML = `<tr><td colspan="8" class="loading-state">No players registered yet.</td></tr>`;
       return;
     }
 
@@ -516,11 +525,14 @@ async function loadLeaderboard() {
 
       const movedCell = `<span class="${movedClass}">${movedText}</span>`;
 
+      const boosterCell = renderBoosterCell(player.boosterStage, player.boosterStatus);
+
       const row = document.createElement('tr');
       row.className = rankClass;
       row.innerHTML = `
         <td class="col-rank"><span class="rank-badge">${rank}</span></td>
         <td class="col-name">${escapeHtml(player.name)}</td>
+        <td class="col-booster">${boosterCell}</td>
         <td class="col-predictions">${correct} / ${total}</td>
         <td class="col-accuracy">${accuracy}%</td>
         <td class="col-moved">${movedCell}</td>
@@ -531,7 +543,7 @@ async function loadLeaderboard() {
     });
   } catch (err) {
     console.error('Error getting leaderboard:', err);
-    leaderboardBody.innerHTML = `<tr><td colspan="7" class="loading-state error-text">Error loading standings.</td></tr>`;
+    leaderboardBody.innerHTML = `<tr><td colspan="8" class="loading-state error-text">Error loading standings.</td></tr>`;
   }
 }
 
