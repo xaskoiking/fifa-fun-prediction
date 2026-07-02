@@ -774,6 +774,35 @@ app.get('/api/leaderboard', (req, res) => {
     leaderboard.forEach(p => { p.prevRank = null; });
   }
 
+  // Add boosterStage/boosterStatus: each player's booster availability for the
+  // currently active knockout round. A booster only counts as "used" once the
+  // match it was applied to has kicked off — otherwise it's still retractable.
+  const currentBoosterStage = getCurrentBoosterStage(db.matches);
+  const currentStageMatches = currentBoosterStage
+    ? db.matches.filter(m => getMatchStageCode(m) === currentBoosterStage)
+    : [];
+  currentStageMatches.forEach(ensureMatchBoosterData);
+
+  leaderboard.forEach(p => {
+    if (!currentBoosterStage) {
+      p.boosterStage = null;
+      p.boosterStatus = null;
+      return;
+    }
+    const appliedMatch = currentStageMatches.find(m =>
+      (m.boosters.home || []).includes(p.name) ||
+      (m.boosters.away || []).includes(p.name) ||
+      (m.boosters.draw || []).includes(p.name)
+    );
+    p.boosterStage = currentBoosterStage;
+    if (!appliedMatch) {
+      p.boosterStatus = 'available';
+    } else {
+      const hasStarted = new Date(appliedMatch.kickoff) <= now;
+      p.boosterStatus = hasStarted ? 'used' : 'available';
+    }
+  });
+
   res.json(leaderboard);
 });
 
@@ -1374,6 +1403,17 @@ function getUserBoosterStatus(db, username) {
     }
   });
   return status;
+}
+
+function getCurrentBoosterStage(matches) {
+  const order = ['LAST_32', 'LAST_16', 'QF_SF_FINAL'];
+  for (const stageCode of order) {
+    const stageMatches = matches.filter(m => getMatchStageCode(m) === stageCode);
+    if (stageMatches.length === 0) continue; // bracket for this stage not created yet
+    const hasUnresolved = stageMatches.some(m => m.status !== 'resolved');
+    if (hasUnresolved) return stageCode;
+  }
+  return null; // nothing created yet, or every KO round is fully resolved
 }
 
 // Ensure db.settings.openMatchStages exists, defaulting to Group Stage only.
