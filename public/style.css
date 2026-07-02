@@ -724,6 +724,7 @@ body {
 /* Specific table columns */
 .col-rank { width: 80px; text-align: center; }
 .col-name { font-weight: 700; font-size: 1.05rem; }
+.col-booster { text-align: center; width: 50px; }
 .col-predictions { color: var(--text-muted); }
 .col-accuracy { font-weight: 500; }
 .col-pending { text-align: center; width: 120px; }
@@ -1869,13 +1870,14 @@ body {
   #leaderboardTable .th-full { display: none; }
   #leaderboardTable .th-short { display: inline; }
 
-  #leaderboardTable .col-rank { width: 10%; }
-  #leaderboardTable .col-name { width: 26%; }
-  #leaderboardTable .col-predictions { width: 16%; }
-  #leaderboardTable .col-accuracy { width: 12%; }
+  #leaderboardTable .col-rank { width: 8%; }
+  #leaderboardTable .col-name { width: 24%; }
+  #leaderboardTable .col-booster { width: 10%; }
+  #leaderboardTable .col-predictions { width: 14%; }
+  #leaderboardTable .col-accuracy { width: 10%; }
   #leaderboardTable .col-moved { display: table-cell; width: 12%; }
   #leaderboardTable .col-pending { display: none; }
-  #leaderboardTable .col-points { width: 24%; }
+  #leaderboardTable .col-points { width: 22%; }
   #leaderboardTable td.col-points { font-size: 0.9rem; overflow: visible; }
 
   #leaderboardTable .col-name {
