@@ -3501,8 +3501,8 @@ function renderMatchLog() {
     ${f.matchType === 'KO' && f.bracketSlot !== undefined ? `
     <div class="form-row">
       <div class="form-group">
-        <label>Bracket Slot</label>
-        <div class="fixture-field">${f.stage} · Slot ${f.bracketSlot}</div>
+        <label for="matchLogBracketSlotInput">Bracket Slot &nbsp;<span style="font-weight:400; color:var(--text-muted);">(${f.stage})</span></label>
+        <input type="number" id="matchLogBracketSlotInput" class="form-control" min="0" step="1" value="${f.bracketSlot}" onchange="updateFixtureBracketSlot(${fixturesCurrentIndex}, this.value)">
       </div>
     </div>` : ''}
 
@@ -3540,6 +3540,20 @@ function matchLogJump() {
   }
   input.value = '';
   renderMatchLog();
+}
+
+function updateFixtureBracketSlot(index, rawValue) {
+  const f = fixturesData[index];
+  if (!f) return;
+
+  const num = parseInt(rawValue, 10);
+  if (isNaN(num) || num < 0) {
+    alert('Bracket slot must be a non-negative integer.');
+    renderMatchLog();
+    return;
+  }
+
+  f.bracketSlot = num;
 }
 
 async function createMatchFromFixture(index) {
