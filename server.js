@@ -497,9 +497,10 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
 
   const processedMatches = db.matches.map(match => {
     ensureMatchBoosterData(match);
+    ensureMatchBonusData(match);
     const kickoffTime = new Date(match.kickoff);
     const hasStarted = kickoffTime <= now;
-    
+
     // Determine if a voting extension is currently active
     const extendedUntil = match.votingExtendedUntil ? new Date(match.votingExtendedUntil) : null;
     const extensionActive = extendedUntil && extendedUntil > now;
@@ -509,6 +510,8 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
     if (match.votes.home.includes(username)) myVote = 'home';
     else if (match.votes.away.includes(username)) myVote = 'away';
     else if (match.votes.draw && match.votes.draw.includes(username)) myVote = 'draw';
+
+    const myBonusPick = match.bonusPicks[username] || null;
 
     const stageCode = getMatchStageCode(match);
     const stageLabel = stageCode ? STAGE_LABELS[stageCode] || 'Knockout' : null;
@@ -531,6 +534,7 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         extensionActive: !!extensionActive,
         votingExtendedUntil: match.votingExtendedUntil || null,
         myVote,
+        myBonusPick,
         voteCounts: {
           home: match.votes.home.length,
           away: match.votes.away.length,
@@ -566,6 +570,7 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         extensionActive: false,
         votingExtendedUntil: null,
         myVote,
+        myBonusPick,
         boosterStageCode: stageCode,
         boosterStageLabel: stageLabel,
         boosterEligible,
