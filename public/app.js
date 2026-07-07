@@ -2855,10 +2855,13 @@ async function resolveMatch(matchId, outcome) {
   const outcomeText = outcome === 'home' ? match.homeTeam
                     : outcome === 'away' ? match.awayTeam
                     : 'Draw';
-  if (!confirm(`Are you sure you want to resolve this match as '${outcomeText}'? This will calculate scores immediately.`)) return;
 
   const bonusEligible = match.boosterStageCode === 'QF_SF_FINAL';
   const decidedBy = bonusEligible ? (_pendingDecidedBy[matchId] || 'REGULAR') : undefined;
+  const decidedByLabel = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' }[decidedBy];
+  const bonusConfirmNote = bonusEligible ? ` Bonus will be scored as decided by ${decidedByLabel}.` : '';
+
+  if (!confirm(`Are you sure you want to resolve this match as '${outcomeText}'? This will calculate scores immediately.${bonusConfirmNote}`)) return;
 
   try {
     const response = await fetch('/api/admin/resolve', {
