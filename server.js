@@ -1004,12 +1004,14 @@ app.post('/api/admin/match', verifyAdmin, (req, res) => {
     status: 'scheduled',
     votingLocked: false,
     outcome: null,
+    decidedBy: null,
     voteLog: [],
     votes: {
       home: [],
       away: [],
       draw: []
-    }
+    },
+    bonusPicks: {}
   };
 
   logAuditAction(db, 'CREATE_MATCH', `Admin ${req.adminUsername} created Match #${newMatch.matchNumber} [${newMatch.group}]: ${newMatch.homeTeam} vs ${newMatch.awayTeam}`);
@@ -1358,6 +1360,21 @@ function ensureMatchBoosterData(match) {
       away: Array.isArray(match.boosters.away) ? match.boosters.away : [],
       draw: Array.isArray(match.boosters.draw) ? match.boosters.draw : []
     };
+  }
+  return match;
+}
+
+// Bonus prediction: which method (Reg Time / Extra Time / Penalties) a user
+// thinks will decide a QF+/3rd-place match. Mandatory whenever the match is
+// bonus-eligible (getMatchStageCode(match) === 'QF_SF_FINAL').
+const BONUS_OPTIONS = ['REGULAR', 'EXTRA_TIME', 'PENALTIES'];
+
+function ensureMatchBonusData(match) {
+  if (!match.bonusPicks || typeof match.bonusPicks !== 'object' || Array.isArray(match.bonusPicks)) {
+    match.bonusPicks = {};
+  }
+  if (match.decidedBy === undefined) {
+    match.decidedBy = null;
   }
   return match;
 }
