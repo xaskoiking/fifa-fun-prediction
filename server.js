@@ -686,15 +686,19 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
     match.bonusPicks[username] = bonusPick;
   }
 
+  const loggedBonusPick = bonusEligible ? bonusPick : null;
+  const bonusLabelForLog = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' }[loggedBonusPick] || null;
+
   // Record timestamped vote log entry
   match.voteLog.push({
     timestamp: new Date().toISOString(),
     player: username,
     vote: prediction,
-    booster: useBoosterFlag
+    booster: useBoosterFlag,
+    bonusPick: loggedBonusPick
   });
 
-  logAuditAction(db, 'PREDICTION', `${username} voted "${prediction}"${useBoosterFlag ? ' with BOOSTER' : ''} for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
+  logAuditAction(db, 'PREDICTION', `${username} voted "${prediction}"${useBoosterFlag ? ' with BOOSTER' : ''}${bonusLabelForLog ? `, bonus: ${bonusLabelForLog}` : ''} for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
 
   writeData(db);
 
