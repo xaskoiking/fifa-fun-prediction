@@ -2047,6 +2047,9 @@ function renderResults() {
     const isWinnerAway = isResolved && match.outcome === 'away';
     const isWinnerDraw = isResolved && match.outcome === 'draw';
 
+    const bonusEligible = match.boosterStageCode === 'QF_SF_FINAL';
+    const bonusLabels = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' };
+
     // Result Outcome text
     let outcomeText = '';
     if (isResolved) {
@@ -2060,19 +2063,22 @@ function renderResults() {
         }
         return `${s.scoreHome}-${s.scoreAway}`;
       })();
+      const decidedByText = bonusEligible && match.decidedBy
+        ? `<br><span style="font-size: 0.72rem; color: var(--text-muted);">${bonusLabels[match.decidedBy]}</span>`
+        : '';
       outcomeText = `
         <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
           ${buildFlagSpan(match.homeTeam, homeFlagClass)}
           <span class="form-score">${escapeHtml(scoreMid)}</span>
           ${buildFlagSpan(match.awayTeam, awayFlagClass)}
         </span>
+        ${decidedByText}
       `;
     } else {
       outcomeText = '<span style="color: var(--color-warning); font-weight: bold;">Locked / Live</span>';
     }
 
     // Player prediction text & styling
-    const bonusEligible = match.boosterStageCode === 'QF_SF_FINAL';
     const myBonusCorrect = isResolved && bonusEligible && match.decidedBy && match.myBonusPick === match.decidedBy;
     const myBonusPts = myBonusCorrect ? (match.myVote === match.outcome ? 10 : 5) : 0;
 
@@ -2107,6 +2113,10 @@ function renderResults() {
       } else {
         pickText = `🔒 ${escapeHtml(pickTeam)}`;
       }
+
+      if (bonusEligible && match.myBonusPick) {
+        pickText += ` · ${bonusLabels[match.myBonusPick]}`;
+      }
     }
 
     // Voters list formatting
@@ -2137,7 +2147,6 @@ function renderResults() {
       Object.keys(bonusPicks).forEach(name => {
         if (bonusGroups[bonusPicks[name]]) bonusGroups[bonusPicks[name]].push(name);
       });
-      const bonusLabels = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' };
       bonusColHtml = `
         <div style="font-size: 0.8rem; line-height: 1.4;">
           ${['REGULAR', 'EXTRA_TIME', 'PENALTIES'].map(key => `
