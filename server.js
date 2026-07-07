@@ -1306,6 +1306,7 @@ const BRACKET_ROUND_SIZES = {
   LAST_16: 8,
   QUARTER_FINALS: 4,
   SEMI_FINALS: 2,
+  THIRD_PLACE: 1,
   FINAL: 1
 };
 
@@ -1328,14 +1329,14 @@ function getMatchStageCode(match) {
   if (match.bracketRound) {
     if (match.bracketRound === 'LAST_32') return 'LAST_32';
     if (match.bracketRound === 'LAST_16') return 'LAST_16';
-    if (['QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'].includes(match.bracketRound)) return 'QF_SF_FINAL';
+    if (['QUARTER_FINALS', 'SEMI_FINALS', 'FINAL', 'THIRD_PLACE'].includes(match.bracketRound)) return 'QF_SF_FINAL';
   }
 
   const stageText = normalizeStageText(match.group || match.stage || match.round || '');
   if (stageText) {
     if (/(round of 32|last 32|r32)\b/.test(stageText)) return 'LAST_32';
     if (/(round of 16|last 16|r16)\b/.test(stageText)) return 'LAST_16';
-    if (/(quarter final|quarter-final|quarterfinal|semi final|semi-final|semifinal|final|qf\/sf\/final|qf sf final)\b/.test(stageText)) {
+    if (/(quarter final|quarter-final|quarterfinal|semi final|semi-final|semifinal|final|third place|3rd place|qf\/sf\/final|qf sf final)\b/.test(stageText)) {
       return 'QF_SF_FINAL';
     }
   }
