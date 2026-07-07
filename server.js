@@ -336,6 +336,26 @@ function calculatePointsForMatch(votes, outcome, matchType, boosters = {}) {
   return pointsAllocated;
 }
 
+// Bonus Points Calculation Engine — QF+/3rd-place matches only.
+// +5 if the user's Reg Time/Extra Time/Penalties pick matches decidedBy.
+// +10 total (not additive with the +5 case) if the team pick was also
+// correct. Never multiplied by the booster — that's applied only inside
+// calculatePointsForMatch above.
+function calculateBonusPointsForMatch(match) {
+  const bonusPoints = {};
+  if (getMatchStageCode(match) !== 'QF_SF_FINAL' || !match.decidedBy) return bonusPoints;
+
+  const bonusPicks = match.bonusPicks || {};
+  Object.keys(bonusPicks).forEach(username => {
+    const correctBonus = bonusPicks[username] === match.decidedBy;
+    if (!correctBonus) return;
+    const correctTeam = !!(match.outcome && (match.votes[match.outcome] || []).includes(username));
+    bonusPoints[username] = correctTeam ? 10 : 5;
+  });
+
+  return bonusPoints;
+}
+
 // Build cumulative leaderboard snapshots after each resolved match, in
 // chronological order (for the racing leaderboard chart)
 function buildLeaderboardHistory(db) {
