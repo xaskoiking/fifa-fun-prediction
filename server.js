@@ -590,7 +590,7 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
 // Submit a prediction (Requires Passcode validation)
 app.post('/api/predict', authenticateSecret, (req, res) => {
   const username = req.username;
-  const { matchId, prediction, useBooster } = req.body; // prediction: 'home', 'away', or 'draw'
+  const { matchId, prediction, useBooster, bonusPick } = req.body; // prediction: 'home', 'away', or 'draw'
   const useBoosterFlag = !!useBooster;
   
   if (!matchId || !prediction) {
@@ -648,6 +648,11 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
     }
   }
 
+  const bonusEligible = stageCode === 'QF_SF_FINAL';
+  if (bonusEligible && !BONUS_OPTIONS.includes(bonusPick)) {
+    return res.status(400).json({ error: 'bonusPick must be one of REGULAR, EXTRA_TIME, PENALTIES for this match.' });
+  }
+
   // Remove existing vote by this user in this match (ensure we don't duplicate votes)
   match.votes.home = match.votes.home.filter(u => u !== username);
   match.votes.away = match.votes.away.filter(u => u !== username);
@@ -669,6 +674,11 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
   match.votes[prediction].push(username);
   if (useBoosterFlag) {
     match.boosters[prediction].push(username);
+  }
+
+  ensureMatchBonusData(match);
+  if (bonusEligible) {
+    match.bonusPicks[username] = bonusPick;
   }
 
   // Record timestamped vote log entry
