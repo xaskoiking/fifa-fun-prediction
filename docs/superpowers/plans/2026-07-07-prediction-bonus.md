@@ -1432,7 +1432,9 @@ git commit -m "feat: add mandatory Reg/Extra Time/Penalties toggle to vote confi
 - Consumes: `match.boosterStageCode` (bonus-eligibility check), existing `.resolve-mini-btn` / `.resolve-mini-btn.active-outcome` CSS classes (`public/style.css:1593-1613`, no new CSS needed)
 - Produces: global `_pendingDecidedBy` map and `selectDecidedBy(matchId, value, btnEl)` function
 
-- [ ] **Step 1: Add the inline decidedBy buttons to the (unresolved) outcome controls**
+**Context:** `loadAdminMatches()` re-runs on every dashboard poll (there's a `setInterval(..., loadDashboardData)` at `public/app.js:180-182` that re-fetches and re-renders whenever the admin tab is active), which rebuilds this row's HTML from scratch each time. If the row always hardcoded "Reg Time" as the visually-active button, an admin who clicks "Extra Time" and then waits past the next poll tick (before clicking resolve) would see the button revert to "Reg Time" while `_pendingDecidedBy` still held "Extra Time" underneath — a mismatch between what's displayed and what gets submitted. Step 1 below avoids this by deriving the active button from `_pendingDecidedBy` on every render, not hardcoding it.
+
+- [ ] **Step 1: Add the inline decidedBy buttons to the (unresolved) outcome controls, deriving the active button from `_pendingDecidedBy`**
 
 Find (`public/app.js:2572-2582`):
 
@@ -1455,11 +1457,17 @@ Replace with:
 ```js
     } else {
       const bonusEligible = match.boosterStageCode === 'QF_SF_FINAL';
+      const currentDecidedBy = bonusEligible ? (_pendingDecidedBy[match.id] || 'REGULAR') : null;
+      const decidedByOptions = [
+        ['REGULAR', 'Reg Time'],
+        ['EXTRA_TIME', 'Extra Time'],
+        ['PENALTIES', 'Penalties']
+      ];
       const decidedByControls = bonusEligible ? `
         <div class="resolve-btn-group" style="margin-top: 6px;">
-          <button class="resolve-mini-btn decided-by-btn active-outcome" data-value="REGULAR" onclick="selectDecidedBy('${match.id}', 'REGULAR', this)">Reg Time</button>
-          <button class="resolve-mini-btn decided-by-btn" data-value="EXTRA_TIME" onclick="selectDecidedBy('${match.id}', 'EXTRA_TIME', this)">Extra Time</button>
-          <button class="resolve-mini-btn decided-by-btn" data-value="PENALTIES" onclick="selectDecidedBy('${match.id}', 'PENALTIES', this)">Penalties</button>
+          ${decidedByOptions.map(([value, label]) => `
+            <button class="resolve-mini-btn decided-by-btn${currentDecidedBy === value ? ' active-outcome' : ''}" data-value="${value}" onclick="selectDecidedBy('${match.id}', '${value}', this)">${label}</button>
+          `).join('')}
         </div>
       ` : '';
       outcomeControls = `
@@ -1475,6 +1483,8 @@ Replace with:
     }
 ```
 
+Note: this reads `_pendingDecidedBy` (declared in Step 2, further down in the file) inside a function (`loadAdminMatches`) that is only ever *called* later, via async data loads and event handlers — never during initial script parse. By the time it runs, the whole script (including Step 2's `const _pendingDecidedBy = {}`) has already executed, so there's no temporal-dead-zone issue despite the declaration appearing later in the file.
+
 - [ ] **Step 2: Add `_pendingDecidedBy` state and `selectDecidedBy` above `resolveMatch`**
 
 Find (`public/app.js:2692-2693`):
@@ -1488,7 +1498,9 @@ Replace with:
 
 ```js
 // Tracks the currently-selected decidedBy segment per match (admin resolve UI).
-// Defaults to REGULAR since that's the pre-selected button in loadAdminMatches.
+// loadAdminMatches reads this on every render (including poll-driven re-renders)
+// to decide which button is visually active, so a selection survives a
+// background refresh instead of silently reverting to REGULAR.
 const _pendingDecidedBy = {};
 
 function selectDecidedBy(matchId, value, btnEl) {
@@ -1557,7 +1569,7 @@ async function resolveMatch(matchId, outcome) {
 
 - [ ] **Step 4: Re-read the edited regions and confirm consistency**
 
-Confirm `selectDecidedBy` is defined before `loadAdminMatches` ever renders a button that calls it (function declarations are hoisted, and the button only fires on a later user click, so ordering in the file doesn't matter — but it's placed just above `resolveMatch` for readability, matching where the row-markup change lives). Confirm the default row state (`active-outcome` on the `REGULAR` button, `data-value="REGULAR"`) matches `_pendingDecidedBy[matchId] || 'REGULAR'`'s fallback, so a match resolved without ever clicking a segment still sends `'REGULAR'`.
+Confirm `currentDecidedBy` (Step 1) and `decidedBy` (Step 3) use the exact same fallback expression shape — `_pendingDecidedBy[<id>] || 'REGULAR'` — so the visually-active button always matches what `resolveMatch` will actually submit. Confirm a poll-driven re-render (admin never touches the buttons) still renders "Reg Time" active and still submits `'REGULAR'`, since `_pendingDecidedBy[match.id]` is `undefined` in that case and both call sites fall back to `'REGULAR'`.
 
 - [ ] **Step 5: Commit**
 
