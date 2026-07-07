@@ -2234,6 +2234,18 @@ function updateAllTimers() {
 }
 
 // Submit prediction — shows custom confirmation modal first
+let pendingBonusPick = 'REGULAR';
+
+function selectBonusOption(value) {
+  pendingBonusPick = value;
+  ['Regular', 'ExtraTime', 'Penalties'].forEach(suffix => {
+    const btn = document.getElementById(`voteConfirmBonus${suffix}`);
+    if (!btn) return;
+    const btnValue = suffix === 'Regular' ? 'REGULAR' : suffix === 'ExtraTime' ? 'EXTRA_TIME' : 'PENALTIES';
+    btn.classList.toggle('selected', btnValue === value);
+  });
+}
+
 function submitVote(matchId, prediction) {
   const match = matches.find(m => m.id === matchId);
   if (!match || !currentUserSecret) return;
@@ -2266,6 +2278,15 @@ function submitVote(matchId, prediction) {
     }
   }
 
+  const bonusSection = document.getElementById('voteConfirmBonusSection');
+  if (bonusSection) {
+    const showBonus = match.boosterStageCode === 'QF_SF_FINAL';
+    bonusSection.style.display = showBonus ? 'block' : 'none';
+    if (showBonus) {
+      selectBonusOption(match.myBonusPick || 'REGULAR');
+    }
+  }
+
   // Store pending state
   pendingVoteMatchId = matchId;
   pendingVotePrediction = prediction;
@@ -2279,6 +2300,7 @@ function closeVoteModal() {
   document.getElementById('voteConfirmModal').style.display = 'none';
   pendingVoteMatchId = null;
   pendingVotePrediction = null;
+  pendingBonusPick = 'REGULAR';
 }
 
 // Actually submit after user confirms in modal
@@ -2288,6 +2310,7 @@ async function confirmVote() {
   const matchId = pendingVoteMatchId;
   const prediction = pendingVotePrediction;
   const useBooster = document.getElementById('voteConfirmUseBooster')?.checked || false;
+  const bonusPick = pendingBonusPick;
 
   // Close modal and optimistically update UI immediately
   closeVoteModal();
@@ -2304,7 +2327,7 @@ async function confirmVote() {
         'Content-Type': 'application/json',
         'x-user-secret': currentUserSecret
       },
-      body: JSON.stringify({ matchId, prediction, useBooster })
+      body: JSON.stringify({ matchId, prediction, useBooster, bonusPick })
     });
 
     if (!response.ok) {

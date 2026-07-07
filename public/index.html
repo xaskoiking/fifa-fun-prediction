@@ -732,6 +732,15 @@
           </label>
           <div id="voteConfirmBoosterInfo" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 8px;"></div>
         </div>
+        <div id="voteConfirmBonusSection" style="display:none; background: rgba(255,152,0,0.08); border: 1px solid rgba(255,152,0,0.2); border-radius: 12px; padding: 14px 16px; margin-bottom: 18px;">
+          <div style="font-weight: 700; margin-bottom: 10px;">How will this match be decided? <span style="color: var(--color-warning);">(required)</span></div>
+          <div class="bonus-toggle-group" style="display:flex; gap: 8px;">
+            <button type="button" class="bonus-toggle-btn" id="voteConfirmBonusRegular" onclick="selectBonusOption('REGULAR')" style="flex:1;">Reg Time</button>
+            <button type="button" class="bonus-toggle-btn" id="voteConfirmBonusExtraTime" onclick="selectBonusOption('EXTRA_TIME')" style="flex:1;">Extra Time</button>
+            <button type="button" class="bonus-toggle-btn" id="voteConfirmBonusPenalties" onclick="selectBonusOption('PENALTIES')" style="flex:1;">Penalties</button>
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">+5 pts if right, +10 total if you also pick the winning team.</div>
+        </div>
         <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; text-align: center;">You can change your vote anytime before kickoff.</p>
         <div style="display: flex; gap: 10px;">
           <button class="btn btn-secondary" style="flex:1;" onclick="closeVoteModal()">Cancel</button>
