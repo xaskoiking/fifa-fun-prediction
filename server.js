@@ -1197,7 +1197,7 @@ app.get('/api/admin/votes', verifyAdmin, (req, res) => {
 
 // Resolve a Match
 app.post('/api/admin/resolve', verifyAdmin, (req, res) => {
-  const { matchId, outcome } = req.body; // outcome: 'home', 'away', or 'draw'
+  const { matchId, outcome, decidedBy } = req.body; // outcome: 'home', 'away', or 'draw'
   if (!matchId || !outcome) {
     return res.status(400).json({ error: 'matchId and outcome are required.' });
   }
@@ -1217,13 +1217,19 @@ app.post('/api/admin/resolve', verifyAdmin, (req, res) => {
     return res.status(400).json({ error: 'Draw outcomes are not allowed for Knockout matches.' });
   }
 
+  const bonusEligible = getMatchStageCode(match) === 'QF_SF_FINAL';
+  if (bonusEligible && !BONUS_OPTIONS.includes(decidedBy)) {
+    return res.status(400).json({ error: 'decidedBy must be one of REGULAR, EXTRA_TIME, PENALTIES for this match.' });
+  }
+
   match.status = 'resolved';
   match.outcome = outcome;
+  match.decidedBy = bonusEligible ? decidedBy : null;
 
-  const winnerText = outcome === 'home' ? match.homeTeam 
-                   : outcome === 'away' ? match.awayTeam 
+  const winnerText = outcome === 'home' ? match.homeTeam
+                   : outcome === 'away' ? match.awayTeam
                    : 'Draw';
-  logAuditAction(db, 'RESOLVE_MATCH', `Admin ${req.adminUsername} resolved Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam}) as ${winnerText.toUpperCase()}`);
+  logAuditAction(db, 'RESOLVE_MATCH', `Admin ${req.adminUsername} resolved Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam}) as ${winnerText.toUpperCase()}${bonusEligible ? ` [decided by ${match.decidedBy}]` : ''}`);
   writeData(db);
 
   res.json({ success: true, match });
@@ -1245,6 +1251,7 @@ app.post('/api/admin/unresolve', verifyAdmin, (req, res) => {
 
   match.status = 'scheduled';
   match.outcome = null;
+  match.decidedBy = null;
 
   logAuditAction(db, 'UNDO_RESOLUTION', `Admin ${req.adminUsername} undid resolution for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
   writeData(db);
