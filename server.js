@@ -391,15 +391,22 @@ function buildLeaderboardHistory(db) {
 
   resolvedMatches.forEach(match => {
     const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
+    const bonusPoints = calculateBonusPointsForMatch(match);
     const matchPoints = {};
-    Object.keys(pointsAllocated).forEach(user => {
+    const involvedUsers = new Set([...Object.keys(pointsAllocated), ...Object.keys(bonusPoints)]);
+    involvedUsers.forEach(user => {
       if (!standings[user]) {
         standings[user] = { name: user, points: 0, correct: 0 };
       }
-      if (pointsAllocated[user] > 0) {
-        standings[user].points += pointsAllocated[user];
+      const teamPts = pointsAllocated[user] || 0;
+      const bonusPts = bonusPoints[user] || 0;
+      if (teamPts > 0) {
         standings[user].correct += 1;
-        matchPoints[user] = pointsAllocated[user];
+      }
+      const total = teamPts + bonusPts;
+      if (total > 0) {
+        standings[user].points += total;
+        matchPoints[user] = total;
       }
     });
 
@@ -727,11 +734,17 @@ app.get('/api/leaderboard', (req, res) => {
     });
 
     const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
-    Object.keys(pointsAllocated).forEach(user => {
-      const pts = pointsAllocated[user];
-      if (pts > 0) {
-        ensureStanding(user).points += pts;
+    const bonusPoints = calculateBonusPointsForMatch(match);
+    const involvedUsers = new Set([...Object.keys(pointsAllocated), ...Object.keys(bonusPoints)]);
+    involvedUsers.forEach(user => {
+      const teamPts = pointsAllocated[user] || 0;
+      const bonusPts = bonusPoints[user] || 0;
+      if (teamPts > 0) {
         ensureStanding(user).correct += 1;
+      }
+      const total = teamPts + bonusPts;
+      if (total > 0) {
+        ensureStanding(user).points += total;
       }
     });
   });
