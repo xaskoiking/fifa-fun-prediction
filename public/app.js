@@ -1992,7 +1992,7 @@ function renderResults() {
   });
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="loading-state">No live or completed matches to display.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-state">No live or completed matches to display.</td></tr>`;
     return;
   }
 
@@ -2029,26 +2029,34 @@ function renderResults() {
     }
 
     // Player prediction text & styling
+    const bonusEligible = match.boosterStageCode === 'QF_SF_FINAL';
+    const myBonusCorrect = isResolved && bonusEligible && match.decidedBy && match.myBonusPick === match.decidedBy;
+    const myBonusPts = myBonusCorrect ? (match.myVote === match.outcome ? 10 : 5) : 0;
+
     let pickText = '<span style="color: var(--text-muted);">No Vote</span>';
     let pickClass = '';
     if (match.myVote) {
-      const pickTeam = match.myVote === 'home' ? match.homeTeam 
-                     : match.myVote === 'away' ? match.awayTeam 
+      const pickTeam = match.myVote === 'home' ? match.homeTeam
+                     : match.myVote === 'away' ? match.awayTeam
                      : 'Draw';
-      
+
       if (isResolved) {
         const isCorrect = match.myVote === match.outcome;
         if (isCorrect) {
-          const totalIncorrectVotes = (match.outcome === 'home' ? (counts.away + counts.draw) 
+          const totalIncorrectVotes = (match.outcome === 'home' ? (counts.away + counts.draw)
                                      : match.outcome === 'away' ? (counts.home + counts.draw)
                                      : (counts.home + counts.away));
           const basePts = totalIncorrectVotes + 1;
           const boosterMultiplier = match.myBooster ? 2 : 1;
           const pts = basePts * boosterMultiplier;
+          const bonusSuffix = myBonusCorrect ? `, +${myBonusPts} bonus` : '';
           pickText = match.myBooster
-            ? `🎉 ${escapeHtml(pickTeam)} (+${pts} · booster x2)`
-            : `🎉 ${escapeHtml(pickTeam)} (+${pts})`;
+            ? `🎉 ${escapeHtml(pickTeam)} (+${pts} · booster x2${bonusSuffix})`
+            : `🎉 ${escapeHtml(pickTeam)} (+${pts}${bonusSuffix})`;
           pickClass = 'text-active'; // Neon Green
+        } else if (myBonusCorrect) {
+          pickText = `❌ ${escapeHtml(pickTeam)} (+${myBonusPts} bonus)`;
+          pickClass = 'error-text'; // Red
         } else {
           pickText = `❌ ${escapeHtml(pickTeam)}`;
           pickClass = 'error-text'; // Red
@@ -2078,6 +2086,26 @@ function renderResults() {
       </div>
     `;
 
+    // Bonus (Reg Time / Extra Time / Penalties) distribution — QF+/3rd-place only
+    let bonusColHtml = '<span style="color: var(--text-muted);">&mdash;</span>';
+    if (bonusEligible) {
+      const bonusPicks = match.bonusPicks || {};
+      const bonusGroups = { REGULAR: [], EXTRA_TIME: [], PENALTIES: [] };
+      Object.keys(bonusPicks).forEach(name => {
+        if (bonusGroups[bonusPicks[name]]) bonusGroups[bonusPicks[name]].push(name);
+      });
+      const bonusLabels = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' };
+      bonusColHtml = `
+        <div style="font-size: 0.8rem; line-height: 1.4;">
+          ${['REGULAR', 'EXTRA_TIME', 'PENALTIES'].map(key => `
+            <span style="${isResolved && match.decidedBy === key ? 'color: var(--color-accent); font-weight: 700;' : ''}">${bonusLabels[key]} (${bonusGroups[key].length}):</span>
+            <span style="color: var(--text-muted);">${bonusGroups[key].map(escapeHtml).join(', ') || 'None'}</span>
+            <br>
+          `).join('')}
+        </div>
+      `;
+    }
+
     const row = document.createElement('tr');
     row.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
     row.innerHTML = `
@@ -2103,6 +2131,9 @@ function renderResults() {
       </td>
       <td data-label="Group Votes Distribution" style="padding-left: 20px;">
         ${distHtml}
+      </td>
+      <td data-label="Bonus" style="padding-left: 20px;">
+        ${bonusColHtml}
       </td>
     `;
     tbody.appendChild(row);
