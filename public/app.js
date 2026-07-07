@@ -2593,6 +2593,20 @@ function loadAdminMatches() {
                        : 'Draw';
       outcomeControls = `<div class="outcome-badge">Outcome: <strong>${escapeHtml(winnerName).toUpperCase()}</strong> (Resolved)</div>`;
     } else {
+      const bonusEligible = match.boosterStageCode === 'QF_SF_FINAL';
+      const currentDecidedBy = bonusEligible ? (_pendingDecidedBy[match.id] || 'REGULAR') : null;
+      const decidedByOptions = [
+        ['REGULAR', 'Reg Time'],
+        ['EXTRA_TIME', 'Extra Time'],
+        ['PENALTIES', 'Penalties']
+      ];
+      const decidedByControls = bonusEligible ? `
+        <div class="resolve-btn-group" style="margin-top: 6px;">
+          ${decidedByOptions.map(([value, label]) => `
+            <button class="resolve-mini-btn decided-by-btn${currentDecidedBy === value ? ' active-outcome' : ''}" data-value="${value}" onclick="selectDecidedBy('${match.id}', '${value}', this)">${label}</button>
+          `).join('')}
+        </div>
+      ` : '';
       outcomeControls = `
         <div class="resolve-btn-group">
           <button class="resolve-mini-btn" onclick="resolveMatch('${match.id}', 'home')">${escapeHtml(match.homeTeam)}</button>
@@ -2601,6 +2615,7 @@ function loadAdminMatches() {
           ` : ''}
           <button class="resolve-mini-btn" onclick="resolveMatch('${match.id}', 'away')">${escapeHtml(match.awayTeam)}</button>
         </div>
+        ${decidedByControls}
       `;
     }
 
@@ -2712,14 +2727,32 @@ async function handleCreateMatch(event) {
   }
 }
 
+// Tracks the currently-selected decidedBy segment per match (admin resolve UI).
+// loadAdminMatches reads this on every render (including poll-driven re-renders)
+// to decide which button is visually active, so a selection survives a
+// background refresh instead of silently reverting to REGULAR.
+const _pendingDecidedBy = {};
+
+function selectDecidedBy(matchId, value, btnEl) {
+  _pendingDecidedBy[matchId] = value;
+  const group = btnEl.closest('.resolve-btn-group');
+  if (!group) return;
+  group.querySelectorAll('.decided-by-btn').forEach(btn => {
+    btn.classList.toggle('active-outcome', btn === btnEl);
+  });
+}
+
 // Resolve Match
 async function resolveMatch(matchId, outcome) {
   const match = matches.find(m => m.id === matchId);
   if (!match) return;
-  const outcomeText = outcome === 'home' ? match.homeTeam 
-                    : outcome === 'away' ? match.awayTeam 
+  const outcomeText = outcome === 'home' ? match.homeTeam
+                    : outcome === 'away' ? match.awayTeam
                     : 'Draw';
   if (!confirm(`Are you sure you want to resolve this match as '${outcomeText}'? This will calculate scores immediately.`)) return;
+
+  const bonusEligible = match.boosterStageCode === 'QF_SF_FINAL';
+  const decidedBy = bonusEligible ? (_pendingDecidedBy[matchId] || 'REGULAR') : undefined;
 
   try {
     const response = await fetch('/api/admin/resolve', {
@@ -2729,7 +2762,7 @@ async function resolveMatch(matchId, outcome) {
         'x-admin-passcode': adminPasscode,
         'x-user-secret': currentUserSecret
       },
-      body: JSON.stringify({ matchId, outcome })
+      body: JSON.stringify({ matchId, outcome, decidedBy })
     });
 
     const data = await response.json();
