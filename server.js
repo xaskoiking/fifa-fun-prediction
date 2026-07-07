@@ -653,7 +653,7 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
     }
   }
 
-  const bonusEligible = stageCode === 'QF_SF_FINAL';
+  const bonusEligible = match.matchType === 'KO' && stageCode === 'QF_SF_FINAL';
   if (bonusEligible && !BONUS_OPTIONS.includes(bonusPick)) {
     return res.status(400).json({ error: 'bonusPick must be one of REGULAR, EXTRA_TIME, PENALTIES for this match.' });
   }
@@ -1222,7 +1222,7 @@ app.post('/api/admin/resolve', verifyAdmin, (req, res) => {
     return res.status(400).json({ error: 'Draw outcomes are not allowed for Knockout matches.' });
   }
 
-  const bonusEligible = getMatchStageCode(match) === 'QF_SF_FINAL';
+  const bonusEligible = match.matchType === 'KO' && getMatchStageCode(match) === 'QF_SF_FINAL';
   if (bonusEligible && !BONUS_OPTIONS.includes(decidedBy)) {
     return res.status(400).json({ error: 'decidedBy must be one of REGULAR, EXTRA_TIME, PENALTIES for this match.' });
   }
