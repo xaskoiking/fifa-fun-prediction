@@ -336,6 +336,26 @@ function calculatePointsForMatch(votes, outcome, matchType, boosters = {}) {
   return pointsAllocated;
 }
 
+// Bonus Points Calculation Engine — QF+/3rd-place matches only.
+// +5 if the user's Reg Time/Extra Time/Penalties pick matches decidedBy.
+// +10 total (not additive with the +5 case) if the team pick was also
+// correct. Never multiplied by the booster — that's applied only inside
+// calculatePointsForMatch above.
+function calculateBonusPointsForMatch(match) {
+  const bonusPoints = {};
+  if (getMatchStageCode(match) !== 'QF_SF_FINAL' || !match.decidedBy) return bonusPoints;
+
+  const bonusPicks = match.bonusPicks || {};
+  Object.keys(bonusPicks).forEach(username => {
+    const correctBonus = bonusPicks[username] === match.decidedBy;
+    if (!correctBonus) return;
+    const correctTeam = !!(match.outcome && (match.votes[match.outcome] || []).includes(username));
+    bonusPoints[username] = correctTeam ? 10 : 5;
+  });
+
+  return bonusPoints;
+}
+
 // Build cumulative leaderboard snapshots after each resolved match, in
 // chronological order (for the racing leaderboard chart)
 function buildLeaderboardHistory(db) {
@@ -371,15 +391,22 @@ function buildLeaderboardHistory(db) {
 
   resolvedMatches.forEach(match => {
     const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
+    const bonusPoints = calculateBonusPointsForMatch(match);
     const matchPoints = {};
-    Object.keys(pointsAllocated).forEach(user => {
+    const involvedUsers = new Set([...Object.keys(pointsAllocated), ...Object.keys(bonusPoints)]);
+    involvedUsers.forEach(user => {
       if (!standings[user]) {
         standings[user] = { name: user, points: 0, correct: 0 };
       }
-      if (pointsAllocated[user] > 0) {
-        standings[user].points += pointsAllocated[user];
+      const teamPts = pointsAllocated[user] || 0;
+      const bonusPts = bonusPoints[user] || 0;
+      if (teamPts > 0) {
         standings[user].correct += 1;
-        matchPoints[user] = pointsAllocated[user];
+      }
+      const total = teamPts + bonusPts;
+      if (total > 0) {
+        standings[user].points += total;
+        matchPoints[user] = total;
       }
     });
 
@@ -470,9 +497,10 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
 
   const processedMatches = db.matches.map(match => {
     ensureMatchBoosterData(match);
+    ensureMatchBonusData(match);
     const kickoffTime = new Date(match.kickoff);
     const hasStarted = kickoffTime <= now;
-    
+
     // Determine if a voting extension is currently active
     const extendedUntil = match.votingExtendedUntil ? new Date(match.votingExtendedUntil) : null;
     const extensionActive = extendedUntil && extendedUntil > now;
@@ -482,6 +510,8 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
     if (match.votes.home.includes(username)) myVote = 'home';
     else if (match.votes.away.includes(username)) myVote = 'away';
     else if (match.votes.draw && match.votes.draw.includes(username)) myVote = 'draw';
+
+    const myBonusPick = match.bonusPicks[username] || null;
 
     const stageCode = getMatchStageCode(match);
     const stageLabel = stageCode ? STAGE_LABELS[stageCode] || 'Knockout' : null;
@@ -504,6 +534,7 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         extensionActive: !!extensionActive,
         votingExtendedUntil: match.votingExtendedUntil || null,
         myVote,
+        myBonusPick,
         voteCounts: {
           home: match.votes.home.length,
           away: match.votes.away.length,
@@ -539,6 +570,7 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
         extensionActive: false,
         votingExtendedUntil: null,
         myVote,
+        myBonusPick,
         boosterStageCode: stageCode,
         boosterStageLabel: stageLabel,
         boosterEligible,
@@ -563,7 +595,7 @@ app.get('/api/matches', authenticateSecret, (req, res) => {
 // Submit a prediction (Requires Passcode validation)
 app.post('/api/predict', authenticateSecret, (req, res) => {
   const username = req.username;
-  const { matchId, prediction, useBooster } = req.body; // prediction: 'home', 'away', or 'draw'
+  const { matchId, prediction, useBooster, bonusPick } = req.body; // prediction: 'home', 'away', or 'draw'
   const useBoosterFlag = !!useBooster;
   
   if (!matchId || !prediction) {
@@ -621,6 +653,11 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
     }
   }
 
+  const bonusEligible = match.matchType === 'KO' && stageCode === 'QF_SF_FINAL';
+  if (bonusEligible && !BONUS_OPTIONS.includes(bonusPick)) {
+    return res.status(400).json({ error: 'bonusPick must be one of REGULAR, EXTRA_TIME, PENALTIES for this match.' });
+  }
+
   // Remove existing vote by this user in this match (ensure we don't duplicate votes)
   match.votes.home = match.votes.home.filter(u => u !== username);
   match.votes.away = match.votes.away.filter(u => u !== username);
@@ -644,15 +681,24 @@ app.post('/api/predict', authenticateSecret, (req, res) => {
     match.boosters[prediction].push(username);
   }
 
+  ensureMatchBonusData(match);
+  if (bonusEligible) {
+    match.bonusPicks[username] = bonusPick;
+  }
+
+  const loggedBonusPick = bonusEligible ? bonusPick : null;
+  const bonusLabelForLog = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' }[loggedBonusPick] || null;
+
   // Record timestamped vote log entry
   match.voteLog.push({
     timestamp: new Date().toISOString(),
     player: username,
     vote: prediction,
-    booster: useBoosterFlag
+    booster: useBoosterFlag,
+    bonusPick: loggedBonusPick
   });
 
-  logAuditAction(db, 'PREDICTION', `${username} voted "${prediction}"${useBoosterFlag ? ' with BOOSTER' : ''} for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
+  logAuditAction(db, 'PREDICTION', `${username} voted "${prediction}"${useBoosterFlag ? ' with BOOSTER' : ''}${bonusLabelForLog ? `, bonus: ${bonusLabelForLog}` : ''} for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
 
   writeData(db);
 
@@ -707,11 +753,17 @@ app.get('/api/leaderboard', (req, res) => {
     });
 
     const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
-    Object.keys(pointsAllocated).forEach(user => {
-      const pts = pointsAllocated[user];
-      if (pts > 0) {
-        ensureStanding(user).points += pts;
+    const bonusPoints = calculateBonusPointsForMatch(match);
+    const involvedUsers = new Set([...Object.keys(pointsAllocated), ...Object.keys(bonusPoints)]);
+    involvedUsers.forEach(user => {
+      const teamPts = pointsAllocated[user] || 0;
+      const bonusPts = bonusPoints[user] || 0;
+      if (teamPts > 0) {
         ensureStanding(user).correct += 1;
+      }
+      const total = teamPts + bonusPts;
+      if (total > 0) {
+        ensureStanding(user).points += total;
       }
     });
   });
@@ -1033,12 +1085,14 @@ app.post('/api/admin/match', verifyAdmin, (req, res) => {
     status: 'scheduled',
     votingLocked: false,
     outcome: null,
+    decidedBy: null,
     voteLog: [],
     votes: {
       home: [],
       away: [],
       draw: []
-    }
+    },
+    bonusPicks: {}
   };
 
   logAuditAction(db, 'CREATE_MATCH', `Admin ${req.adminUsername} created Match #${newMatch.matchNumber} [${newMatch.group}]: ${newMatch.homeTeam} vs ${newMatch.awayTeam}`);
@@ -1181,7 +1235,7 @@ app.get('/api/admin/votes', verifyAdmin, (req, res) => {
 
 // Resolve a Match
 app.post('/api/admin/resolve', verifyAdmin, (req, res) => {
-  const { matchId, outcome } = req.body; // outcome: 'home', 'away', or 'draw'
+  const { matchId, outcome, decidedBy } = req.body; // outcome: 'home', 'away', or 'draw'
   if (!matchId || !outcome) {
     return res.status(400).json({ error: 'matchId and outcome are required.' });
   }
@@ -1201,13 +1255,19 @@ app.post('/api/admin/resolve', verifyAdmin, (req, res) => {
     return res.status(400).json({ error: 'Draw outcomes are not allowed for Knockout matches.' });
   }
 
+  const bonusEligible = match.matchType === 'KO' && getMatchStageCode(match) === 'QF_SF_FINAL';
+  if (bonusEligible && !BONUS_OPTIONS.includes(decidedBy)) {
+    return res.status(400).json({ error: 'decidedBy must be one of REGULAR, EXTRA_TIME, PENALTIES for this match.' });
+  }
+
   match.status = 'resolved';
   match.outcome = outcome;
+  match.decidedBy = bonusEligible ? decidedBy : null;
 
-  const winnerText = outcome === 'home' ? match.homeTeam 
-                   : outcome === 'away' ? match.awayTeam 
+  const winnerText = outcome === 'home' ? match.homeTeam
+                   : outcome === 'away' ? match.awayTeam
                    : 'Draw';
-  logAuditAction(db, 'RESOLVE_MATCH', `Admin ${req.adminUsername} resolved Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam}) as ${winnerText.toUpperCase()}`);
+  logAuditAction(db, 'RESOLVE_MATCH', `Admin ${req.adminUsername} resolved Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam}) as ${winnerText.toUpperCase()}${bonusEligible ? ` [decided by ${match.decidedBy}]` : ''}`);
   writeData(db);
 
   res.json({ success: true, match });
@@ -1229,6 +1289,7 @@ app.post('/api/admin/unresolve', verifyAdmin, (req, res) => {
 
   match.status = 'scheduled';
   match.outcome = null;
+  match.decidedBy = null;
 
   logAuditAction(db, 'UNDO_RESOLUTION', `Admin ${req.adminUsername} undid resolution for Match #${match.matchNumber} (${match.homeTeam} vs ${match.awayTeam})`);
   writeData(db);
@@ -1335,6 +1396,7 @@ const BRACKET_ROUND_SIZES = {
   LAST_16: 8,
   QUARTER_FINALS: 4,
   SEMI_FINALS: 2,
+  THIRD_PLACE: 1,
   FINAL: 1
 };
 
@@ -1357,14 +1419,14 @@ function getMatchStageCode(match) {
   if (match.bracketRound) {
     if (match.bracketRound === 'LAST_32') return 'LAST_32';
     if (match.bracketRound === 'LAST_16') return 'LAST_16';
-    if (['QUARTER_FINALS', 'SEMI_FINALS', 'FINAL'].includes(match.bracketRound)) return 'QF_SF_FINAL';
+    if (['QUARTER_FINALS', 'SEMI_FINALS', 'FINAL', 'THIRD_PLACE'].includes(match.bracketRound)) return 'QF_SF_FINAL';
   }
 
   const stageText = normalizeStageText(match.group || match.stage || match.round || '');
   if (stageText) {
     if (/(round of 32|last 32|r32)\b/.test(stageText)) return 'LAST_32';
     if (/(round of 16|last 16|r16)\b/.test(stageText)) return 'LAST_16';
-    if (/(quarter final|quarter-final|quarterfinal|semi final|semi-final|semifinal|final|qf\/sf\/final|qf sf final)\b/.test(stageText)) {
+    if (/(quarter final|quarter-final|quarterfinal|semi final|semi-final|semifinal|final|third place|3rd place|qf\/sf\/final|qf sf final)\b/.test(stageText)) {
       return 'QF_SF_FINAL';
     }
   }
@@ -1386,6 +1448,21 @@ function ensureMatchBoosterData(match) {
       away: Array.isArray(match.boosters.away) ? match.boosters.away : [],
       draw: Array.isArray(match.boosters.draw) ? match.boosters.draw : []
     };
+  }
+  return match;
+}
+
+// Bonus prediction: which method (Reg Time / Extra Time / Penalties) a user
+// thinks will decide a QF+/3rd-place match. Mandatory whenever the match is
+// bonus-eligible (getMatchStageCode(match) === 'QF_SF_FINAL').
+const BONUS_OPTIONS = ['REGULAR', 'EXTRA_TIME', 'PENALTIES'];
+
+function ensureMatchBonusData(match) {
+  if (!match.bonusPicks || typeof match.bonusPicks !== 'object' || Array.isArray(match.bonusPicks)) {
+    match.bonusPicks = {};
+  }
+  if (match.decidedBy === undefined) {
+    match.decidedBy = null;
   }
   return match;
 }

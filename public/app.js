@@ -2028,7 +2028,7 @@ function renderResults() {
   });
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="loading-state">No live or completed matches to display.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-state">No live or completed matches to display.</td></tr>`;
     return;
   }
 
@@ -2047,6 +2047,9 @@ function renderResults() {
     const isWinnerAway = isResolved && match.outcome === 'away';
     const isWinnerDraw = isResolved && match.outcome === 'draw';
 
+    const bonusEligible = match.boosterStageCode === 'QF_SF_FINAL';
+    const bonusLabels = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' };
+
     // Result Outcome text
     let outcomeText = '';
     if (isResolved) {
@@ -2060,44 +2063,59 @@ function renderResults() {
         }
         return `${s.scoreHome}-${s.scoreAway}`;
       })();
+      const decidedByText = bonusEligible && match.decidedBy
+        ? `<br><span style="font-size: 0.72rem; color: var(--text-muted);">${bonusLabels[match.decidedBy]}</span>`
+        : '';
       outcomeText = `
         <span style="display:inline-flex; align-items:center; gap:6px; justify-content:center; white-space:nowrap;">
           ${buildFlagSpan(match.homeTeam, homeFlagClass)}
           <span class="form-score">${escapeHtml(scoreMid)}</span>
           ${buildFlagSpan(match.awayTeam, awayFlagClass)}
         </span>
+        ${decidedByText}
       `;
     } else {
       outcomeText = '<span style="color: var(--color-warning); font-weight: bold;">Locked / Live</span>';
     }
 
     // Player prediction text & styling
+    const myBonusCorrect = isResolved && bonusEligible && match.decidedBy && match.myBonusPick === match.decidedBy;
+    const myBonusPts = myBonusCorrect ? (match.myVote === match.outcome ? 10 : 5) : 0;
+
     let pickText = '<span style="color: var(--text-muted);">No Vote</span>';
     let pickClass = '';
     if (match.myVote) {
-      const pickTeam = match.myVote === 'home' ? match.homeTeam 
-                     : match.myVote === 'away' ? match.awayTeam 
+      const pickTeam = match.myVote === 'home' ? match.homeTeam
+                     : match.myVote === 'away' ? match.awayTeam
                      : 'Draw';
-      
+
       if (isResolved) {
         const isCorrect = match.myVote === match.outcome;
         if (isCorrect) {
-          const totalIncorrectVotes = (match.outcome === 'home' ? (counts.away + counts.draw) 
+          const totalIncorrectVotes = (match.outcome === 'home' ? (counts.away + counts.draw)
                                      : match.outcome === 'away' ? (counts.home + counts.draw)
                                      : (counts.home + counts.away));
           const basePts = totalIncorrectVotes + 1;
           const boosterMultiplier = match.myBooster ? 2 : 1;
           const pts = basePts * boosterMultiplier;
+          const bonusSuffix = myBonusCorrect ? `, +${myBonusPts} bonus` : '';
           pickText = match.myBooster
-            ? `🎉 ${escapeHtml(pickTeam)} (+${pts} · booster x2)`
-            : `🎉 ${escapeHtml(pickTeam)} (+${pts})`;
+            ? `🎉 ${escapeHtml(pickTeam)} (+${pts} · booster x2${bonusSuffix})`
+            : `🎉 ${escapeHtml(pickTeam)} (+${pts}${bonusSuffix})`;
           pickClass = 'text-active'; // Neon Green
+        } else if (myBonusCorrect) {
+          pickText = `❌ ${escapeHtml(pickTeam)} (+${myBonusPts} bonus)`;
+          pickClass = 'error-text'; // Red
         } else {
           pickText = `❌ ${escapeHtml(pickTeam)}`;
           pickClass = 'error-text'; // Red
         }
       } else {
         pickText = `🔒 ${escapeHtml(pickTeam)}`;
+      }
+
+      if (bonusEligible && match.myBonusPick) {
+        pickText += ` · ${bonusLabels[match.myBonusPick]}`;
       }
     }
 
@@ -2120,6 +2138,25 @@ function renderResults() {
         <span style="color: var(--text-muted);">${[...voters.away].sort((a, b) => a.localeCompare(b)).map(v => tagVoter(v, boosters.away)).join(', ') || 'None'}</span>
       </div>
     `;
+
+    // Bonus (Reg Time / Extra Time / Penalties) distribution — QF+/3rd-place only
+    let bonusColHtml = '<span style="color: var(--text-muted);">&mdash;</span>';
+    if (bonusEligible) {
+      const bonusPicks = match.bonusPicks || {};
+      const bonusGroups = { REGULAR: [], EXTRA_TIME: [], PENALTIES: [] };
+      Object.keys(bonusPicks).forEach(name => {
+        if (bonusGroups[bonusPicks[name]]) bonusGroups[bonusPicks[name]].push(name);
+      });
+      bonusColHtml = `
+        <div style="font-size: 0.8rem; line-height: 1.4;">
+          ${['REGULAR', 'EXTRA_TIME', 'PENALTIES'].map(key => `
+            <span style="${isResolved && match.decidedBy === key ? 'color: var(--color-accent); font-weight: 700;' : ''}">${bonusLabels[key]} (${bonusGroups[key].length}):</span>
+            <span style="color: var(--text-muted);">${bonusGroups[key].map(escapeHtml).join(', ') || 'None'}</span>
+            <br>
+          `).join('')}
+        </div>
+      `;
+    }
 
     const row = document.createElement('tr');
     row.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
@@ -2146,6 +2183,9 @@ function renderResults() {
       </td>
       <td data-label="Group Votes Distribution" style="padding-left: 20px;">
         ${distHtml}
+      </td>
+      <td data-label="Bonus" style="padding-left: 20px;">
+        ${bonusColHtml}
       </td>
     `;
     tbody.appendChild(row);
@@ -2234,6 +2274,18 @@ function updateAllTimers() {
 }
 
 // Submit prediction — shows custom confirmation modal first
+let pendingBonusPick = 'REGULAR';
+
+function selectBonusOption(value) {
+  pendingBonusPick = value;
+  ['Regular', 'ExtraTime', 'Penalties'].forEach(suffix => {
+    const btn = document.getElementById(`voteConfirmBonus${suffix}`);
+    if (!btn) return;
+    const btnValue = suffix === 'Regular' ? 'REGULAR' : suffix === 'ExtraTime' ? 'EXTRA_TIME' : 'PENALTIES';
+    btn.classList.toggle('selected', btnValue === value);
+  });
+}
+
 function submitVote(matchId, prediction) {
   const match = matches.find(m => m.id === matchId);
   if (!match || !currentUserSecret) return;
@@ -2266,6 +2318,15 @@ function submitVote(matchId, prediction) {
     }
   }
 
+  const bonusSection = document.getElementById('voteConfirmBonusSection');
+  if (bonusSection) {
+    const showBonus = match.boosterStageCode === 'QF_SF_FINAL';
+    bonusSection.style.display = showBonus ? 'block' : 'none';
+    if (showBonus) {
+      selectBonusOption(match.myBonusPick || 'REGULAR');
+    }
+  }
+
   // Store pending state
   pendingVoteMatchId = matchId;
   pendingVotePrediction = prediction;
@@ -2279,6 +2340,7 @@ function closeVoteModal() {
   document.getElementById('voteConfirmModal').style.display = 'none';
   pendingVoteMatchId = null;
   pendingVotePrediction = null;
+  pendingBonusPick = 'REGULAR';
 }
 
 // Actually submit after user confirms in modal
@@ -2288,6 +2350,7 @@ async function confirmVote() {
   const matchId = pendingVoteMatchId;
   const prediction = pendingVotePrediction;
   const useBooster = document.getElementById('voteConfirmUseBooster')?.checked || false;
+  const bonusPick = pendingBonusPick;
 
   // Close modal and optimistically update UI immediately
   closeVoteModal();
@@ -2304,7 +2367,7 @@ async function confirmVote() {
         'Content-Type': 'application/json',
         'x-user-secret': currentUserSecret
       },
-      body: JSON.stringify({ matchId, prediction, useBooster })
+      body: JSON.stringify({ matchId, prediction, useBooster, bonusPick })
     });
 
     if (!response.ok) {
@@ -2645,6 +2708,20 @@ function loadAdminMatches() {
                        : 'Draw';
       outcomeControls = `<div class="outcome-badge">Outcome: <strong>${escapeHtml(winnerName).toUpperCase()}</strong> (Resolved)</div>`;
     } else {
+      const bonusEligible = match.boosterStageCode === 'QF_SF_FINAL';
+      const currentDecidedBy = bonusEligible ? (_pendingDecidedBy[match.id] || 'REGULAR') : null;
+      const decidedByOptions = [
+        ['REGULAR', 'Reg Time'],
+        ['EXTRA_TIME', 'Extra Time'],
+        ['PENALTIES', 'Penalties']
+      ];
+      const decidedByControls = bonusEligible ? `
+        <div class="resolve-btn-group" style="margin-top: 6px;">
+          ${decidedByOptions.map(([value, label]) => `
+            <button class="resolve-mini-btn decided-by-btn${currentDecidedBy === value ? ' active-outcome' : ''}" data-value="${value}" onclick="selectDecidedBy('${match.id}', '${value}', this)">${label}</button>
+          `).join('')}
+        </div>
+      ` : '';
       outcomeControls = `
         <div class="resolve-btn-group">
           <button class="resolve-mini-btn" onclick="resolveMatch('${match.id}', 'home')">${escapeHtml(match.homeTeam)}</button>
@@ -2653,6 +2730,7 @@ function loadAdminMatches() {
           ` : ''}
           <button class="resolve-mini-btn" onclick="resolveMatch('${match.id}', 'away')">${escapeHtml(match.awayTeam)}</button>
         </div>
+        ${decidedByControls}
       `;
     }
 
@@ -2764,14 +2842,35 @@ async function handleCreateMatch(event) {
   }
 }
 
+// Tracks the currently-selected decidedBy segment per match (admin resolve UI).
+// loadAdminMatches reads this on every render (including poll-driven re-renders)
+// to decide which button is visually active, so a selection survives a
+// background refresh instead of silently reverting to REGULAR.
+const _pendingDecidedBy = {};
+
+function selectDecidedBy(matchId, value, btnEl) {
+  _pendingDecidedBy[matchId] = value;
+  const group = btnEl.closest('.resolve-btn-group');
+  if (!group) return;
+  group.querySelectorAll('.decided-by-btn').forEach(btn => {
+    btn.classList.toggle('active-outcome', btn === btnEl);
+  });
+}
+
 // Resolve Match
 async function resolveMatch(matchId, outcome) {
   const match = matches.find(m => m.id === matchId);
   if (!match) return;
-  const outcomeText = outcome === 'home' ? match.homeTeam 
-                    : outcome === 'away' ? match.awayTeam 
+  const outcomeText = outcome === 'home' ? match.homeTeam
+                    : outcome === 'away' ? match.awayTeam
                     : 'Draw';
-  if (!confirm(`Are you sure you want to resolve this match as '${outcomeText}'? This will calculate scores immediately.`)) return;
+
+  const bonusEligible = match.boosterStageCode === 'QF_SF_FINAL';
+  const decidedBy = bonusEligible ? (_pendingDecidedBy[matchId] || 'REGULAR') : undefined;
+  const decidedByLabel = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' }[decidedBy];
+  const bonusConfirmNote = bonusEligible ? ` Bonus will be scored as decided by ${decidedByLabel}.` : '';
+
+  if (!confirm(`Are you sure you want to resolve this match as '${outcomeText}'? This will calculate scores immediately.${bonusConfirmNote}`)) return;
 
   try {
     const response = await fetch('/api/admin/resolve', {
@@ -2781,7 +2880,7 @@ async function resolveMatch(matchId, outcome) {
         'x-admin-passcode': adminPasscode,
         'x-user-secret': currentUserSecret
       },
-      body: JSON.stringify({ matchId, outcome })
+      body: JSON.stringify({ matchId, outcome, decidedBy })
     });
 
     const data = await response.json();
