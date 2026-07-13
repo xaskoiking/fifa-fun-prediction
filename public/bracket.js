@@ -232,6 +232,14 @@ function buildBracketCards(track, rounds, highlightDay) {
   });
 
   if (_bracketThirdPlace) {
+    const tpMatch = _bracketThirdPlace.match;
+    const tpResolved = tpMatch && tpMatch.status === 'resolved';
+    const tpLocked = !tpResolved && tpMatch
+      && (tpMatch.votingLocked || (tpMatch.hasStarted && !tpMatch.extensionActive));
+    const tpLive = !tpResolved && tpMatch && tpMatch.hasStarted;
+    const tpPickCorrect = tpResolved && tpMatch.myVote && tpMatch.myVote === tpMatch.outcome;
+    const tpPickWrong   = tpResolved && tpMatch.myVote && tpMatch.myVote !== tpMatch.outcome;
+
     const label = document.createElement('div');
     label.className = 'bracket-third-place-label';
     label.id = 'bracketThirdPlaceLabel';
@@ -240,7 +248,13 @@ function buildBracketCards(track, rounds, highlightDay) {
 
     const card = document.createElement('div');
     card.id = 'bracketThirdPlaceCard';
-    card.className = 'bracket-card third-place';
+    card.className = 'bracket-card third-place'
+      + (tpResolved ? ' bracket-card--resolved' : '')
+      + (tpLocked   ? ' bracket-card--locked'   : '')
+      + (tpLive     ? ' bracket-card--live'      : '')
+      + (tpMatch && tpMatch.myBooster ? ' bracket-card--boosted' : '')
+      + (tpPickCorrect ? ' bracket-card--pick-correct' : '')
+      + (tpPickWrong   ? ' bracket-card--pick-wrong'   : '');
     card.appendChild(buildBracketRow(_bracketThirdPlace, 'home'));
     card.appendChild(buildBracketRow(_bracketThirdPlace, 'away'));
     track.appendChild(card);
