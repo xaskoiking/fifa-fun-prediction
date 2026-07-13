@@ -88,9 +88,13 @@ let _bracketHighlightDay = null;
 let _bracketThirdPlace = null;
 
 // The focused round is always tight-stacked (see computeBracketPositions),
-// so its content height is just its own row count.
-function bracketContentHeight(roundSize, includeThirdPlace) {
-  const extra = includeThirdPlace ? BRACKET_ROW_H : 0;
+// so its content height is just its own row count. The third place card
+// always sits at the Final column's x-offset, which can be visible even
+// when an earlier round is focused (wide viewports show more than one
+// column at once) — so its extra row is reserved unconditionally,
+// regardless of which round is currently focused.
+function bracketContentHeight(roundSize) {
+  const extra = _bracketThirdPlace ? BRACKET_ROW_H : 0;
   return BRACKET_HEADER_H + (roundSize - 1) * BRACKET_ROW_H + BRACKET_CARD_H + extra + BRACKET_BOTTOM_PAD;
 }
 
@@ -137,7 +141,7 @@ function renderBracket(rootEl, rounds, onPick, highlightDay, thirdPlace) {
   applyBracketPositions(rounds, track, svg);
   updateBracketNavButtons(rounds.length, prevBtn, nextBtn);
 
-  scrollwrap.style.height = bracketContentHeight(roundSizes[focused], rounds[focused].code === 'FINAL') + 'px';
+  scrollwrap.style.height = bracketContentHeight(roundSizes[focused]) + 'px';
 
   // Re-apply preserved position instantly (no transition) so a silent
   // background refresh doesn't visibly move anything.
@@ -409,7 +413,7 @@ function drawBracketConnectors(rounds, svg) {
 function goToBracketRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn) {
   idx = Math.min(Math.max(idx, 0), rounds.length - 1);
   track.style.transform = `translateX(${BRACKET_LEFT_PAD - idx * BRACKET_COL_PITCH}px)`;
-  scrollwrap.style.height = bracketContentHeight(roundSizes[idx], rounds[idx].code === 'FINAL') + 'px';
+  scrollwrap.style.height = bracketContentHeight(roundSizes[idx]) + 'px';
   if (idx === _bracketFocused) return;
   _bracketFocused = idx;
   _bracketPositions = computeBracketPositions(roundSizes, idx, BRACKET_ROW_H);
