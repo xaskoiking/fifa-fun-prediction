@@ -976,6 +976,49 @@ async function saveLeaderboardImage() {
   }
 }
 
+// Export the Fantasy Bracket as a PNG, stamped with the current username
+async function saveFantasyBracketImage() {
+  const el = document.getElementById('fantasyBracketContainer');
+  if (!el) return;
+
+  if (typeof html2canvas !== 'function') {
+    alert('Image tool is still loading — please try again in a moment.');
+    return;
+  }
+
+  const btn = document.getElementById('fantasySaveImgBtn');
+  const original = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const canvas = await html2canvas(el, { backgroundColor: '#07130b', scale: 2, useCORS: true });
+
+    // Stamp the username on the captured canvas (not the live DOM), top-right,
+    // big and bold with a dark stroke so it stays legible over any card behind it.
+    const ctx = canvas.getContext('2d');
+    const fontSize = Math.round(canvas.width * 0.03);
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    const x = canvas.width - fontSize;
+    const y = fontSize * 0.6;
+    ctx.lineWidth = fontSize * 0.12;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.strokeText(currentUsername, x, y);
+    ctx.fillStyle = '#00e676';
+    ctx.fillText(currentUsername, x, y);
+
+    const link = document.createElement('a');
+    link.download = `fifa-fantasy-bracket-${currentUsername || 'player'}-${new Date().toISOString().slice(0, 10)}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch (err) {
+    console.error('Fantasy bracket image export failed:', err);
+    alert('Sorry, could not create the image.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+  }
+}
+
 // ===================== MOUNTAIN CLIMB (animated standings over time) =====================
 let climbFrames = [];
 let climbCurrent = 0;
