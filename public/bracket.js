@@ -41,6 +41,17 @@ function computeBracketPositions(roundSizes, focusedIdx, rowHeight) {
   return positions;
 }
 
+function buildThirdPlaceSlot(byRoundSlot) {
+  const match = byRoundSlot.get('THIRD_PLACE:0') || null;
+  let homeTeam = 'TBD';
+  let awayTeam = 'TBD';
+  if (match) {
+    homeTeam = match.homeTeam;
+    awayTeam = match.awayTeam;
+  }
+  return { slot: 0, match, homeTeam, awayTeam };
+}
+
 function buildBracketRounds(matches, roundDefs) {
   const byRoundSlot = new Map();
   matches.forEach(m => {
@@ -63,7 +74,8 @@ function buildBracketRounds(matches, roundDefs) {
     }
     rounds.push({ code: roundDef.code, label: roundDef.label, size: roundDef.size, slots });
   });
-  return rounds;
+  const thirdPlace = buildThirdPlaceSlot(byRoundSlot);
+  return { rounds, thirdPlace };
 }
 
 // --- DOM rendering ---
