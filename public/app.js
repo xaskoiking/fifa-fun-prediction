@@ -1944,9 +1944,9 @@ function computeNextDayToHighlight(rounds) {
 function renderBracketTab() {
   const container = document.getElementById('bracketContainer');
   if (!container) return;
-  const rounds = buildBracketRounds(matches, BRACKET_ROUNDS);
+  const { rounds, thirdPlace } = buildBracketRounds(matches, BRACKET_ROUNDS);
   const highlightDay = computeNextDayToHighlight(rounds);
-  renderBracket(container, rounds, (match, side) => submitVote(match.id, side), highlightDay);
+  renderBracket(container, rounds, (match, side) => submitVote(match.id, side), highlightDay, thirdPlace);
   updateAllTimers();
 }
 

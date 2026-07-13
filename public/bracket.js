@@ -85,16 +85,19 @@ let _bracketPositions = [];
 let _bracketOnPick = null;
 let _bracketLabelEl = null;
 let _bracketHighlightDay = null;
+let _bracketThirdPlace = null;
 
 // The focused round is always tight-stacked (see computeBracketPositions),
 // so its content height is just its own row count.
-function bracketContentHeight(roundSize) {
-  return BRACKET_HEADER_H + (roundSize - 1) * BRACKET_ROW_H + BRACKET_CARD_H + BRACKET_BOTTOM_PAD;
+function bracketContentHeight(roundSize, includeThirdPlace) {
+  const extra = includeThirdPlace ? BRACKET_ROW_H : 0;
+  return BRACKET_HEADER_H + (roundSize - 1) * BRACKET_ROW_H + BRACKET_CARD_H + extra + BRACKET_BOTTOM_PAD;
 }
 
-function renderBracket(rootEl, rounds, onPick, highlightDay) {
+function renderBracket(rootEl, rounds, onPick, highlightDay, thirdPlace) {
   _bracketOnPick = onPick;
   _bracketHighlightDay = highlightDay ?? null;
+  _bracketThirdPlace = thirdPlace ?? null;
   const roundSizes = rounds.map(r => r.size);
 
   rootEl.innerHTML = `
@@ -134,7 +137,7 @@ function renderBracket(rootEl, rounds, onPick, highlightDay) {
   applyBracketPositions(rounds, track, svg);
   updateBracketNavButtons(rounds.length, prevBtn, nextBtn);
 
-  scrollwrap.style.height = bracketContentHeight(roundSizes[focused]) + 'px';
+  scrollwrap.style.height = bracketContentHeight(roundSizes[focused], rounds[focused].code === 'FINAL') + 'px';
 
   // Re-apply preserved position instantly (no transition) so a silent
   // background refresh doesn't visibly move anything.
@@ -173,7 +176,7 @@ function formatBracketKickoff(isoString) {
 }
 
 function buildBracketCards(track, rounds, highlightDay) {
-  track.querySelectorAll('.bracket-card, .bracket-slot-num').forEach(el => el.remove());
+  track.querySelectorAll('.bracket-card, .bracket-slot-num, .bracket-third-place-label').forEach(el => el.remove());
   rounds.forEach((round, r) => {
     const xOffset = r * BRACKET_COL_PITCH;
     round.slots.forEach((slotData, i) => {
@@ -227,6 +230,21 @@ function buildBracketCards(track, rounds, highlightDay) {
       track.appendChild(card);
     });
   });
+
+  if (_bracketThirdPlace) {
+    const label = document.createElement('div');
+    label.className = 'bracket-third-place-label';
+    label.id = 'bracketThirdPlaceLabel';
+    label.textContent = 'Third Place Game';
+    track.appendChild(label);
+
+    const card = document.createElement('div');
+    card.id = 'bracketThirdPlaceCard';
+    card.className = 'bracket-card third-place';
+    card.appendChild(buildBracketRow(_bracketThirdPlace, 'home'));
+    card.appendChild(buildBracketRow(_bracketThirdPlace, 'away'));
+    track.appendChild(card);
+  }
 }
 
 function buildBracketRow(slotData, side) {
@@ -323,6 +341,20 @@ function applyBracketPositions(rounds, track, svg) {
       if (num) num.style.top = (cardTop - BRACKET_GAP / 2) + 'px';
     });
   });
+
+  if (_bracketThirdPlace) {
+    const lastIdx = rounds.length - 1;
+    const finalPositions = _bracketPositions[lastIdx];
+    if (finalPositions) {
+      const xOffset = lastIdx * BRACKET_COL_PITCH;
+      const cardTop = finalPositions[0] + BRACKET_HEADER_H + BRACKET_ROW_H;
+      const card = track.querySelector('#bracketThirdPlaceCard');
+      const label = track.querySelector('#bracketThirdPlaceLabel');
+      if (card) { card.style.left = xOffset + 'px'; card.style.top = cardTop + 'px'; }
+      if (label) { label.style.left = xOffset + 'px'; label.style.top = (cardTop - 18) + 'px'; }
+    }
+  }
+
   drawBracketConnectors(rounds, svg);
 }
 
@@ -363,7 +395,7 @@ function drawBracketConnectors(rounds, svg) {
 function goToBracketRound(idx, rounds, roundSizes, track, svg, scrollwrap, prevBtn, nextBtn) {
   idx = Math.min(Math.max(idx, 0), rounds.length - 1);
   track.style.transform = `translateX(${BRACKET_LEFT_PAD - idx * BRACKET_COL_PITCH}px)`;
-  scrollwrap.style.height = bracketContentHeight(roundSizes[idx]) + 'px';
+  scrollwrap.style.height = bracketContentHeight(roundSizes[idx], rounds[idx].code === 'FINAL') + 'px';
   if (idx === _bracketFocused) return;
   _bracketFocused = idx;
   _bracketPositions = computeBracketPositions(roundSizes, idx, BRACKET_ROW_H);
