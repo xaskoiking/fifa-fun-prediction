@@ -1032,6 +1032,16 @@ async function inlineFlagsForCapture(root) {
   return () => restores.forEach(([el, prev]) => { el.style.backgroundImage = prev; });
 }
 
+function drawRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
 // Export the Fantasy Bracket as a PNG, stamped with the current username.
 async function saveFantasyBracketImage() {
   if (!_fantasyData) return;
@@ -1088,33 +1098,67 @@ async function saveFantasyBracketImage() {
 
     restoreFlags = await inlineFlagsForCapture(scrollwrap);
 
-    const canvas = await html2canvas(scrollwrap, { backgroundColor: '#07130b', scale: 2, useCORS: true });
+    const bracketCanvas = await html2canvas(scrollwrap, { backgroundColor: '#07130b', scale: 2, useCORS: true });
 
-    // Stamp the username on the captured canvas (not the live DOM), top-right,
-    // big and bold on a solid chip so it stays legible over any card behind it.
-    const ctx = canvas.getContext('2d');
-    // html2canvas leaves its own ctx.scale(scale, scale) applied on this same
-    // context (confirmed in vendor/html2canvas.min.js) — reset to identity so
-    // our coordinates below (already in raw canvas.width/height pixel space)
-    // aren't doubled again and pushed off-canvas.
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const fontSize = Math.round(canvas.width * 0.025);
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    ctx.textAlign = 'right';
+    // Compose a title banner (matching the modal's own "⭐ Fantasy Bracket"
+    // header) plus a styled username badge above the captured bracket, onto
+    // a fresh canvas — a clean canvas starts with an identity transform, so
+    // this sidesteps html2canvas's own returned context entirely (it leaves
+    // ctx.scale(scale, scale) applied, confirmed in vendor/html2canvas.min.js).
+    const headerH = Math.round(bracketCanvas.width * 0.055);
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = bracketCanvas.width;
+    finalCanvas.height = bracketCanvas.height + headerH;
+    const ctx = finalCanvas.getContext('2d');
+
+    ctx.fillStyle = '#0f1f17';
+    ctx.fillRect(0, 0, finalCanvas.width, headerH);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, headerH - 1);
+    ctx.lineTo(finalCanvas.width, headerH - 1);
+    ctx.stroke();
+
+    const titleSize = Math.round(headerH * 0.5);
+    ctx.font = `bold ${titleSize}px sans-serif`;
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    const padX = fontSize * 0.6;
-    const padY = fontSize * 0.5;
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText('⭐ Fantasy Bracket', headerH * 0.5, headerH / 2);
+
+    const nameSize = Math.round(headerH * 0.42);
+    ctx.font = `bold ${nameSize}px sans-serif`;
+    ctx.textAlign = 'right';
+    const padX = nameSize * 0.7;
+    const padY = nameSize * 0.42;
     const textWidth = ctx.measureText(currentUsername).width;
-    const chipRight = canvas.width - fontSize * 0.5;
-    const chipTop = fontSize * 0.5;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.fillRect(chipRight - textWidth - padX * 2, chipTop, textWidth + padX * 2, fontSize + padY * 2);
+    const chipW = textWidth + padX * 2;
+    const chipH = nameSize + padY * 2;
+    const chipRight = finalCanvas.width - headerH * 0.5;
+    const chipTop = (headerH - chipH) / 2;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 230, 118, 0.5)';
+    ctx.shadowBlur = nameSize * 0.5;
+    drawRoundedRect(ctx, chipRight - chipW, chipTop, chipW, chipH, chipH / 2);
+    ctx.fillStyle = 'rgba(0, 230, 118, 0.14)';
+    ctx.fill();
+    ctx.restore();
+
+    drawRoundedRect(ctx, chipRight - chipW, chipTop, chipW, chipH, chipH / 2);
+    ctx.strokeStyle = '#00e676';
+    ctx.lineWidth = Math.max(1, nameSize * 0.06);
+    ctx.stroke();
+
     ctx.fillStyle = '#00e676';
-    ctx.fillText(currentUsername, chipRight - padX, chipTop + padY + fontSize / 2);
+    ctx.fillText(currentUsername, chipRight - padX, headerH / 2);
+
+    ctx.drawImage(bracketCanvas, 0, headerH);
 
     const link = document.createElement('a');
     link.download = `fifa-fantasy-bracket-${currentUsername || 'player'}-${new Date().toISOString().slice(0, 10)}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.href = finalCanvas.toDataURL('image/png');
     link.click();
   } catch (err) {
     console.error('Fantasy bracket image export failed:', err);
