@@ -976,10 +976,58 @@ async function saveLeaderboardImage() {
   }
 }
 
-// Export the Fantasy Bracket as a PNG, stamped with the current username
+// Convert a same-origin image URL to a data: URI, caching by URL.
+const _imageDataUriCache = new Map();
+async function toDataUri(url) {
+  if (_imageDataUriCache.has(url)) return _imageDataUriCache.get(url);
+  const promise = fetch(url)
+    .then(res => res.blob())
+    .then(blob => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    }))
+    .catch(() => null);
+  _imageDataUriCache.set(url, promise);
+  return promise;
+}
+
+// html2canvas doesn't reliably rasterize the flag-icons library's SVG
+// background-images (referenced via its external stylesheet) — inline each
+// one as a data: URI directly on the element before capture so it's fully
+// self-contained. Returns a restore function that reverts every element
+// touched back to its original inline style.
+async function inlineFlagsForCapture(root) {
+  const flagEls = Array.from(root.querySelectorAll('.fi'));
+  const codes = new Set();
+  flagEls.forEach(el => {
+    const codeClass = Array.from(el.classList).find(c => c.startsWith('fi-'));
+    if (codeClass) codes.add(codeClass.slice(3));
+  });
+  const uris = new Map();
+  await Promise.all(Array.from(codes).map(async code => {
+    uris.set(code, await toDataUri(`vendor/flag-icons/flags/4x3/${code}.svg`));
+  }));
+  const restores = [];
+  flagEls.forEach(el => {
+    const codeClass = Array.from(el.classList).find(c => c.startsWith('fi-'));
+    const uri = codeClass && uris.get(codeClass.slice(3));
+    if (uri) {
+      restores.push([el, el.style.backgroundImage]);
+      el.style.backgroundImage = `url(${uri})`;
+    }
+  });
+  return () => restores.forEach(([el, prev]) => { el.style.backgroundImage = prev; });
+}
+
+// Export the Fantasy Bracket as a PNG, stamped with the current username.
 async function saveFantasyBracketImage() {
-  const el = document.getElementById('fantasyBracketContainer');
-  if (!el) return;
+  if (!_fantasyData) return;
+  const track = document.getElementById('fantasyTrack');
+  const scrollwrap = document.getElementById('fantasyScrollwrap');
+  const svg = document.getElementById('fantasySvg');
+  if (!track || !scrollwrap || !svg) return;
 
   if (typeof html2canvas !== 'function') {
     alert('Image tool is still loading — please try again in a moment.');
@@ -988,24 +1036,65 @@ async function saveFantasyBracketImage() {
 
   const btn = document.getElementById('fantasySaveImgBtn');
   const original = btn ? btn.innerHTML : '';
+  const prevBtn = document.getElementById('fantasyPrevBtn');
+  const nextBtn = document.getElementById('fantasyNextBtn');
+  const prevWasDisabled = prevBtn ? prevBtn.disabled : true;
+  const nextWasDisabled = nextBtn ? nextBtn.disabled : true;
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  // The capture below temporarily repoints shared module state
+  // (_fantasyFocused/_fantasyPositions) to a full-tree layout — block round
+  // navigation for the duration so a stray click can't race with it.
+  if (prevBtn) prevBtn.disabled = true;
+  if (nextBtn) nextBtn.disabled = true;
+
+  const { picks, r32Matches } = _fantasyData;
+  const rounds = buildFantasyBracketRounds(r32Matches, picks, BRACKET_ROUNDS);
+  const roundSizes = rounds.map(r => r.size);
+
+  // html2canvas sizes its output from the target element's own rendered
+  // box (getBoundingClientRect), not its scrollable content, and the
+  // interactive layout only positions whichever round is currently
+  // focused onward. Temporarily lay out the WHOLE tree (Round of 32 ->
+  // Final, full width, full height) so the saved image always shows
+  // everything regardless of the live view — restored in `finally`
+  // whether the capture succeeds or fails.
+  const savedFocused = _fantasyFocused;
+  const savedPositions = _fantasyPositions;
+  const savedTransform = track.style.transform;
+  const savedTransition = track.style.transition;
+  const savedWrapWidth = scrollwrap.style.width;
+  const savedWrapHeight = scrollwrap.style.height;
+  let restoreFlags = null;
+
   try {
-    const canvas = await html2canvas(el, { backgroundColor: '#07130b', scale: 2, useCORS: true });
+    _fantasyFocused = 0;
+    _fantasyPositions = computeBracketPositions(roundSizes, 0, BRACKET_ROW_H);
+    track.style.transition = 'none';
+    track.style.transform = `translateX(${BRACKET_LEFT_PAD}px)`;
+    applyFantasyPositions(rounds, track, svg);
+    scrollwrap.style.width = track.style.width;
+    scrollwrap.style.height = (parseInt(svg.getAttribute('height')) + 40) + 'px';
+
+    restoreFlags = await inlineFlagsForCapture(scrollwrap);
+
+    const canvas = await html2canvas(scrollwrap, { backgroundColor: '#07130b', scale: 2, useCORS: true });
 
     // Stamp the username on the captured canvas (not the live DOM), top-right,
-    // big and bold with a dark stroke so it stays legible over any card behind it.
+    // big and bold on a solid chip so it stays legible over any card behind it.
     const ctx = canvas.getContext('2d');
-    const fontSize = Math.round(canvas.width * 0.03);
+    const fontSize = Math.round(canvas.width * 0.025);
     ctx.font = `bold ${fontSize}px sans-serif`;
     ctx.textAlign = 'right';
-    ctx.textBaseline = 'top';
-    const x = canvas.width - fontSize;
-    const y = fontSize * 0.6;
-    ctx.lineWidth = fontSize * 0.12;
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
-    ctx.strokeText(currentUsername, x, y);
+    ctx.textBaseline = 'middle';
+    const padX = fontSize * 0.6;
+    const padY = fontSize * 0.5;
+    const textWidth = ctx.measureText(currentUsername).width;
+    const chipRight = canvas.width - fontSize * 0.5;
+    const chipTop = fontSize * 0.5;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(chipRight - textWidth - padX * 2, chipTop, textWidth + padX * 2, fontSize + padY * 2);
     ctx.fillStyle = '#00e676';
-    ctx.fillText(currentUsername, x, y);
+    ctx.fillText(currentUsername, chipRight - padX, chipTop + padY + fontSize / 2);
 
     const link = document.createElement('a');
     link.download = `fifa-fantasy-bracket-${currentUsername || 'player'}-${new Date().toISOString().slice(0, 10)}.png`;
@@ -1015,7 +1104,17 @@ async function saveFantasyBracketImage() {
     console.error('Fantasy bracket image export failed:', err);
     alert('Sorry, could not create the image.');
   } finally {
+    if (restoreFlags) restoreFlags();
+    _fantasyFocused = savedFocused;
+    _fantasyPositions = savedPositions;
+    track.style.transform = savedTransform;
+    track.style.transition = savedTransition;
+    scrollwrap.style.width = savedWrapWidth;
+    scrollwrap.style.height = savedWrapHeight;
+    applyFantasyPositions(rounds, track, svg);
     if (btn) { btn.disabled = false; btn.innerHTML = original; }
+    if (prevBtn) prevBtn.disabled = prevWasDisabled;
+    if (nextBtn) nextBtn.disabled = nextWasDisabled;
   }
 }
 
