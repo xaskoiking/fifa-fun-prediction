@@ -976,28 +976,39 @@ async function saveLeaderboardImage() {
   }
 }
 
-// Convert a same-origin image URL to a data: URI, caching by URL.
-const _imageDataUriCache = new Map();
-async function toDataUri(url) {
-  if (_imageDataUriCache.has(url)) return _imageDataUriCache.get(url);
-  const promise = fetch(url)
-    .then(res => res.blob())
-    .then(blob => new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    }))
-    .catch(() => null);
-  _imageDataUriCache.set(url, promise);
+// html2canvas has an internal SUPPORT_SVG_DRAWING feature test that probes
+// an SVG with no explicit width/height — exactly the pattern flag-icons'
+// SVGs use (viewBox only). Where that probe fails, html2canvas skips ALL
+// svg-sourced images outright (by file extension / data URI MIME type),
+// whether inlined or not. Render each flag to a plain PNG data URI via an
+// offscreen canvas (using the browser's own <img> decode, not
+// html2canvas's), so it's never seen as an SVG at all. Cached by code.
+const _flagPngCache = new Map();
+async function flagSvgToPngDataUri(code) {
+  if (_flagPngCache.has(code)) return _flagPngCache.get(code);
+  const promise = (async () => {
+    const res = await fetch(`vendor/flag-icons/flags/4x3/${code}.svg`);
+    const svgText = await res.text();
+    const svgDataUri = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)));
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = svgDataUri;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 96;
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png');
+  })().catch(() => null);
+  _flagPngCache.set(code, promise);
   return promise;
 }
 
-// html2canvas doesn't reliably rasterize the flag-icons library's SVG
-// background-images (referenced via its external stylesheet) — inline each
-// one as a data: URI directly on the element before capture so it's fully
-// self-contained. Returns a restore function that reverts every element
-// touched back to its original inline style.
+// Swap each flag element's background to its pre-rendered PNG before
+// capture. Returns a restore function that reverts every element touched
+// back to its original inline style.
 async function inlineFlagsForCapture(root) {
   const flagEls = Array.from(root.querySelectorAll('.fi'));
   const codes = new Set();
@@ -1007,7 +1018,7 @@ async function inlineFlagsForCapture(root) {
   });
   const uris = new Map();
   await Promise.all(Array.from(codes).map(async code => {
-    uris.set(code, await toDataUri(`vendor/flag-icons/flags/4x3/${code}.svg`));
+    uris.set(code, await flagSvgToPngDataUri(code));
   }));
   const restores = [];
   flagEls.forEach(el => {
@@ -1082,6 +1093,11 @@ async function saveFantasyBracketImage() {
     // Stamp the username on the captured canvas (not the live DOM), top-right,
     // big and bold on a solid chip so it stays legible over any card behind it.
     const ctx = canvas.getContext('2d');
+    // html2canvas leaves its own ctx.scale(scale, scale) applied on this same
+    // context (confirmed in vendor/html2canvas.min.js) — reset to identity so
+    // our coordinates below (already in raw canvas.width/height pixel space)
+    // aren't doubled again and pushed off-canvas.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     const fontSize = Math.round(canvas.width * 0.025);
     ctx.font = `bold ${fontSize}px sans-serif`;
     ctx.textAlign = 'right';
