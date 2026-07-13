@@ -369,7 +369,7 @@ function applyBracketPositions(rounds, track, svg) {
       const card = track.querySelector('#bracketThirdPlaceCard');
       const label = track.querySelector('#bracketThirdPlaceLabel');
       if (card) { card.style.left = xOffset + 'px'; card.style.top = cardTop + 'px'; }
-      if (label) { label.style.left = xOffset + 'px'; label.style.top = (cardTop - 18) + 'px'; }
+      if (label) { label.style.left = xOffset + 'px'; label.style.top = (cardTop + BRACKET_CARD_H + 6) + 'px'; }
     }
   }
 
