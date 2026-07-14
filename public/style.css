@@ -2620,6 +2620,21 @@ body {
   border-color: var(--color-gold);
 }
 
+.bracket-card.third-place {
+  border-color: var(--color-bronze);
+}
+
+.bracket-third-place-label {
+  position: absolute;
+  width: 200px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-bronze);
+  white-space: nowrap;
+}
+
 .bracket-row {
   padding: 8px 10px;
   font-size: 0.82rem;

@@ -16,6 +16,17 @@ function computeBracketPositions(roundSizes, focusedIdx, rowHeight) {
   return positions;
 }
 
+function buildThirdPlaceSlot(byRoundSlot) {
+  const match = byRoundSlot.get('THIRD_PLACE:0') || null;
+  let homeTeam = 'TBD';
+  let awayTeam = 'TBD';
+  if (match) {
+    homeTeam = match.homeTeam;
+    awayTeam = match.awayTeam;
+  }
+  return { slot: 0, match, homeTeam, awayTeam };
+}
+
 function buildBracketRounds(matches, roundDefs) {
   const byRoundSlot = new Map();
   matches.forEach(m => {
@@ -48,7 +59,8 @@ function buildBracketRounds(matches, roundDefs) {
     }
     rounds.push({ code: roundDef.code, label: roundDef.label, size: roundDef.size, slots });
   });
-  return rounds;
+  const thirdPlace = buildThirdPlaceSlot(byRoundSlot);
+  return { rounds, thirdPlace };
 }
 
 let failed = false;
@@ -120,7 +132,7 @@ const ROUND_DEFS = [
 
 console.log("\nTest #6: no matches at all — full TBD skeleton");
 {
-  const rounds = buildBracketRounds([], ROUND_DEFS);
+  const { rounds } = buildBracketRounds([], ROUND_DEFS);
   assertEqual(rounds.length, 3, 'three rounds in the skeleton');
   assertEqual(rounds[0].slots.length, 4, 'LAST_32 has 4 slots');
   assertEqual(rounds[0].slots[0].homeTeam, 'TBD', 'LAST_32 slot 0 home is TBD with no matches');
@@ -133,7 +145,7 @@ console.log("\nTest #7: an unresolved LAST_32 match shows its real teams in roun
   const matches = [
     { matchType: 'KO', bracketRound: 'LAST_32', bracketSlot: 0, homeTeam: 'Germany', awayTeam: 'Paraguay', status: 'scheduled', outcome: null }
   ];
-  const rounds = buildBracketRounds(matches, ROUND_DEFS);
+  const { rounds } = buildBracketRounds(matches, ROUND_DEFS);
   assertEqual(rounds[0].slots[0].homeTeam, 'Germany', 'round 0 slot 0 shows the real home team');
   assertEqual(rounds[0].slots[0].awayTeam, 'Paraguay', 'round 0 slot 0 shows the real away team');
   assertEqual(rounds[1].slots[0].homeTeam, 'TBD', 'LAST_16 slot 0 home stays TBD — parent A not resolved yet');
@@ -145,7 +157,7 @@ console.log("\nTest #8: resolving one parent fills only that half of the next ro
     { matchType: 'KO', bracketRound: 'LAST_32', bracketSlot: 0, homeTeam: 'Germany', awayTeam: 'Paraguay', status: 'resolved', outcome: 'home' },
     { matchType: 'KO', bracketRound: 'LAST_32', bracketSlot: 1, homeTeam: 'France', awayTeam: 'Sweden', status: 'scheduled', outcome: null }
   ];
-  const rounds = buildBracketRounds(matches, ROUND_DEFS);
+  const { rounds } = buildBracketRounds(matches, ROUND_DEFS);
   assertEqual(rounds[1].slots[0].homeTeam, 'Germany', 'LAST_16 slot 0 home fills with the resolved winner (Germany)');
   assertEqual(rounds[1].slots[0].awayTeam, 'TBD', 'LAST_16 slot 0 away stays TBD — sibling match (slot 1) not resolved yet');
 }
@@ -156,7 +168,7 @@ console.log("\nTest #9: resolving both parents fills both halves of the next rou
     { matchType: 'KO', bracketRound: 'LAST_32', bracketSlot: 0, homeTeam: 'Germany', awayTeam: 'Paraguay', status: 'resolved', outcome: 'home' },
     { matchType: 'KO', bracketRound: 'LAST_32', bracketSlot: 1, homeTeam: 'France', awayTeam: 'Sweden', status: 'resolved', outcome: 'away' }
   ];
-  const rounds = buildBracketRounds(matches, ROUND_DEFS);
+  const { rounds } = buildBracketRounds(matches, ROUND_DEFS);
   assertEqual(rounds[1].slots[0].homeTeam, 'Germany', 'LAST_16 slot 0 home is the LAST_32 slot-0 winner');
   assertEqual(rounds[1].slots[0].awayTeam, 'Sweden', 'LAST_16 slot 0 away is the LAST_32 slot-1 winner (away won)');
 }
@@ -168,9 +180,28 @@ console.log("\nTest #10: an explicit next-round match record takes priority over
     { matchType: 'KO', bracketRound: 'LAST_32', bracketSlot: 1, homeTeam: 'France', awayTeam: 'Sweden', status: 'resolved', outcome: 'away' },
     { matchType: 'KO', bracketRound: 'LAST_16', bracketSlot: 0, homeTeam: 'Germany', awayTeam: 'Sweden', status: 'scheduled', outcome: null }
   ];
-  const rounds = buildBracketRounds(matches, ROUND_DEFS);
+  const { rounds } = buildBracketRounds(matches, ROUND_DEFS);
   assertEqual(rounds[1].slots[0].homeTeam, 'Germany', 'LAST_16 slot 0 uses the real match record\'s home team');
   assertEqual(rounds[1].slots[0].awayTeam, 'Sweden', 'LAST_16 slot 0 uses the real match record\'s away team');
+}
+
+console.log("\nTest #11: no THIRD_PLACE match yet — TBD slot, doesn't affect rounds");
+{
+  const { rounds, thirdPlace } = buildBracketRounds([], ROUND_DEFS);
+  assertEqual(thirdPlace.homeTeam, 'TBD', 'third place home is TBD with no THIRD_PLACE match');
+  assertEqual(thirdPlace.awayTeam, 'TBD', 'third place away is TBD with no THIRD_PLACE match');
+  assertEqual(thirdPlace.match, null, 'third place match is null when none exists');
+  assertEqual(rounds.length, 3, 'third place lookup does not add a fourth round to the tree');
+}
+
+console.log("\nTest #12: a THIRD_PLACE match shows its real teams");
+{
+  const matches = [
+    { matchType: 'KO', bracketRound: 'THIRD_PLACE', bracketSlot: 0, homeTeam: 'Belgium', awayTeam: 'Croatia', status: 'scheduled', outcome: null }
+  ];
+  const { thirdPlace } = buildBracketRounds(matches, ROUND_DEFS);
+  assertEqual(thirdPlace.homeTeam, 'Belgium', 'third place home shows the real team');
+  assertEqual(thirdPlace.awayTeam, 'Croatia', 'third place away shows the real team');
 }
 
 if (failed) {
