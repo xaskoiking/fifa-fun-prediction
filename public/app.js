@@ -976,6 +976,208 @@ async function saveLeaderboardImage() {
   }
 }
 
+// html2canvas has an internal SUPPORT_SVG_DRAWING feature test that probes
+// an SVG with no explicit width/height — exactly the pattern flag-icons'
+// SVGs use (viewBox only). Where that probe fails, html2canvas skips ALL
+// svg-sourced images outright (by file extension / data URI MIME type),
+// whether inlined or not. Render each flag to a plain PNG data URI via an
+// offscreen canvas (using the browser's own <img> decode, not
+// html2canvas's), so it's never seen as an SVG at all. Cached by code.
+const _flagPngCache = new Map();
+async function flagSvgToPngDataUri(code) {
+  if (_flagPngCache.has(code)) return _flagPngCache.get(code);
+  const promise = (async () => {
+    const res = await fetch(`vendor/flag-icons/flags/4x3/${code}.svg`);
+    const svgText = await res.text();
+    const svgDataUri = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)));
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = svgDataUri;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 96;
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png');
+  })().catch(() => null);
+  _flagPngCache.set(code, promise);
+  return promise;
+}
+
+// Swap each flag element's background to its pre-rendered PNG before
+// capture. Returns a restore function that reverts every element touched
+// back to its original inline style.
+async function inlineFlagsForCapture(root) {
+  const flagEls = Array.from(root.querySelectorAll('.fi'));
+  const codes = new Set();
+  flagEls.forEach(el => {
+    const codeClass = Array.from(el.classList).find(c => c.startsWith('fi-'));
+    if (codeClass) codes.add(codeClass.slice(3));
+  });
+  const uris = new Map();
+  await Promise.all(Array.from(codes).map(async code => {
+    uris.set(code, await flagSvgToPngDataUri(code));
+  }));
+  const restores = [];
+  flagEls.forEach(el => {
+    const codeClass = Array.from(el.classList).find(c => c.startsWith('fi-'));
+    const uri = codeClass && uris.get(codeClass.slice(3));
+    if (uri) {
+      restores.push([el, el.style.backgroundImage]);
+      el.style.backgroundImage = `url(${uri})`;
+    }
+  });
+  return () => restores.forEach(([el, prev]) => { el.style.backgroundImage = prev; });
+}
+
+function drawRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Export the Fantasy Bracket as a PNG, stamped with the current username.
+async function saveFantasyBracketImage() {
+  if (!_fantasyData) return;
+  const track = document.getElementById('fantasyTrack');
+  const scrollwrap = document.getElementById('fantasyScrollwrap');
+  const svg = document.getElementById('fantasySvg');
+  if (!track || !scrollwrap || !svg) return;
+
+  if (typeof html2canvas !== 'function') {
+    alert('Image tool is still loading — please try again in a moment.');
+    return;
+  }
+
+  const btn = document.getElementById('fantasySaveImgBtn');
+  const original = btn ? btn.innerHTML : '';
+  const prevBtn = document.getElementById('fantasyPrevBtn');
+  const nextBtn = document.getElementById('fantasyNextBtn');
+  const prevWasDisabled = prevBtn ? prevBtn.disabled : true;
+  const nextWasDisabled = nextBtn ? nextBtn.disabled : true;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  // The capture below temporarily repoints shared module state
+  // (_fantasyFocused/_fantasyPositions) to a full-tree layout — block round
+  // navigation for the duration so a stray click can't race with it.
+  if (prevBtn) prevBtn.disabled = true;
+  if (nextBtn) nextBtn.disabled = true;
+
+  const { picks, r32Matches } = _fantasyData;
+  const rounds = buildFantasyBracketRounds(r32Matches, picks, BRACKET_ROUNDS);
+  const roundSizes = rounds.map(r => r.size);
+
+  // html2canvas sizes its output from the target element's own rendered
+  // box (getBoundingClientRect), not its scrollable content, and the
+  // interactive layout only positions whichever round is currently
+  // focused onward. Temporarily lay out the WHOLE tree (Round of 32 ->
+  // Final, full width, full height) so the saved image always shows
+  // everything regardless of the live view — restored in `finally`
+  // whether the capture succeeds or fails.
+  const savedFocused = _fantasyFocused;
+  const savedPositions = _fantasyPositions;
+  const savedTransform = track.style.transform;
+  const savedTransition = track.style.transition;
+  const savedWrapWidth = scrollwrap.style.width;
+  const savedWrapHeight = scrollwrap.style.height;
+  let restoreFlags = null;
+
+  try {
+    _fantasyFocused = 0;
+    _fantasyPositions = computeBracketPositions(roundSizes, 0, BRACKET_ROW_H);
+    track.style.transition = 'none';
+    track.style.transform = `translateX(${BRACKET_LEFT_PAD}px)`;
+    applyFantasyPositions(rounds, track, svg);
+    scrollwrap.style.width = track.style.width;
+    scrollwrap.style.height = (parseInt(svg.getAttribute('height')) + 40) + 'px';
+
+    restoreFlags = await inlineFlagsForCapture(scrollwrap);
+
+    const bracketCanvas = await html2canvas(scrollwrap, { backgroundColor: '#07130b', scale: 2, useCORS: true });
+
+    // Compose a title banner (matching the modal's own "⭐ Fantasy Bracket"
+    // header) plus a styled username badge above the captured bracket, onto
+    // a fresh canvas — a clean canvas starts with an identity transform, so
+    // this sidesteps html2canvas's own returned context entirely (it leaves
+    // ctx.scale(scale, scale) applied, confirmed in vendor/html2canvas.min.js).
+    const headerH = Math.round(bracketCanvas.width * 0.055);
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = bracketCanvas.width;
+    finalCanvas.height = bracketCanvas.height + headerH;
+    const ctx = finalCanvas.getContext('2d');
+
+    ctx.fillStyle = '#0f1f17';
+    ctx.fillRect(0, 0, finalCanvas.width, headerH);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, headerH - 1);
+    ctx.lineTo(finalCanvas.width, headerH - 1);
+    ctx.stroke();
+
+    const titleSize = Math.round(headerH * 0.5);
+    ctx.font = `bold ${titleSize}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText('⭐ Fantasy Bracket', headerH * 0.5, headerH / 2);
+
+    const nameSize = Math.round(headerH * 0.42);
+    ctx.font = `bold ${nameSize}px sans-serif`;
+    ctx.textAlign = 'right';
+    const padX = nameSize * 0.7;
+    const padY = nameSize * 0.42;
+    const textWidth = ctx.measureText(currentUsername).width;
+    const chipW = textWidth + padX * 2;
+    const chipH = nameSize + padY * 2;
+    const chipRight = finalCanvas.width - headerH * 0.5;
+    const chipTop = (headerH - chipH) / 2;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 230, 118, 0.5)';
+    ctx.shadowBlur = nameSize * 0.5;
+    drawRoundedRect(ctx, chipRight - chipW, chipTop, chipW, chipH, chipH / 2);
+    ctx.fillStyle = 'rgba(0, 230, 118, 0.14)';
+    ctx.fill();
+    ctx.restore();
+
+    drawRoundedRect(ctx, chipRight - chipW, chipTop, chipW, chipH, chipH / 2);
+    ctx.strokeStyle = '#00e676';
+    ctx.lineWidth = Math.max(1, nameSize * 0.06);
+    ctx.stroke();
+
+    ctx.fillStyle = '#00e676';
+    ctx.fillText(currentUsername, chipRight - padX, headerH / 2);
+
+    ctx.drawImage(bracketCanvas, 0, headerH);
+
+    const link = document.createElement('a');
+    link.download = `fifa-fantasy-bracket-${currentUsername || 'player'}-${new Date().toISOString().slice(0, 10)}.png`;
+    link.href = finalCanvas.toDataURL('image/png');
+    link.click();
+  } catch (err) {
+    console.error('Fantasy bracket image export failed:', err);
+    alert('Sorry, could not create the image.');
+  } finally {
+    if (restoreFlags) restoreFlags();
+    _fantasyFocused = savedFocused;
+    _fantasyPositions = savedPositions;
+    track.style.transform = savedTransform;
+    track.style.transition = savedTransition;
+    scrollwrap.style.width = savedWrapWidth;
+    scrollwrap.style.height = savedWrapHeight;
+    applyFantasyPositions(rounds, track, svg);
+    if (btn) { btn.disabled = false; btn.innerHTML = original; }
+    if (prevBtn) prevBtn.disabled = prevWasDisabled;
+    if (nextBtn) nextBtn.disabled = nextWasDisabled;
+  }
+}
+
 // ===================== MOUNTAIN CLIMB (animated standings over time) =====================
 let climbFrames = [];
 let climbCurrent = 0;
@@ -1944,9 +2146,9 @@ function computeNextDayToHighlight(rounds) {
 function renderBracketTab() {
   const container = document.getElementById('bracketContainer');
   if (!container) return;
-  const rounds = buildBracketRounds(matches, BRACKET_ROUNDS);
+  const { rounds, thirdPlace } = buildBracketRounds(matches, BRACKET_ROUNDS);
   const highlightDay = computeNextDayToHighlight(rounds);
-  renderBracket(container, rounds, (match, side) => submitVote(match.id, side), highlightDay);
+  renderBracket(container, rounds, (match, side) => submitVote(match.id, side), highlightDay, thirdPlace);
   updateAllTimers();
 }
 

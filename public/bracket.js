@@ -41,6 +41,17 @@ function computeBracketPositions(roundSizes, focusedIdx, rowHeight) {
   return positions;
 }
 
+function buildThirdPlaceSlot(byRoundSlot) {
+  const match = byRoundSlot.get('THIRD_PLACE:0') || null;
+  let homeTeam = 'TBD';
+  let awayTeam = 'TBD';
+  if (match) {
+    homeTeam = match.homeTeam;
+    awayTeam = match.awayTeam;
+  }
+  return { slot: 0, match, homeTeam, awayTeam };
+}
+
 function buildBracketRounds(matches, roundDefs) {
   const byRoundSlot = new Map();
   matches.forEach(m => {
@@ -63,7 +74,8 @@ function buildBracketRounds(matches, roundDefs) {
     }
     rounds.push({ code: roundDef.code, label: roundDef.label, size: roundDef.size, slots });
   });
-  return rounds;
+  const thirdPlace = buildThirdPlaceSlot(byRoundSlot);
+  return { rounds, thirdPlace };
 }
 
 // --- DOM rendering ---
@@ -73,16 +85,23 @@ let _bracketPositions = [];
 let _bracketOnPick = null;
 let _bracketLabelEl = null;
 let _bracketHighlightDay = null;
+let _bracketThirdPlace = null;
 
 // The focused round is always tight-stacked (see computeBracketPositions),
-// so its content height is just its own row count.
+// so its content height is just its own row count. The third place card
+// always sits at the Final column's x-offset, which can be visible even
+// when an earlier round is focused (wide viewports show more than one
+// column at once) — so its extra row is reserved unconditionally,
+// regardless of which round is currently focused.
 function bracketContentHeight(roundSize) {
-  return BRACKET_HEADER_H + (roundSize - 1) * BRACKET_ROW_H + BRACKET_CARD_H + BRACKET_BOTTOM_PAD;
+  const extra = _bracketThirdPlace ? BRACKET_ROW_H : 0;
+  return BRACKET_HEADER_H + (roundSize - 1) * BRACKET_ROW_H + BRACKET_CARD_H + extra + BRACKET_BOTTOM_PAD;
 }
 
-function renderBracket(rootEl, rounds, onPick, highlightDay) {
+function renderBracket(rootEl, rounds, onPick, highlightDay, thirdPlace) {
   _bracketOnPick = onPick;
   _bracketHighlightDay = highlightDay ?? null;
+  _bracketThirdPlace = thirdPlace ?? null;
   const roundSizes = rounds.map(r => r.size);
 
   rootEl.innerHTML = `
@@ -161,7 +180,7 @@ function formatBracketKickoff(isoString) {
 }
 
 function buildBracketCards(track, rounds, highlightDay) {
-  track.querySelectorAll('.bracket-card, .bracket-slot-num').forEach(el => el.remove());
+  track.querySelectorAll('.bracket-card, .bracket-slot-num, .bracket-third-place-label').forEach(el => el.remove());
   rounds.forEach((round, r) => {
     const xOffset = r * BRACKET_COL_PITCH;
     round.slots.forEach((slotData, i) => {
@@ -215,6 +234,35 @@ function buildBracketCards(track, rounds, highlightDay) {
       track.appendChild(card);
     });
   });
+
+  if (_bracketThirdPlace) {
+    const tpMatch = _bracketThirdPlace.match;
+    const tpResolved = tpMatch && tpMatch.status === 'resolved';
+    const tpLocked = !tpResolved && tpMatch
+      && (tpMatch.votingLocked || (tpMatch.hasStarted && !tpMatch.extensionActive));
+    const tpLive = !tpResolved && tpMatch && tpMatch.hasStarted;
+    const tpPickCorrect = tpResolved && tpMatch.myVote && tpMatch.myVote === tpMatch.outcome;
+    const tpPickWrong   = tpResolved && tpMatch.myVote && tpMatch.myVote !== tpMatch.outcome;
+
+    const label = document.createElement('div');
+    label.className = 'bracket-third-place-label';
+    label.id = 'bracketThirdPlaceLabel';
+    label.textContent = 'Third Place Game';
+    track.appendChild(label);
+
+    const card = document.createElement('div');
+    card.id = 'bracketThirdPlaceCard';
+    card.className = 'bracket-card third-place'
+      + (tpResolved ? ' bracket-card--resolved' : '')
+      + (tpLocked   ? ' bracket-card--locked'   : '')
+      + (tpLive     ? ' bracket-card--live'      : '')
+      + (tpMatch && tpMatch.myBooster ? ' bracket-card--boosted' : '')
+      + (tpPickCorrect ? ' bracket-card--pick-correct' : '')
+      + (tpPickWrong   ? ' bracket-card--pick-wrong'   : '');
+    card.appendChild(buildBracketRow(_bracketThirdPlace, 'home'));
+    card.appendChild(buildBracketRow(_bracketThirdPlace, 'away'));
+    track.appendChild(card);
+  }
 }
 
 function buildBracketRow(slotData, side) {
@@ -311,6 +359,20 @@ function applyBracketPositions(rounds, track, svg) {
       if (num) num.style.top = (cardTop - BRACKET_GAP / 2) + 'px';
     });
   });
+
+  if (_bracketThirdPlace) {
+    const lastIdx = rounds.length - 1;
+    const finalPositions = _bracketPositions[lastIdx];
+    if (finalPositions) {
+      const xOffset = lastIdx * BRACKET_COL_PITCH;
+      const cardTop = finalPositions[0] + BRACKET_HEADER_H + BRACKET_ROW_H;
+      const card = track.querySelector('#bracketThirdPlaceCard');
+      const label = track.querySelector('#bracketThirdPlaceLabel');
+      if (card) { card.style.left = xOffset + 'px'; card.style.top = cardTop + 'px'; }
+      if (label) { label.style.left = xOffset + 'px'; label.style.top = (cardTop + BRACKET_CARD_H + 6) + 'px'; }
+    }
+  }
+
   drawBracketConnectors(rounds, svg);
 }
 
