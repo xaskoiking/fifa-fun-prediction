@@ -13,6 +13,9 @@ data.localbak.json
 data.local*.json
 data.*-backup-*.json
 
+# Locally-uploaded profile photos (dev mode only — prod stores these in GCS)
+public/uploads/
+
 # Legacy/runtime artifacts
 backups/
 history_log.csv

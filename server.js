@@ -24,6 +24,40 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, 'data.json');
 
+const multer = require('multer');
+const PHOTOS_DIR = path.join(__dirname, 'public', 'uploads', 'photos');
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.mimetype)) {
+      return cb(new Error('Only JPEG, PNG, or WebP images are allowed.'));
+    }
+    cb(null, true);
+  }
+});
+
+function extFromMimetype(mimetype) {
+  if (mimetype === 'image/png') return 'png';
+  if (mimetype === 'image/webp') return 'webp';
+  return 'jpg';
+}
+
+function mimeFromExt(filename) {
+  if (filename.endsWith('.png')) return 'image/png';
+  if (filename.endsWith('.webp')) return 'image/webp';
+  return 'image/jpeg';
+}
+
+// A player's own name, lowercased and stripped to [a-z0-9], used as the
+// photo filename stem. Existing player names in this app are unique and
+// distinct enough after stripping that collisions aren't a practical concern
+// for a small friend-group deployment.
+function safePhotoStem(name) {
+  return String(name).toLowerCase().replace(/[^a-z0-9]/g, '') || 'player';
+}
+
 // ── Environment identification (drives the staging/review pill in the UI) ────
 const APP_ENV = process.env.APP_ENV || 'prod';
 const PR_NUMBER = process.env.PR_NUMBER ? Number(process.env.PR_NUMBER) : null;
@@ -997,6 +1031,71 @@ app.get('/api/report-card/:name', authenticateSecret, (req, res) => {
     stats,
     matches
   });
+});
+
+// Self-service profile photo upload. The target user is always the
+// authenticated caller — there is no path to overwrite someone else's photo.
+app.post('/api/profile/photo', authenticateSecret, (req, res) => {
+  photoUpload.single('photo')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No photo file provided.' });
+    }
+
+    const ext = extFromMimetype(req.file.mimetype);
+    const fileName = `${safePhotoStem(req.username)}.${ext}`;
+
+    try {
+      if (gcsBucket) {
+        await gcsBucket.file(`photos/${fileName}`).save(req.file.buffer, { contentType: req.file.mimetype });
+      } else {
+        fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+        fs.writeFileSync(path.join(PHOTOS_DIR, fileName), req.file.buffer);
+      }
+    } catch (saveErr) {
+      console.error('Failed to save photo:', saveErr);
+      return res.status(500).json({ error: 'Failed to save photo.' });
+    }
+
+    const db = readData();
+    const user = db.users.find(u => u.name === req.username);
+    user.photoUrl = `/photos/${fileName}?v=${Date.now()}`;
+    writeData(db);
+
+    res.json({ success: true, photoUrl: user.photoUrl });
+  });
+});
+
+// Serve a photo regardless of storage backend (GCS in prod, local disk in dev).
+app.get('/photos/:file', async (req, res) => {
+  const file = req.params.file;
+  if (!/^[a-z0-9]+\.(jpg|jpeg|png|webp)$/i.test(file)) {
+    return res.status(400).send('Invalid file name.');
+  }
+
+  if (gcsBucket) {
+    try {
+      const gcsFile = gcsBucket.file(`photos/${file}`);
+      const [exists] = await gcsFile.exists();
+      if (!exists) return res.status(404).send('Not found.');
+      res.setHeader('Content-Type', mimeFromExt(file));
+      gcsFile.createReadStream()
+        .on('error', (streamErr) => {
+          console.error('[GCS] Failed to stream photo:', streamErr);
+          if (!res.headersSent) res.status(500).send('Failed to load photo.');
+        })
+        .pipe(res);
+    } catch (err) {
+      console.error('[GCS] Failed to load photo:', err);
+      res.status(500).send('Failed to load photo.');
+    }
+  } else {
+    const localPath = path.join(PHOTOS_DIR, file);
+    if (!fs.existsSync(localPath)) return res.status(404).send('Not found.');
+    res.sendFile(localPath);
+  }
 });
 
 // Public endpoint: live matches that are currently affecting the provisional leaderboard
