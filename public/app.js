@@ -370,7 +370,7 @@ async function uploadReportCardPhoto() {
 
   if (!input.files || input.files.length === 0) {
     messageEl.textContent = 'Choose a photo first.';
-    messageEl.className = 'feedback-message error-text';
+    messageEl.className = 'feedback-message error';
     return;
   }
 
@@ -387,13 +387,13 @@ async function uploadReportCardPhoto() {
     if (!response.ok) throw new Error(result.error || 'Upload failed');
 
     messageEl.textContent = 'Photo updated!';
-    messageEl.className = 'feedback-message success-text';
+    messageEl.className = 'feedback-message success';
     input.value = '';
     loadReportCard(currentUsername);
   } catch (err) {
     console.error('Error uploading photo:', err);
     messageEl.textContent = 'Failed to upload: ' + err.message;
-    messageEl.className = 'feedback-message error-text';
+    messageEl.className = 'feedback-message error';
   }
 }
 
