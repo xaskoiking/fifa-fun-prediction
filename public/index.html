@@ -665,6 +665,22 @@
             </div>
           </div>
 
+          <!-- Report Card Titles Card -->
+          <div class="rules-card" style="margin-top: 20px;">
+            <h3 class="card-toggle" onclick="toggleAdminCard(this)">🎖️ Report Card Titles <span class="collapse-chevron">▾</span></h3>
+            <div class="card-body">
+              <p class="small-desc">Export player stats to generate fun titles (e.g. "Risk Taker") offline in a Claude conversation, then import the result back in.</p>
+              <div class="form-group inline-form" style="margin-bottom: 10px;">
+                <button class="btn btn-primary btn-sm" onclick="exportReportCardStats()">Export Stats for Titling</button>
+              </div>
+              <div class="form-group inline-form">
+                <input type="file" id="titlesImportInput" accept="application/json" class="form-control">
+                <button class="btn btn-success btn-sm" onclick="importReportCardTitles()">Import Titles</button>
+              </div>
+              <div id="titlesImportMessage" class="feedback-message"></div>
+            </div>
+          </div>
+
         </div>
       </section>
 

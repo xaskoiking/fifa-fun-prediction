@@ -3781,6 +3781,70 @@ async function downloadHistoryCSV() {
   }
 }
 
+async function exportReportCardStats() {
+  try {
+    const response = await fetch('/api/admin/report-card-stats-export', {
+      headers: {
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      }
+    });
+    if (!response.ok) throw new Error('Failed to fetch report card stats');
+    const stats = await response.json();
+
+    const blob = new Blob([JSON.stringify(stats, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `report_card_stats_${new Date().toISOString().slice(0, 10)}.json`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error('Error exporting report card stats:', err);
+    alert('Failed to export stats: ' + err.message);
+  }
+}
+
+async function importReportCardTitles() {
+  const input = document.getElementById('titlesImportInput');
+  const messageEl = document.getElementById('titlesImportMessage');
+  messageEl.textContent = '';
+  messageEl.className = 'feedback-message';
+
+  if (!input.files || input.files.length === 0) {
+    messageEl.textContent = 'Choose a titles JSON file first.';
+    messageEl.className = 'feedback-message error';
+    return;
+  }
+
+  try {
+    const text = await input.files[0].text();
+    const payload = JSON.parse(text);
+
+    const response = await fetch('/api/admin/titles/import', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Import failed');
+
+    messageEl.textContent = `Imported titles for ${result.updated} player(s).`;
+    messageEl.className = 'feedback-message success';
+    input.value = '';
+  } catch (err) {
+    console.error('Error importing titles:', err);
+    messageEl.textContent = 'Failed to import: ' + err.message;
+    messageEl.className = 'feedback-message error';
+  }
+}
+
 // Return recent resolved matches for a team (most recent first)
 function getRecentResolvedMatchesForTeam(teamName, limit = 5) {
   if (!teamName) return [];
