@@ -27,12 +27,36 @@ function calculatePointsForMatch(votes, outcome, matchType, boosters = {}) {
   return pointsAllocated;
 }
 
+function normalizeStageText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
 function getMatchStageCode(match) {
+  // Bracket round is the authoritative source for bracket-created matches
   if (match.bracketRound) {
     if (match.bracketRound === 'LAST_32') return 'LAST_32';
     if (match.bracketRound === 'LAST_16') return 'LAST_16';
     if (['QUARTER_FINALS', 'SEMI_FINALS', 'FINAL', 'THIRD_PLACE'].includes(match.bracketRound)) return 'QF_SF_FINAL';
   }
+
+  const stageText = normalizeStageText(match.group || match.stage || match.round || '');
+  if (stageText) {
+    if (/(round of 32|last 32|r32)\b/.test(stageText)) return 'LAST_32';
+    if (/(round of 16|last 16|r16)\b/.test(stageText)) return 'LAST_16';
+    if (/(quarter final|quarter-final|quarterfinal|semi final|semi-final|semifinal|final|third place|3rd place|qf\/sf\/final|qf sf final)\b/.test(stageText)) {
+      return 'QF_SF_FINAL';
+    }
+  }
+
+  const num = parseInt(match.matchNumber, 10);
+  if (!Number.isFinite(num)) return null;
+  if (num >= 73 && num <= 88) return 'LAST_32';
+  if (num >= 89 && num <= 96) return 'LAST_16';
+  if (num >= 97 && num <= 104) return 'QF_SF_FINAL';
   return null;
 }
 
@@ -233,6 +257,36 @@ console.log("\nTest #3: player with no resolved matches involvement");
   assertDeepEqual(stats.highestRank, null, 'Frank highestRank');
   assertDeepEqual(stats.currentStreak, 0, 'Frank currentStreak');
   assertDeepEqual(stats.bestStreak, 0, 'Frank bestStreak');
+}
+
+// Test #4: bonus-only points (team pick wrong, bonus pick correct) still count
+// toward totalPoints and the streak, and correct-team-pick stays 0.
+console.log("\nTest #4: bonus-only correct pick");
+{
+  const db = {
+    users: [{ name: 'Gina' }, { name: 'Hank' }],
+    matches: [
+      {
+        matchNumber: '97', homeTeam: 'X', awayTeam: 'Y', matchType: 'KO',
+        bracketRound: 'QUARTER_FINALS',
+        kickoff: '2026-06-01T00:00:00.000Z', status: 'resolved', outcome: 'home',
+        decidedBy: 'EXTRA_TIME',
+        votes: { home: ['Hank'], away: ['Gina'], draw: [] },
+        boosters: {},
+        bonusPicks: { Gina: 'EXTRA_TIME', Hank: 'REGULAR' }
+      }
+    ]
+  };
+  // Gina picked away (wrong team, 0 team points) but her bonus pick EXTRA_TIME
+  // matches decidedBy -> +5 bonus, correctTeam=false so it's the 5-point case,
+  // not the 10-point case. Her total points go 0 -> 5, a positive-points frame,
+  // so it counts as a streak hit even though her team pick was wrong.
+  const stats = computePlayerReportStats(db, 'Gina');
+  assertDeepEqual(stats.totalPoints, 5, 'Gina totalPoints (bonus-only)');
+  assertDeepEqual(stats.correct, 0, 'Gina correct (team pick was wrong)');
+  assertDeepEqual(stats.totalPredictions, 1, 'Gina totalPredictions');
+  assertDeepEqual(stats.currentStreak, 1, 'Gina currentStreak (bonus points still count as a hit)');
+  assertDeepEqual(stats.bestStreak, 1, 'Gina bestStreak');
 }
 
 if (failed) {

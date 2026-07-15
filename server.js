@@ -425,7 +425,7 @@ function buildLeaderboardHistory(db) {
   return frames;
 }
 
-// Per-player report card stats: rank (current + highest ever) and prediction
+// Per-player report card stats: rank (current + highest ever) and scoring
 // streak (current + best), derived from the same buildLeaderboardHistory replay
 // used by the racing chart and comparison view, so numbers never disagree
 // across views. totalPredictions/correct/accuracy mirror GET /api/leaderboard's
