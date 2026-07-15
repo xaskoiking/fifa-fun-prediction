@@ -223,24 +223,15 @@ async function initReportCardTab() {
   const select = document.getElementById('reportCardPlayerSelect');
   if (select.dataset.loaded !== 'true') {
     try {
-      const response = await fetch('/api/admin/users', {
-        headers: { 'x-user-secret': currentUserSecret, 'x-admin-passcode': adminPasscode }
+      // /api/leaderboard is public (no auth gate) and always contains every
+      // db.users entry — a complete, always-available player list for any
+      // logged-in user, unlike the admin-only /api/admin/users route.
+      const response = await fetch('/api/leaderboard', {
+        headers: { 'x-user-secret': currentUserSecret }
       });
-      // Non-admins can't call /api/admin/users — fall back to deriving the
-      // player list from already-loaded match vote data instead.
-      let names;
-      if (response.ok) {
-        const users = await response.json();
-        names = users.map(u => u.name);
-      } else {
-        const nameSet = new Set();
-        (matches || []).forEach(m => {
-          (m.voters ? [...(m.voters.home || []), ...(m.voters.away || []), ...(m.voters.draw || [])] : []).forEach(n => nameSet.add(n));
-        });
-        nameSet.add(currentUsername);
-        names = [...nameSet];
-      }
-      names.sort((a, b) => a.localeCompare(b));
+      if (!response.ok) throw new Error('Failed to load player list');
+      const leaderboard = await response.json();
+      const names = leaderboard.map(row => row.name).sort((a, b) => a.localeCompare(b));
       select.innerHTML = names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
       select.value = names.includes(currentUsername) ? currentUsername : names[0];
       select.dataset.loaded = 'true';
@@ -329,7 +320,7 @@ function renderReportCardTable(rawMatches) {
     if (isResolved) {
       const winnerTeam = m.outcome === 'home' ? m.homeTeam : m.outcome === 'away' ? m.awayTeam : 'Draw';
       resultText = escapeHtml(winnerTeam);
-      if (m.decidedBy) resultText += ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${bonusLabels[m.decidedBy]})</span>`;
+      if (m.decidedBy) resultText += ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${bonusLabels[m.decidedBy] || m.decidedBy})</span>`;
     }
 
     let pickText = '<span style="color: var(--text-muted);">No Vote</span>';
@@ -337,7 +328,7 @@ function renderReportCardTable(rawMatches) {
     if (m.pick) {
       const pickTeam = m.pick === 'home' ? m.homeTeam : m.pick === 'away' ? m.awayTeam : 'Draw';
       pickText = escapeHtml(pickTeam) + (m.boosted ? ' ⚡' : '');
-      if (m.bonusPick) pickText += ` · ${bonusLabels[m.bonusPick]}`;
+      if (m.bonusPick) pickText += ` · ${bonusLabels[m.bonusPick] || m.bonusPick}`;
       if (isResolved) pickClass = m.points > 0 ? 'text-active' : 'error-text';
     }
 
