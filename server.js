@@ -425,6 +425,78 @@ function buildLeaderboardHistory(db) {
   return frames;
 }
 
+// Per-player report card stats: rank (current + highest ever) and prediction
+// streak (current + best), derived from the same buildLeaderboardHistory replay
+// used by the racing chart and comparison view, so numbers never disagree
+// across views. totalPredictions/correct/accuracy mirror GET /api/leaderboard's
+// counting rules exactly.
+function computePlayerReportStats(db, name) {
+  const frames = buildLeaderboardHistory(db);
+  const matchFrames = frames.slice(1);
+
+  let currentRank = null;
+  let highestRank = null;
+  let runningStreak = 0;
+  let bestStreak = 0;
+  let prevPoints = 0;
+  let sawAnyFrame = false;
+
+  matchFrames.forEach(frame => {
+    const idx = frame.standings.findIndex(s => s.name === name);
+    if (idx !== -1) {
+      sawAnyFrame = true;
+      const rank = idx + 1;
+      currentRank = rank;
+      if (highestRank === null || rank < highestRank) highestRank = rank;
+    }
+    const entry = idx !== -1 ? frame.standings[idx] : null;
+    const points = entry ? entry.points : prevPoints;
+    if (points > prevPoints) {
+      runningStreak += 1;
+    } else {
+      runningStreak = 0;
+    }
+    if (runningStreak > bestStreak) bestStreak = runningStreak;
+    prevPoints = points;
+  });
+
+  if (!sawAnyFrame) {
+    currentRank = null;
+    highestRank = null;
+  }
+
+  let totalPredictions = 0;
+  let correct = 0;
+  let totalPoints = 0;
+  db.matches.forEach(match => {
+    if (match.status !== 'resolved') return;
+    const voted = (match.votes.home || []).includes(name)
+      || (match.votes.away || []).includes(name)
+      || (match.votes.draw || []).includes(name);
+    if (voted) totalPredictions += 1;
+
+    const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
+    const bonusPoints = calculateBonusPointsForMatch(match);
+    const teamPts = pointsAllocated[name] || 0;
+    const bonusPts = bonusPoints[name] || 0;
+    if (teamPts > 0) correct += 1;
+    totalPoints += teamPts + bonusPts;
+  });
+
+  const accuracy = totalPredictions > 0 ? Math.round((correct / totalPredictions) * 1000) / 10 : 0;
+
+  return {
+    totalPoints,
+    correct,
+    totalPredictions,
+    accuracy,
+    currentRank,
+    highestRank,
+    currentStreak: runningStreak,
+    bestStreak
+  };
+}
+
 // Middleware: Authenticate user secret and get username
 function authenticateSecret(req, res, next) {
   const secret = req.headers['x-user-secret'];
