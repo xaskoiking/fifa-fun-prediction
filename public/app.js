@@ -6,6 +6,8 @@ let currentUserSecret = localStorage.getItem('soccer_prediction_secret') || '';
 let currentUserIsAdmin = localStorage.getItem('soccer_prediction_is_admin') === 'true';
 let adminPasscode = sessionStorage.getItem('admin_passcode') || '';
 let matches = [];
+let reportCardData = null;
+let reportCardSortMode = 'chronological';
 let currentFilter = 'open'; // 'open' or 'past'
 let activeTab = 'bracket';
 let countdownInterval = null;
@@ -212,6 +214,212 @@ function switchTab(tabName) {
   } else if (tabName === 'admin') {
     checkAdminState();
     initializeDefaultKickoff();
+  } else if (tabName === 'reportCard') {
+    initReportCardTab();
+  }
+}
+
+async function initReportCardTab() {
+  const select = document.getElementById('reportCardPlayerSelect');
+  if (select.dataset.loaded !== 'true') {
+    try {
+      const response = await fetch('/api/admin/users', {
+        headers: { 'x-user-secret': currentUserSecret, 'x-admin-passcode': adminPasscode }
+      });
+      // Non-admins can't call /api/admin/users — fall back to deriving the
+      // player list from already-loaded match vote data instead.
+      let names;
+      if (response.ok) {
+        const users = await response.json();
+        names = users.map(u => u.name);
+      } else {
+        const nameSet = new Set();
+        (matches || []).forEach(m => {
+          (m.voters ? [...(m.voters.home || []), ...(m.voters.away || []), ...(m.voters.draw || [])] : []).forEach(n => nameSet.add(n));
+        });
+        nameSet.add(currentUsername);
+        names = [...nameSet];
+      }
+      names.sort((a, b) => a.localeCompare(b));
+      select.innerHTML = names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+      select.value = names.includes(currentUsername) ? currentUsername : names[0];
+      select.dataset.loaded = 'true';
+    } catch (err) {
+      console.error('Failed to load player list:', err);
+    }
+  }
+  loadReportCard(select.value || currentUsername);
+}
+
+async function loadReportCard(name) {
+  if (!name) return;
+  const tbody = document.getElementById('reportCardTableBody');
+  tbody.innerHTML = `<tr><td colspan="7" class="loading-state">Loading ${escapeHtml(name)}'s report card…</td></tr>`;
+  try {
+    const response = await fetch(`/api/report-card/${encodeURIComponent(name)}`, {
+      headers: { 'x-user-secret': currentUserSecret }
+    });
+    if (!response.ok) throw new Error('Failed to load report card');
+    reportCardData = await response.json();
+    reportCardSortMode = 'chronological';
+    document.getElementById('reportCardSortToggle').textContent = 'Sort: Chronological';
+    renderReportCard(reportCardData);
+  } catch (err) {
+    console.error('Error loading report card:', err);
+    tbody.innerHTML = `<tr><td colspan="7" class="loading-state">Failed to load report card.</td></tr>`;
+  }
+}
+
+function renderReportCard(data) {
+  const photo = document.getElementById('reportCardPhoto');
+  const placeholder = document.getElementById('reportCardPhotoPlaceholder');
+  if (data.photoUrl) {
+    photo.src = data.photoUrl;
+    photo.style.display = 'block';
+    placeholder.style.display = 'none';
+  } else {
+    photo.style.display = 'none';
+    placeholder.style.display = 'flex';
+    placeholder.textContent = data.name.charAt(0).toUpperCase();
+  }
+
+  document.getElementById('reportCardName').textContent = data.name;
+  const titleEl = document.getElementById('reportCardTitle');
+  titleEl.textContent = data.title || '';
+  titleEl.title = data.titleReason || '';
+
+  const s = data.stats;
+  document.getElementById('reportCardStats').innerHTML = `
+    <span><strong>${s.totalPoints}</strong> pts</span>
+    <span><strong>${s.accuracy}%</strong> accuracy (${s.correct}/${s.totalPredictions})</span>
+    <span>Rank <strong>${s.currentRank ?? '—'}</strong></span>
+    <span>Best Rank <strong>${s.highestRank ?? '—'}</strong></span>
+    <span>Streak <strong>${s.currentStreak}</strong></span>
+    <span>Best Streak <strong>${s.bestStreak}</strong></span>
+  `;
+
+  const uploadSection = document.getElementById('reportCardUploadSection');
+  uploadSection.style.display = (data.name === currentUsername) ? 'block' : 'none';
+
+  renderReportCardTable(data.matches);
+}
+
+function renderReportCardTable(rawMatches) {
+  const tbody = document.getElementById('reportCardTableBody');
+  const rows = rawMatches.slice();
+  if (reportCardSortMode === 'points') {
+    rows.sort((a, b) => b.points - a.points);
+  } else {
+    rows.sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
+  }
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="loading-state">No matches yet.</td></tr>`;
+    return;
+  }
+
+  const stageLabels = { LAST_32: 'Round of 32', LAST_16: 'Round of 16', QF_SF_FINAL: 'QF/SF/Final' };
+  const bonusLabels = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' };
+
+  tbody.innerHTML = rows.map(m => {
+    const isResolved = m.status === 'resolved';
+    const kickoffStr = new Date(m.kickoff).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    let resultText = '<span style="color: var(--color-warning);">Locked / Live</span>';
+    if (isResolved) {
+      const winnerTeam = m.outcome === 'home' ? m.homeTeam : m.outcome === 'away' ? m.awayTeam : 'Draw';
+      resultText = escapeHtml(winnerTeam);
+      if (m.decidedBy) resultText += ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${bonusLabels[m.decidedBy]})</span>`;
+    }
+
+    let pickText = '<span style="color: var(--text-muted);">No Vote</span>';
+    let pickClass = '';
+    if (m.pick) {
+      const pickTeam = m.pick === 'home' ? m.homeTeam : m.pick === 'away' ? m.awayTeam : 'Draw';
+      pickText = escapeHtml(pickTeam) + (m.boosted ? ' ⚡' : '');
+      if (m.bonusPick) pickText += ` · ${bonusLabels[m.bonusPick]}`;
+      if (isResolved) pickClass = m.points > 0 ? 'text-active' : 'error-text';
+    }
+
+    return `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="text-align:center; font-family: monospace; color: var(--color-accent);">${m.matchNumber ? '#' + m.matchNumber : '-'}</td>
+        <td>${escapeHtml(m.homeTeam)} vs ${escapeHtml(m.awayTeam)}</td>
+        <td style="color: var(--text-muted); font-size: 0.8rem;">${m.stage ? stageLabels[m.stage] : escapeHtml(m.group || '')}</td>
+        <td style="color: var(--text-muted); font-size: 0.8rem;">${kickoffStr}</td>
+        <td>${resultText}</td>
+        <td class="${pickClass}">${pickText}</td>
+        <td style="text-align:center; font-weight:700;">${isResolved ? m.points : '—'}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function toggleReportCardSort() {
+  reportCardSortMode = reportCardSortMode === 'chronological' ? 'points' : 'chronological';
+  document.getElementById('reportCardSortToggle').textContent =
+    reportCardSortMode === 'points' ? 'Sort: Highest Points' : 'Sort: Chronological';
+  if (reportCardData) renderReportCardTable(reportCardData.matches);
+}
+
+async function uploadReportCardPhoto() {
+  const input = document.getElementById('reportCardPhotoInput');
+  const messageEl = document.getElementById('reportCardUploadMessage');
+  messageEl.textContent = '';
+  messageEl.className = 'feedback-message';
+
+  if (!input.files || input.files.length === 0) {
+    messageEl.textContent = 'Choose a photo first.';
+    messageEl.className = 'feedback-message error-text';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('photo', input.files[0]);
+
+  try {
+    const response = await fetch('/api/profile/photo', {
+      method: 'POST',
+      headers: { 'x-user-secret': currentUserSecret },
+      body: formData
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Upload failed');
+
+    messageEl.textContent = 'Photo updated!';
+    messageEl.className = 'feedback-message success-text';
+    input.value = '';
+    loadReportCard(currentUsername);
+  } catch (err) {
+    console.error('Error uploading photo:', err);
+    messageEl.textContent = 'Failed to upload: ' + err.message;
+    messageEl.className = 'feedback-message error-text';
+  }
+}
+
+async function downloadReportCardImage() {
+  if (typeof html2canvas !== 'function') {
+    alert('Image tool is still loading — please try again in a moment.');
+    return;
+  }
+  const el = document.getElementById('reportCardHeader');
+  const btn = document.getElementById('reportCardDownloadBtn');
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const canvas = await html2canvas(el, { backgroundColor: '#07130b', scale: 2, useCORS: true });
+    const link = document.createElement('a');
+    const name = reportCardData ? reportCardData.name : 'player';
+    link.download = `report-card-${name}-${new Date().toISOString().slice(0, 10)}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch (err) {
+    console.error('Error saving report card image:', err);
+    alert('Failed to save image: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
   }
 }
 
