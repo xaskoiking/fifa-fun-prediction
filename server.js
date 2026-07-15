@@ -531,6 +531,24 @@ function computePlayerReportStats(db, name) {
   };
 }
 
+// Builds the JSON an admin downloads to paste into an offline Claude
+// conversation for generating fun per-player titles. No API key/SDK lives
+// in this app — titles are written back via POST /api/admin/titles/import.
+function buildTitlingExport(db) {
+  return db.users.map(user => {
+    const stats = computePlayerReportStats(db, user.name);
+    return {
+      name: user.name,
+      totalPoints: stats.totalPoints,
+      accuracy: stats.accuracy,
+      currentRank: stats.currentRank,
+      highestRank: stats.highestRank,
+      currentStreak: stats.currentStreak,
+      bestStreak: stats.bestStreak
+    };
+  });
+}
+
 // Middleware: Authenticate user secret and get username
 function authenticateSecret(req, res, next) {
   const secret = req.headers['x-user-secret'];
@@ -1227,6 +1245,34 @@ app.post('/api/admin/users/toggle-admin', verifyAdmin, (req, res) => {
 app.get('/api/admin/history', verifyAdmin, (req, res) => {
   const db = readData();
   res.json(db.history || []);
+});
+
+app.get('/api/admin/report-card-stats-export', verifyAdmin, (req, res) => {
+  const db = readData();
+  res.json(buildTitlingExport(db));
+});
+
+app.post('/api/admin/titles/import', verifyAdmin, (req, res) => {
+  const payload = req.body;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return res.status(400).json({ error: 'Body must be a JSON object mapping player name -> {title, reason}.' });
+  }
+
+  const db = readData();
+  let updated = 0;
+  Object.keys(payload).forEach(name => {
+    const user = db.users.find(u => u.name === name);
+    if (!user) return;
+    const entry = payload[name] || {};
+    if (typeof entry.title === 'string' && entry.title.trim()) {
+      user.title = entry.title.trim();
+      user.titleReason = typeof entry.reason === 'string' ? entry.reason.trim() : '';
+      updated += 1;
+    }
+  });
+  writeData(db);
+
+  res.json({ success: true, updated });
 });
 
 // Create a new player (Admin Only)
