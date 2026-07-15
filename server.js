@@ -1061,6 +1061,9 @@ app.post('/api/profile/photo', authenticateSecret, (req, res) => {
 
     const db = readData();
     const user = db.users.find(u => u.name === req.username);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
     user.photoUrl = `/photos/${fileName}?v=${Date.now()}`;
     writeData(db);
 
