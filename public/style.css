@@ -688,6 +688,68 @@ body {
   overflow: hidden;
 }
 
+.report-card-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+}
+
+.report-card-photo-wrap {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+}
+
+.report-card-photo {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-color);
+}
+
+.report-card-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  color: var(--color-accent);
+  font-size: 2.5rem;
+  font-weight: 800;
+}
+
+.report-card-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.report-card-name {
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.report-card-title {
+  color: var(--color-gold);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.report-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.report-card-stats strong {
+  color: var(--text-primary);
+}
+
 .table-responsive {
   overflow-x: auto;
 }

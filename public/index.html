@@ -61,6 +61,9 @@
         <button class="tab-btn" id="tabBtnLeaderboard" onclick="switchTab('leaderboard')">
           <span class="tab-icon">🏆</span> <span class="tab-label">Leaderboard</span>
         </button>
+        <button class="tab-btn" id="tabBtnReportCard" onclick="switchTab('reportCard')">
+          <span class="tab-icon">🪪</span> <span class="tab-label">Report Card</span>
+        </button>
         <button class="tab-btn" id="tabBtnRules" onclick="switchTab('rules')">
           <span class="tab-icon">📝</span> <span class="tab-label">Points Rules</span>
         </button>
@@ -324,6 +327,60 @@
               </table>
             </div>
             <div class="report-footer snap-footer"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="tabContentReportCard" class="tab-content">
+        <div class="section-header">
+          <h2>Report Card</h2>
+          <p class="section-description">Every prediction, every point. Pick a player to see their full tournament.</p>
+        </div>
+
+        <div class="filter-bar">
+          <select id="reportCardPlayerSelect" class="form-control" onchange="loadReportCard(this.value)" style="max-width: 220px;"></select>
+          <button class="filter-btn" id="reportCardSortToggle" onclick="toggleReportCardSort()">Sort: Chronological</button>
+          <button class="filter-btn save-img-btn" id="reportCardDownloadBtn" onclick="downloadReportCardImage()">&#128247; Download Card</button>
+        </div>
+
+        <div class="leaderboard-card report-card-header" id="reportCardHeader">
+          <div class="report-card-photo-wrap">
+            <img id="reportCardPhoto" class="report-card-photo" style="display:none;" alt="Player photo">
+            <div id="reportCardPhotoPlaceholder" class="report-card-photo report-card-photo-placeholder">?</div>
+          </div>
+          <div class="report-card-identity">
+            <div class="report-card-name" id="reportCardName">&nbsp;</div>
+            <div class="report-card-title" id="reportCardTitle"></div>
+            <div class="report-card-stats" id="reportCardStats"></div>
+          </div>
+        </div>
+
+        <div class="leaderboard-card" id="reportCardUploadSection" style="display:none; padding: 14px 18px;">
+          <div class="form-group inline-form">
+            <input type="file" id="reportCardPhotoInput" accept="image/jpeg,image/png,image/webp" class="form-control">
+            <button class="btn btn-primary btn-sm" id="reportCardUploadBtn" onclick="uploadReportCardPhoto()">Upload Photo</button>
+          </div>
+          <div id="reportCardUploadMessage" class="feedback-message"></div>
+        </div>
+
+        <div class="leaderboard-card">
+          <div class="table-responsive">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Match #</th>
+                  <th>Matchup</th>
+                  <th>Stage</th>
+                  <th>Kickoff</th>
+                  <th>Result</th>
+                  <th>Pick</th>
+                  <th>Points</th>
+                </tr>
+              </thead>
+              <tbody id="reportCardTableBody">
+                <tr><td colspan="7" class="loading-state">Select a player…</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
