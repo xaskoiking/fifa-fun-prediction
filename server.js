@@ -936,6 +936,69 @@ app.get('/api/leaderboard/history', (req, res) => {
   res.json(buildLeaderboardHistory(db));
 });
 
+// Report Card: one player's full match history (pick + points) plus their
+// rank/streak/accuracy stats. Any authenticated user may view any player's
+// card — report cards are intentionally public within the group.
+app.get('/api/report-card/:name', authenticateSecret, (req, res) => {
+  const db = readData();
+  const targetName = req.params.name;
+  const user = db.users.find(u => u.name === targetName);
+  if (!user) {
+    return res.status(404).json({ error: 'Player not found.' });
+  }
+
+  const matches = db.matches
+    .slice()
+    .sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff))
+    .map(match => {
+      ensureMatchBoosterData(match);
+      ensureMatchBonusData(match);
+      const isResolved = match.status === 'resolved';
+
+      let pick = null;
+      if ((match.votes.home || []).includes(targetName)) pick = 'home';
+      else if ((match.votes.away || []).includes(targetName)) pick = 'away';
+      else if ((match.votes.draw || []).includes(targetName)) pick = 'draw';
+
+      const boosted = !!(pick && match.boosters[pick] && match.boosters[pick].includes(targetName));
+      const bonusPick = match.bonusPicks[targetName] || null;
+
+      let points = 0;
+      if (isResolved) {
+        const pointsAllocated = calculatePointsForMatch(match.votes, match.outcome, match.matchType, match.boosters);
+        const bonusPoints = calculateBonusPointsForMatch(match);
+        points = (pointsAllocated[targetName] || 0) + (bonusPoints[targetName] || 0);
+      }
+
+      return {
+        matchNumber: match.matchNumber,
+        group: match.group,
+        stage: getMatchStageCode(match),
+        homeTeam: match.homeTeam,
+        awayTeam: match.awayTeam,
+        kickoff: match.kickoff,
+        status: match.status,
+        outcome: match.outcome,
+        decidedBy: match.decidedBy || null,
+        pick,
+        boosted,
+        bonusPick,
+        points
+      };
+    });
+
+  const stats = computePlayerReportStats(db, targetName);
+
+  res.json({
+    name: user.name,
+    photoUrl: user.photoUrl || null,
+    title: user.title || null,
+    titleReason: user.titleReason || null,
+    stats,
+    matches
+  });
+});
+
 // Public endpoint: live matches that are currently affecting the provisional leaderboard
 app.get('/api/live-matches', (req, res) => {
   const db = readData();
