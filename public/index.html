@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚽</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Anton&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="vendor/flag-icons/css/flag-icons.min.css">
 </head>
@@ -334,7 +334,7 @@
       <section id="tabContentReportCard" class="tab-content">
         <div class="section-header">
           <h2>Report Card</h2>
-          <p class="section-description">Every prediction, every point. Pick a player to see their full tournament.</p>
+          <p class="section-description">Every player gets their own sticker. Pick a name to flip through front and back.</p>
         </div>
 
         <div class="filter-bar">
@@ -342,19 +342,31 @@
           <button class="filter-btn save-img-btn" id="reportCardDownloadBtn" onclick="downloadReportCardImage()">&#128247; Download Card</button>
         </div>
 
-        <div class="leaderboard-card report-card-header" id="reportCardHeader">
-          <div class="report-card-top-row">
-            <div class="report-card-photo-wrap">
-              <img id="reportCardPhoto" class="report-card-photo" style="display:none;" alt="Player photo">
-              <div id="reportCardPhotoPlaceholder" class="report-card-photo report-card-photo-placeholder">?</div>
+        <div class="panini-stage">
+          <div class="panini-card panini-front" id="reportCardFront">
+            <div class="panini-ghost-number" id="reportCardGhostNumber"></div>
+            <div class="panini-streak-badge" id="reportCardStreakBadge" style="display:none;"></div>
+            <div class="panini-photo-frame">
+              <img id="reportCardPhoto" class="panini-photo" style="display:none;" alt="Player photo">
+              <div id="reportCardPhotoPlaceholder" class="panini-photo panini-photo-placeholder">?</div>
             </div>
-            <div class="report-card-identity">
-              <div class="report-card-name" id="reportCardName">&nbsp;</div>
-              <div class="report-card-title" id="reportCardTitle"></div>
+            <div class="panini-banner panini-banner-name">
+              <div class="panini-name" id="reportCardName">&nbsp;</div>
+              <div class="panini-vitals" id="reportCardVitals"></div>
+            </div>
+            <div class="panini-banner panini-banner-title" id="reportCardTitle"></div>
+            <div class="panini-wordmark">PREDICTION ARENA &rsquo;26</div>
+          </div>
+
+          <div class="panini-card panini-back">
+            <div class="panini-back-header">&#127942; Top 5 Games</div>
+            <div class="panini-back-list" id="reportCardTableBody">
+              <div class="panini-back-empty">Select a player&hellip;</div>
             </div>
           </div>
-          <div class="report-card-stats" id="reportCardStats"></div>
         </div>
+
+        <div class="panini-supplement" id="reportCardSupplement"></div>
 
         <div class="leaderboard-card" id="reportCardUploadSection" style="display:none; padding: 14px 18px;">
           <div class="form-group inline-form">
@@ -362,27 +374,6 @@
             <button class="btn btn-primary btn-sm" id="reportCardUploadBtn" onclick="uploadReportCardPhoto()">Upload Photo</button>
           </div>
           <div id="reportCardUploadMessage" class="feedback-message"></div>
-        </div>
-
-        <div class="leaderboard-card report-card-narrow-card">
-          <h3 class="report-card-section-title">&#127942; Top 5 Games</h3>
-          <div class="table-responsive">
-            <table class="leaderboard-table">
-              <thead>
-                <tr>
-                  <th>Match #</th>
-                  <th>Matchup</th>
-                  <th>Stage</th>
-                  <th>Result</th>
-                  <th>Pick</th>
-                  <th>Points</th>
-                </tr>
-              </thead>
-              <tbody id="reportCardTableBody">
-                <tr><td colspan="6" class="loading-state">Select a player…</td></tr>
-              </tbody>
-            </table>
-          </div>
         </div>
       </section>
 

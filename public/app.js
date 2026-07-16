@@ -243,8 +243,8 @@ async function initReportCardTab() {
 
 async function loadReportCard(name) {
   if (!name) return;
-  const tbody = document.getElementById('reportCardTableBody');
-  tbody.innerHTML = `<tr><td colspan="6" class="loading-state">Loading ${escapeHtml(name)}'s report card…</td></tr>`;
+  const list = document.getElementById('reportCardTableBody');
+  list.innerHTML = `<div class="panini-back-empty">Loading ${escapeHtml(name)}'s card…</div>`;
   try {
     const response = await fetch(`/api/report-card/${encodeURIComponent(name)}`, {
       headers: { 'x-user-secret': currentUserSecret }
@@ -254,24 +254,41 @@ async function loadReportCard(name) {
     renderReportCard(reportCardData);
   } catch (err) {
     console.error('Error loading report card:', err);
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-state">Failed to load report card.</td></tr>`;
+    list.innerHTML = `<div class="panini-back-empty">Failed to load report card.</div>`;
   }
 }
 
-// Builds one stat tile: emoji + label + big value + an optional small
-// sub-line (used for the best-rank date and the best-streak match range).
-function reportCardStatTile(emoji, label, value, sub) {
-  return `
-    <div class="report-card-stat-tile">
-      <div class="report-card-stat-emoji">${emoji}</div>
-      <div class="report-card-stat-label">${label}</div>
-      <div class="report-card-stat-value">${value}</div>
-      ${sub ? `<div class="report-card-stat-sub">${sub}</div>` : ''}
-    </div>
-  `;
+// A small curated set of Panini-sticker-style "kit" themes. Each player is
+// hashed onto one deterministically, so the same name always gets the same
+// colors (not truly random on every render — a shareable card that changed
+// color every reload would look broken).
+const REPORT_CARD_THEMES = [
+  { name: 'Ignite',   border: '#e0451b', bgFrom: '#123b3c', bgTo: '#1f6b6c', ghost: 'rgba(255,255,255,0.15)', banner: '#0c2728' },
+  { name: 'Clover',   border: '#1e7a34', bgFrom: '#f5f1e6', bgTo: '#e3dec8', ghost: 'rgba(23,51,31,0.12)',    banner: '#16331e' },
+  { name: 'Azzurro',  border: '#155fa0', bgFrom: '#dceef8', bgTo: '#aed7ec', ghost: 'rgba(14,58,99,0.14)',    banner: '#0e3a63' },
+  { name: 'Sunburst', border: '#d9a400', bgFrom: '#12213b', bgTo: '#1d3b63', ghost: 'rgba(255,214,64,0.18)',  banner: '#0b1830' },
+  { name: 'Berry',    border: '#8e2a6b', bgFrom: '#f8e4f0', bgTo: '#eac3dc', ghost: 'rgba(92,26,70,0.14)',    banner: '#5c1a46' },
+  { name: 'Slate',    border: '#2b2f33', bgFrom: '#e2e8ec', bgTo: '#c4cdd3', ghost: 'rgba(28,34,38,0.12)',    banner: '#1c2226' }
+];
+
+function reportCardThemeForName(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  return REPORT_CARD_THEMES[hash % REPORT_CARD_THEMES.length];
 }
 
 function renderReportCard(data) {
+  const s = data.stats;
+  const theme = reportCardThemeForName(data.name);
+  const front = document.getElementById('reportCardFront');
+  front.style.setProperty('--panini-border', theme.border);
+  front.style.setProperty('--panini-bg-from', theme.bgFrom);
+  front.style.setProperty('--panini-bg-to', theme.bgTo);
+  front.style.setProperty('--panini-ghost', theme.ghost);
+  front.style.setProperty('--panini-banner', theme.banner);
+
   const photo = document.getElementById('reportCardPhoto');
   const placeholder = document.getElementById('reportCardPhotoPlaceholder');
   if (data.photoUrl) {
@@ -284,33 +301,45 @@ function renderReportCard(data) {
     placeholder.textContent = data.name.charAt(0).toUpperCase();
   }
 
+  const ghostEl = document.getElementById('reportCardGhostNumber');
+  ghostEl.textContent = s.currentRank != null ? `#${s.currentRank}` : '';
+  ghostEl.style.display = s.currentRank != null ? 'block' : 'none';
+
+  const streakBadge = document.getElementById('reportCardStreakBadge');
+  if (s.currentStreak > 0) {
+    streakBadge.textContent = `🔥 ${s.currentStreak}`;
+    streakBadge.style.display = 'block';
+  } else {
+    streakBadge.style.display = 'none';
+  }
+
   document.getElementById('reportCardName').textContent = data.name;
+  document.getElementById('reportCardVitals').textContent =
+    `Rank ${s.currentRank ?? '—'} | ${s.totalPoints} pts | ${s.accuracy}% acc`;
+
   const titleEl = document.getElementById('reportCardTitle');
-  titleEl.textContent = data.title || '';
+  titleEl.textContent = data.title ? `🎖️ ${data.title}` : 'Title pending…';
   titleEl.title = data.titleReason || '';
 
-  const s = data.stats;
   const bestRankDateStr = s.highestRankDate
     ? new Date(s.highestRankDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    : '';
-  const bestRankGamesStr = s.gamesAtHighestRank > 0
-    ? `Held for ${s.gamesAtHighestRank} game${s.gamesAtHighestRank === 1 ? '' : 's'}`
-    : '';
-  const bestRankSub = [bestRankDateStr, bestRankGamesStr].filter(Boolean).join(' · ');
+    : null;
+  const bestRankPill = s.highestRank != null
+    ? `🏆 Best Rank <strong>#${s.highestRank}</strong> — ${bestRankDateStr} · held ${s.gamesAtHighestRank} game${s.gamesAtHighestRank === 1 ? '' : 's'}`
+    : `🏆 Best Rank <strong>—</strong> not ranked yet`;
   const bestStreakRangeStr = (s.bestStreak > 0 && s.bestStreakStartMatch != null)
     ? (s.bestStreakStartMatch === s.bestStreakEndMatch
         ? `Match #${s.bestStreakStartMatch}`
         : `Match #${s.bestStreakStartMatch} → #${s.bestStreakEndMatch}`)
-    : '';
+    : null;
+  const bestStreakPill = s.bestStreak > 0
+    ? `⚡ Best Streak <strong>${s.bestStreak}</strong> — ${bestStreakRangeStr}`
+    : `⚡ Best Streak <strong>0</strong> — none yet`;
 
-  document.getElementById('reportCardStats').innerHTML = [
-    reportCardStatTile('🏅', 'Total Points', s.totalPoints),
-    reportCardStatTile('🎯', 'Accuracy', `${s.accuracy}%`, `${s.correct}/${s.totalPredictions} correct`),
-    reportCardStatTile('📊', 'Rank', s.currentRank ?? '—'),
-    reportCardStatTile('🏆', 'Best Rank', s.highestRank ?? '—', bestRankSub),
-    reportCardStatTile('🔥', 'Current Streak', s.currentStreak),
-    reportCardStatTile('⚡', 'Best Streak', s.bestStreak, bestStreakRangeStr)
-  ].join('');
+  document.getElementById('reportCardSupplement').innerHTML = `
+    <div class="panini-supplement-pill">${bestRankPill}</div>
+    <div class="panini-supplement-pill">${bestStreakPill}</div>
+  `;
 
   const uploadSection = document.getElementById('reportCardUploadSection');
   uploadSection.style.display = (data.name === currentUsername) ? 'block' : 'none';
@@ -318,48 +347,47 @@ function renderReportCard(data) {
   renderReportCardTable(data.matches);
 }
 
-// Top 5 highest-point-scoring games for this player (chronological ties
-// broken by Array.sort's stability, keeping the earlier game first).
+// Back of the card: top 5 highest-point-scoring games for this player
+// (chronological ties broken by Array.sort's stability, earlier game first),
+// rendered as compact stat rows rather than a table — a 300px-wide sticker
+// has no room for a 6-column table.
 function renderReportCardTable(rawMatches) {
-  const tbody = document.getElementById('reportCardTableBody');
+  const list = document.getElementById('reportCardTableBody');
   const rows = rawMatches.slice().sort((a, b) => b.points - a.points).slice(0, 5);
 
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading-state">No matches yet.</td></tr>`;
+    list.innerHTML = `<div class="panini-back-empty">No matches yet.</div>`;
     return;
   }
 
-  const stageLabels = { LAST_32: 'Round of 32', LAST_16: 'Round of 16', QF_SF_FINAL: 'QF/SF/Final' };
   const bonusLabels = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' };
 
-  tbody.innerHTML = rows.map(m => {
+  list.innerHTML = rows.map(m => {
     const isResolved = m.status === 'resolved';
 
-    let resultText = '<span style="color: var(--color-warning);">Locked / Live</span>';
-    if (isResolved) {
-      const winnerTeam = m.outcome === 'home' ? m.homeTeam : m.outcome === 'away' ? m.awayTeam : 'Draw';
-      resultText = escapeHtml(winnerTeam);
-      if (m.decidedBy) resultText += ` <span style="color: var(--text-muted); font-size: 0.75rem;">(${bonusLabels[m.decidedBy] || m.decidedBy})</span>`;
+    const subParts = [];
+    if (!isResolved) {
+      subParts.push('Locked / Live');
+    } else {
+      subParts.push(m.pick ? (m.points > 0 ? 'Hit' : 'Miss') : 'No pick');
     }
-
-    let pickText = '<span style="color: var(--text-muted);">No Vote</span>';
-    let pickClass = '';
     if (m.pick) {
       const pickTeam = m.pick === 'home' ? m.homeTeam : m.pick === 'away' ? m.awayTeam : 'Draw';
-      pickText = escapeHtml(pickTeam) + (m.boosted ? ' ⚡' : '');
-      if (m.bonusPick) pickText += ` · ${bonusLabels[m.bonusPick] || m.bonusPick}`;
-      if (isResolved) pickClass = m.points > 0 ? 'text-active' : 'error-text';
+      subParts.push(escapeHtml(pickTeam) + (m.boosted ? ' ⚡' : ''));
     }
+    if (m.bonusPick) subParts.push(bonusLabels[m.bonusPick] || m.bonusPick);
+
+    const pointsClass = isResolved ? (m.points > 0 ? 'text-active' : 'error-text') : '';
 
     return `
-      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-        <td style="text-align:center; font-family: monospace; color: var(--color-accent);">${m.matchNumber ? '#' + m.matchNumber : '-'}</td>
-        <td>${escapeHtml(m.homeTeam)} vs ${escapeHtml(m.awayTeam)}</td>
-        <td style="color: var(--text-muted); font-size: 0.8rem;">${m.stage ? stageLabels[m.stage] : escapeHtml(m.group || '')}</td>
-        <td>${resultText}</td>
-        <td class="${pickClass}">${pickText}</td>
-        <td style="text-align:center; font-weight:700;">${isResolved ? m.points : '—'}</td>
-      </tr>
+      <div class="panini-back-row">
+        <div class="panini-back-row-top">
+          <span class="panini-back-match">${m.matchNumber ? '#' + m.matchNumber : '-'}</span>
+          <span class="panini-back-matchup">${escapeHtml(m.homeTeam)} vs ${escapeHtml(m.awayTeam)}</span>
+          <span class="panini-back-points ${pointsClass}">${isResolved ? '+' + m.points : '—'}</span>
+        </div>
+        <div class="panini-back-row-sub">${subParts.join(' · ')}</div>
+      </div>
     `;
   }).join('');
 }
@@ -444,7 +472,7 @@ async function downloadReportCardImage() {
     alert('Image tool is still loading — please try again in a moment.');
     return;
   }
-  const el = document.getElementById('reportCardHeader');
+  const el = document.getElementById('reportCardFront');
   const btn = document.getElementById('reportCardDownloadBtn');
   const original = btn.innerHTML;
   btn.disabled = true;

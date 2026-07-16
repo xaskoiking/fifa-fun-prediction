@@ -688,110 +688,281 @@ body {
   overflow: hidden;
 }
 
-.report-card-header {
+/* ============ Panini-style Report Card sticker (front + back) ============
+   Per-player color theme arrives as inline custom properties on
+   .panini-front (--panini-border/--panini-bg-from/--panini-bg-to/
+   --panini-ghost/--panini-banner), set in JS from a small hashed palette so
+   the same player always lands on the same "kit" between visits. */
+
+.panini-stage {
   display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: 20px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 28px;
+  padding: 12px 0 8px;
 }
 
-.report-card-top-row {
-  display: flex;
-  align-items: center;
-  gap: 20px;
+.panini-card {
+  width: 300px;
+  max-width: 100%;
+  border-radius: 22px;
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-sans);
 }
 
-.report-card-photo-wrap {
+.panini-front {
+  --panini-border: #2b2f33;
+  --panini-bg-from: #1c2226;
+  --panini-bg-to: #12161a;
+  --panini-ghost: rgba(255, 255, 255, 0.12);
+  --panini-banner: #14181b;
   position: relative;
-  width: 96px;
-  height: 96px;
-  flex-shrink: 0;
+  aspect-ratio: 0.68;
+  padding: 10px;
+  background: var(--panini-border);
+  overflow: hidden;
+  transition: transform 0.25s ease;
 }
 
-.report-card-photo {
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
+.panini-front:hover {
+  transform: translateY(-4px);
+}
+
+.panini-front::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, var(--panini-bg-from), var(--panini-bg-to));
+  z-index: 0;
+}
+
+/* Diagonal foil sheen sweep on hover — restrained, one-time signature move */
+.panini-front::after {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  border-radius: 14px;
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.22) 50%, transparent 60%);
+  background-size: 250% 250%;
+  background-position: 120% 120%;
+  transition: background-position 0.7s ease;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.panini-front:hover::after {
+  background-position: -20% -20%;
+}
+
+.panini-ghost-number {
+  position: absolute;
+  top: -0.35em;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  font-family: 'Anton', var(--font-sans);
+  font-size: 7.5rem;
+  line-height: 1;
+  text-align: center;
+  color: var(--panini-ghost);
+  user-select: none;
+}
+
+.panini-streak-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 4;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  backdrop-filter: blur(2px);
+}
+
+.panini-photo-frame {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 26%;
+  top: 22%;
+  z-index: 2;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.panini-photo {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  border: 2px solid var(--border-color);
+  display: block;
 }
 
-.report-card-photo-placeholder {
+.panini-photo-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-secondary);
-  color: var(--color-accent);
-  font-size: 2.5rem;
-  font-weight: 800;
+  background: rgba(255, 255, 255, 0.25);
+  color: rgba(0, 0, 0, 0.45);
+  font-family: 'Anton', var(--font-sans);
+  font-size: 4rem;
 }
 
-.report-card-identity {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.panini-banner {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  z-index: 4;
+  background: var(--panini-banner);
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 16px;
+  text-align: center;
 }
 
-.report-card-name {
-  font-size: 1.4rem;
-  font-weight: 800;
+.panini-banner-name {
+  bottom: 15%;
 }
 
-.report-card-title {
-  color: var(--color-gold);
+.panini-name {
+  font-family: 'Anton', var(--font-sans);
+  font-size: 1.15rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panini-vitals {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 2px;
+}
+
+.panini-banner-title {
+  bottom: 4%;
+  font-size: 0.78rem;
   font-weight: 700;
-  font-size: 0.95rem;
+  padding: 6px 16px;
 }
 
-.report-card-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 12px;
+.panini-wordmark {
+  position: absolute;
+  right: 16px;
+  bottom: 8px;
+  z-index: 4;
+  font-family: 'Anton', var(--font-sans);
+  font-size: 0.55rem;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.55);
 }
 
-.report-card-stat-tile {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 12px 14px;
+.panini-back {
+  --panini-border: #2b2f33;
+  background: var(--bg-card);
+  backdrop-filter: blur(10px);
+  border: 3px solid var(--panini-border);
+  padding: 16px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  min-height: 260px;
 }
 
-.report-card-stat-emoji {
-  font-size: 1.3rem;
-  line-height: 1;
+.panini-back-header {
+  font-family: 'Anton', var(--font-sans);
+  font-size: 0.95rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--panini-border);
+  text-align: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
 }
 
-.report-card-stat-label {
+.panini-back-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panini-back-row {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm, 8px);
+  padding: 7px 10px;
+}
+
+.panini-back-row-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.panini-back-match {
+  color: var(--panini-border);
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.panini-back-matchup {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panini-back-points {
+  flex-shrink: 0;
+}
+
+.panini-back-row-sub {
   font-size: 0.72rem;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  margin-top: 2px;
 }
 
-.report-card-stat-value {
-  font-size: 1.25rem;
-  font-weight: 800;
+.panini-back-empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 30px 0;
+  font-size: 0.85rem;
+}
+
+.panini-supplement {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  padding: 4px 0 20px;
+}
+
+.panini-supplement-pill {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.panini-supplement-pill strong {
   color: var(--text-primary);
 }
 
-.report-card-stat-sub {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
-.report-card-narrow-card {
-  max-width: 720px;
-  margin: 0 auto;
-}
-
-.report-card-section-title {
-  margin: 0;
-  padding: 16px 18px 0;
-  font-size: 1rem;
-  font-weight: 700;
+@media (prefers-reduced-motion: reduce) {
+  .panini-front, .panini-front::after {
+    transition: none;
+  }
 }
 
 .table-responsive {
