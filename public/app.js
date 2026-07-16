@@ -364,6 +364,44 @@ function renderReportCardTable(rawMatches) {
   }).join('');
 }
 
+// Downscales an image file client-side and re-encodes it as JPEG before
+// upload, so a full-resolution phone photo (often 5-15MB) doesn't hit the
+// server's 5MB limit. The photo only ever displays as a small circular
+// avatar (and a 2x-scaled export), so 800px on the long edge is plenty.
+function resizeImageFile(file, maxDimension = 800, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read the image file.'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Failed to load the image.'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round(height * (maxDimension / width));
+            width = maxDimension;
+          } else {
+            width = Math.round(width * (maxDimension / height));
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob(blob => {
+          if (!blob) return reject(new Error('Failed to process the image.'));
+          const jpegName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+          resolve(new File([blob], jpegName, { type: 'image/jpeg' }));
+        }, 'image/jpeg', quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 async function uploadReportCardPhoto() {
   const input = document.getElementById('reportCardPhotoInput');
   const messageEl = document.getElementById('reportCardUploadMessage');
@@ -376,10 +414,12 @@ async function uploadReportCardPhoto() {
     return;
   }
 
-  const formData = new FormData();
-  formData.append('photo', input.files[0]);
-
   try {
+    messageEl.textContent = 'Processing photo…';
+    const resizedFile = await resizeImageFile(input.files[0]);
+    const formData = new FormData();
+    formData.append('photo', resizedFile);
+
     const response = await fetch('/api/profile/photo', {
       method: 'POST',
       headers: { 'x-user-secret': currentUserSecret },
