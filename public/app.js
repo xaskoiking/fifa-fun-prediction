@@ -289,10 +289,15 @@ function renderReportCard(data) {
   const { tier, foil, medal } = reportCardTierForRank(s.currentRank, reportCardTotalPlayers);
 
   const front = document.getElementById('reportCardFront');
-  front.classList.remove('tier-gold', 'tier-silver', 'tier-bronze', 'tier-legend', 'tier-foil', 'medal-gold', 'medal-silver', 'medal-bronze');
+  front.classList.remove('tier-gold', 'tier-silver', 'tier-bronze', 'tier-legend', 'tier-foil');
   front.classList.add(`tier-${tier}`);
   if (foil) front.classList.add('tier-foil');
-  if (medal) front.classList.add(`medal-${medal}`);
+
+  // Medal glow lives on the unclipped shell wrapper, not .panini-front
+  // itself — .panini-front's clip-path would otherwise clip the glow away.
+  const shell = document.getElementById('reportCardFrontShell');
+  shell.classList.remove('medal-gold', 'medal-silver', 'medal-bronze');
+  if (medal) shell.classList.add(`medal-${medal}`);
 
   // Set on the shared stage wrapper — both the front and back cards inherit
   // this, so the back card's accent matches the front's tier.

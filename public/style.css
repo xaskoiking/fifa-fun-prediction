@@ -720,6 +720,24 @@ body {
   font-family: var(--font-sans);
 }
 
+/* clip-path on .panini-front clips its OWN box-shadow away too (a shape's
+   shadow paints outside its boundary, which clip-path treats as "outside
+   the visible area" and cuts) — that's why the base card shadow and the
+   medal glow both silently vanished when the shape switched to clip-path.
+   Fix: box-shadow lives on this unclipped wrapper instead, sized to match
+   the card exactly, and .panini-front's own box-shadow is turned off. */
+.panini-front-shell {
+  width: 300px;
+  max-width: 100%;
+  box-shadow: var(--shadow-md);
+  transition: transform 0.25s ease;
+}
+
+.panini-front-shell .panini-front {
+  width: 100%;
+  box-shadow: none;
+}
+
 /* Card silhouette: a real FUT-style shield — domed top, straight sides,
    tapered point at the bottom — built with clip-path (a polygon sampling
    points around the curve, since clip-path only draws straight segments;
@@ -740,7 +758,6 @@ body {
   padding: 10px;
   background: #8a4b1f;
   clip-path: var(--card-clip);
-  transition: transform 0.25s ease;
 }
 
 .panini-front.tier-gold   { background: #caa000; }
@@ -759,7 +776,9 @@ body {
   background: #000000;
 }
 
-.panini-front:hover {
+/* On the shell, not .panini-front, so the (also-relocated) shadow/glow
+   moves together with the lift instead of staying pinned in place. */
+.panini-front-shell:hover {
   transform: translateY(-4px);
 }
 
@@ -806,25 +825,27 @@ body {
 }
 
 /* Rank 1/2/3 medal glow — a slow pulsing halo layered with the card's own
-   drop shadow (not replacing it), color-matched to the medal. */
+   drop shadow (not replacing it), color-matched to the medal. Lives on
+   .panini-front-shell (not .panini-front), since .panini-front's clip-path
+   would otherwise clip the glow away — see the note above .panini-front-shell. */
 @keyframes legend-glow-pulse {
   0%, 100% { box-shadow: var(--shadow-md), 0 0 10px 1px var(--medal-glow); }
   50%      { box-shadow: var(--shadow-md), 0 0 24px 6px var(--medal-glow); }
 }
 
-.panini-front.medal-gold {
+.panini-front-shell.medal-gold {
   --medal-glow: rgba(255, 215, 0, 0.6);
   box-shadow: var(--shadow-md), 0 0 18px 2px var(--medal-glow);
   animation: legend-glow-pulse 2.6s ease-in-out infinite;
 }
 
-.panini-front.medal-silver {
+.panini-front-shell.medal-silver {
   --medal-glow: rgba(210, 210, 210, 0.6);
   box-shadow: var(--shadow-md), 0 0 18px 2px var(--medal-glow);
   animation: legend-glow-pulse 2.6s ease-in-out infinite;
 }
 
-.panini-front.medal-bronze {
+.panini-front-shell.medal-bronze {
   --medal-glow: rgba(205, 127, 50, 0.6);
   box-shadow: var(--shadow-md), 0 0 18px 2px var(--medal-glow);
   animation: legend-glow-pulse 2.6s ease-in-out infinite;
@@ -1147,12 +1168,12 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .panini-front, .panini-front::after {
+  .panini-front-shell, .panini-front::after {
     transition: none;
   }
-  .panini-front.medal-gold,
-  .panini-front.medal-silver,
-  .panini-front.medal-bronze {
+  .panini-front-shell.medal-gold,
+  .panini-front-shell.medal-silver,
+  .panini-front-shell.medal-bronze {
     animation: none;
     box-shadow: var(--shadow-md), 0 0 18px 2px var(--medal-glow);
   }
