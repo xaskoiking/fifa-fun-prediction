@@ -132,6 +132,7 @@ function computePlayerReportStats(db, name) {
   let currentRank = null;
   let highestRank = null;
   let highestRankFrame = null;
+  let gamesAtHighestRank = 0;
   let runningStreak = 0;
   let bestStreak = 0;
   let runStartFrame = null;
@@ -146,9 +147,15 @@ function computePlayerReportStats(db, name) {
       sawAnyFrame = true;
       const rank = idx + 1;
       currentRank = rank;
-      if (highestRank === null || rank <= highestRank) {
+      if (highestRank === null || rank < highestRank) {
+        // A strictly better peak resets the count — earlier games at the
+        // old (worse) peak no longer qualify as "at the best rank".
         highestRank = rank;
         highestRankFrame = frame;
+        gamesAtHighestRank = 1;
+      } else if (rank === highestRank) {
+        highestRankFrame = frame; // still tracks the most recent tie
+        gamesAtHighestRank += 1;
       }
     }
     const entry = idx !== -1 ? frame.standings[idx] : null;
@@ -172,6 +179,7 @@ function computePlayerReportStats(db, name) {
     currentRank = null;
     highestRank = null;
     highestRankFrame = null;
+    gamesAtHighestRank = 0;
   }
 
   // totalPredictions/correct: count resolved matches this player voted in,
@@ -204,6 +212,7 @@ function computePlayerReportStats(db, name) {
     currentRank,
     highestRank,
     highestRankDate: highestRankFrame ? highestRankFrame.kickoff : null,
+    gamesAtHighestRank,
     currentStreak: runningStreak,
     bestStreak,
     bestStreakStartMatch: bestStreakStartFrame ? bestStreakStartFrame.matchNumber : null,
@@ -257,6 +266,7 @@ console.log("\nTest #1: rank + streak across 3 resolved matches");
   assertDeepEqual(stats.currentRank, 1, 'Alice currentRank');
   assertDeepEqual(stats.highestRank, 1, 'Alice highestRank');
   assertDeepEqual(stats.highestRankDate, '2026-06-03T00:00:00.000Z', 'Alice highestRankDate (most recent frame at peak rank, M3)');
+  assertDeepEqual(stats.gamesAtHighestRank, 3, 'Alice gamesAtHighestRank (rank 1 in all 3 frames)');
   assertDeepEqual(stats.currentStreak, 1, 'Alice currentStreak (broke at M2, resumed at M3)');
   assertDeepEqual(stats.bestStreak, 1, 'Alice bestStreak (never had 2 in a row)');
   assertDeepEqual(stats.bestStreakStartMatch, '3', 'Alice bestStreakStartMatch (most recent tying run, M3)');
@@ -278,6 +288,7 @@ console.log("\nTest #2: player with zero points across all resolved matches");
   assertDeepEqual(stats.accuracy, 0, 'Dave accuracy');
   assertDeepEqual(stats.highestRank, 2, 'Dave highestRank (behind Eve, who scored)');
   assertDeepEqual(stats.highestRankDate, '2026-06-01T00:00:00.000Z', 'Dave highestRankDate');
+  assertDeepEqual(stats.gamesAtHighestRank, 1, 'Dave gamesAtHighestRank (only 1 frame, at rank 2)');
   assertDeepEqual(stats.currentStreak, 0, 'Dave currentStreak');
   assertDeepEqual(stats.bestStreak, 0, 'Dave bestStreak');
   assertDeepEqual(stats.bestStreakStartMatch, null, 'Dave bestStreakStartMatch (never scored, no run)');
@@ -295,6 +306,7 @@ console.log("\nTest #3: player with no resolved matches involvement");
   assertDeepEqual(stats.currentRank, null, 'Frank currentRank');
   assertDeepEqual(stats.highestRank, null, 'Frank highestRank');
   assertDeepEqual(stats.highestRankDate, null, 'Frank highestRankDate');
+  assertDeepEqual(stats.gamesAtHighestRank, 0, 'Frank gamesAtHighestRank');
   assertDeepEqual(stats.currentStreak, 0, 'Frank currentStreak');
   assertDeepEqual(stats.bestStreak, 0, 'Frank bestStreak');
   assertDeepEqual(stats.bestStreakStartMatch, null, 'Frank bestStreakStartMatch');
@@ -331,6 +343,7 @@ console.log("\nTest #4: bonus-only correct pick");
   assertDeepEqual(stats.totalPredictions, 1, 'Gina totalPredictions');
   assertDeepEqual(stats.highestRank, 1, 'Gina highestRank (bonus points still outrank Hank)');
   assertDeepEqual(stats.highestRankDate, '2026-06-01T00:00:00.000Z', 'Gina highestRankDate');
+  assertDeepEqual(stats.gamesAtHighestRank, 1, 'Gina gamesAtHighestRank (only 1 frame, at rank 1)');
   assertDeepEqual(stats.currentStreak, 1, 'Gina currentStreak (bonus points still count as a hit)');
   assertDeepEqual(stats.bestStreak, 1, 'Gina bestStreak');
   assertDeepEqual(stats.bestStreakStartMatch, '97', 'Gina bestStreakStartMatch');
@@ -362,6 +375,36 @@ console.log("\nTest #5: multi-match streak range (start != end match)");
   assertDeepEqual(stats.bestStreakEndMatch, '12', 'Ian bestStreakEndMatch');
   assertDeepEqual(stats.highestRank, 1, 'Ian highestRank (stayed on top throughout)');
   assertDeepEqual(stats.highestRankDate, '2026-06-13T00:00:00.000Z', 'Ian highestRankDate (still rank 1 at the most recent frame, M13)');
+  assertDeepEqual(stats.gamesAtHighestRank, 4, 'Ian gamesAtHighestRank (rank 1 in all 4 frames)');
+}
+
+// Test #6: peak rank improves partway through -> gamesAtHighestRank must
+// reset when a strictly better rank is reached, not keep counting games
+// spent at the old (worse) peak.
+console.log("\nTest #6: gamesAtHighestRank resets when the peak rank improves");
+{
+  const db = {
+    users: [{ name: 'X' }, { name: 'Y' }],
+    matches: [
+      // M20-M21: Y pulls ahead each time, X sits at rank 2 both times.
+      { matchNumber: '20', homeTeam: 'A', awayTeam: 'B', matchType: 'KO', kickoff: '2026-06-20T00:00:00.000Z', status: 'resolved', outcome: 'home', votes: { home: ['Y'], away: ['X'], draw: [] }, boosters: {}, bonusPicks: {} },
+      { matchNumber: '21', homeTeam: 'C', awayTeam: 'D', matchType: 'KO', kickoff: '2026-06-21T00:00:00.000Z', status: 'resolved', outcome: 'home', votes: { home: ['Y'], away: ['X'], draw: [] }, boosters: {}, bonusPicks: {} },
+      // M22: X overtakes Y (4 extra "away" voters inflate X's points enough
+      // to jump ahead) -> X reaches rank 1 for the first time.
+      { matchNumber: '22', homeTeam: 'E', awayTeam: 'F', matchType: 'KO', kickoff: '2026-06-22T00:00:00.000Z', status: 'resolved', outcome: 'home', votes: { home: ['X'], away: ['D1', 'D2', 'D3', 'D4'], draw: [] }, boosters: {}, bonusPicks: {} },
+      // M23: X extends the lead -> still rank 1, ties the (now) best rank.
+      { matchNumber: '23', homeTeam: 'G', awayTeam: 'H', matchType: 'KO', kickoff: '2026-06-23T00:00:00.000Z', status: 'resolved', outcome: 'home', votes: { home: ['X'], away: ['D5', 'D6', 'D7', 'D8'], draw: [] }, boosters: {}, bonusPicks: {} }
+    ]
+  };
+  // X: M20 0pts (rank 2) -> M21 0pts (rank 2, tie) -> M22 +5=5pts (rank 1,
+  // NEW peak, count resets to 1) -> M23 +5=10pts (rank 1, ties peak, count=2).
+  // Y: 2pts after M20, 4pts after M21-23 (unchanged) -> never above rank 2
+  // once X overtakes.
+  const stats = computePlayerReportStats(db, 'X');
+  assertDeepEqual(stats.currentRank, 1, 'X currentRank (overtook Y)');
+  assertDeepEqual(stats.highestRank, 1, 'X highestRank');
+  assertDeepEqual(stats.highestRankDate, '2026-06-23T00:00:00.000Z', 'X highestRankDate (most recent frame at rank 1, M23)');
+  assertDeepEqual(stats.gamesAtHighestRank, 2, 'X gamesAtHighestRank (only M22+M23 count, not the earlier rank-2 games)');
 }
 
 if (failed) {

@@ -293,6 +293,10 @@ function renderReportCard(data) {
   const bestRankDateStr = s.highestRankDate
     ? new Date(s.highestRankDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
     : '';
+  const bestRankGamesStr = s.gamesAtHighestRank > 0
+    ? `Held for ${s.gamesAtHighestRank} game${s.gamesAtHighestRank === 1 ? '' : 's'}`
+    : '';
+  const bestRankSub = [bestRankDateStr, bestRankGamesStr].filter(Boolean).join(' · ');
   const bestStreakRangeStr = (s.bestStreak > 0 && s.bestStreakStartMatch != null)
     ? (s.bestStreakStartMatch === s.bestStreakEndMatch
         ? `Match #${s.bestStreakStartMatch}`
@@ -302,8 +306,8 @@ function renderReportCard(data) {
   document.getElementById('reportCardStats').innerHTML = [
     reportCardStatTile('🏅', 'Total Points', s.totalPoints),
     reportCardStatTile('🎯', 'Accuracy', `${s.accuracy}%`, `${s.correct}/${s.totalPredictions} correct`),
-    reportCardStatTile('📊', 'Current Rank', s.currentRank ?? '—'),
-    reportCardStatTile('🏆', 'Best Rank', s.highestRank ?? '—', bestRankDateStr),
+    reportCardStatTile('📊', 'Rank', s.currentRank ?? '—'),
+    reportCardStatTile('🏆', 'Best Rank', s.highestRank ?? '—', bestRankSub),
     reportCardStatTile('🔥', 'Current Streak', s.currentStreak),
     reportCardStatTile('⚡', 'Best Streak', s.bestStreak, bestStreakRangeStr)
   ].join('');

@@ -471,6 +471,7 @@ function computePlayerReportStats(db, name) {
   let currentRank = null;
   let highestRank = null;
   let highestRankFrame = null;
+  let gamesAtHighestRank = 0;
   let runningStreak = 0;
   let bestStreak = 0;
   let runStartFrame = null;
@@ -480,17 +481,22 @@ function computePlayerReportStats(db, name) {
   let sawAnyFrame = false;
 
   // "Most recent" semantics for both highestRank and the best-streak range
-  // come from using <=/>= (not strict </>) so a later frame that TIES the
-  // existing best overwrites which frame gets reported.
+  // come from tracking ties forward, so a later frame that TIES the existing
+  // best overwrites which frame gets reported. A strictly better rank resets
+  // gamesAtHighestRank — games spent at the old (worse) peak no longer count.
   matchFrames.forEach(frame => {
     const idx = frame.standings.findIndex(s => s.name === name);
     if (idx !== -1) {
       sawAnyFrame = true;
       const rank = idx + 1;
       currentRank = rank;
-      if (highestRank === null || rank <= highestRank) {
+      if (highestRank === null || rank < highestRank) {
         highestRank = rank;
         highestRankFrame = frame;
+        gamesAtHighestRank = 1;
+      } else if (rank === highestRank) {
+        highestRankFrame = frame;
+        gamesAtHighestRank += 1;
       }
     }
     const entry = idx !== -1 ? frame.standings[idx] : null;
@@ -514,6 +520,7 @@ function computePlayerReportStats(db, name) {
     currentRank = null;
     highestRank = null;
     highestRankFrame = null;
+    gamesAtHighestRank = 0;
   }
 
   let totalPredictions = 0;
@@ -544,6 +551,7 @@ function computePlayerReportStats(db, name) {
     currentRank,
     highestRank,
     highestRankDate: highestRankFrame ? highestRankFrame.kickoff : null,
+    gamesAtHighestRank,
     currentStreak: runningStreak,
     bestStreak,
     bestStreakStartMatch: bestStreakStartFrame ? bestStreakStartFrame.matchNumber : null,
