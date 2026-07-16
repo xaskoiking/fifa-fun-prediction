@@ -262,13 +262,17 @@ async function loadReportCard(name) {
 // hashed onto one deterministically, so the same name always gets the same
 // colors (not truly random on every render — a shareable card that changed
 // color every reload would look broken).
+// Each "kit" is a 4-ring radiating band sequence (outer edge -> inner ring)
+// plus a solid center where the big white rank number sits — an original
+// layered-poster pattern in the spirit of the bold, flat, concentric-band
+// World Cup sticker art, not a reproduction of any specific licensed asset.
 const REPORT_CARD_THEMES = [
-  { name: 'Ignite',   border: '#e0451b', bgFrom: '#123b3c', bgTo: '#1f6b6c', ghost: 'rgba(255,255,255,0.15)', banner: '#0c2728' },
-  { name: 'Clover',   border: '#1e7a34', bgFrom: '#f5f1e6', bgTo: '#e3dec8', ghost: 'rgba(23,51,31,0.12)',    banner: '#16331e' },
-  { name: 'Azzurro',  border: '#155fa0', bgFrom: '#dceef8', bgTo: '#aed7ec', ghost: 'rgba(14,58,99,0.14)',    banner: '#0e3a63' },
-  { name: 'Sunburst', border: '#d9a400', bgFrom: '#12213b', bgTo: '#1d3b63', ghost: 'rgba(255,214,64,0.18)',  banner: '#0b1830' },
-  { name: 'Berry',    border: '#8e2a6b', bgFrom: '#f8e4f0', bgTo: '#eac3dc', ghost: 'rgba(92,26,70,0.14)',    banner: '#5c1a46' },
-  { name: 'Slate',    border: '#2b2f33', bgFrom: '#e2e8ec', bgTo: '#c4cdd3', ghost: 'rgba(28,34,38,0.12)',    banner: '#1c2226' }
+  { name: 'Ignite',   bands: ['#e0451b', '#ffb300', '#1f6b6c', '#0d3b3c'], center: '#062121', banner: '#0c2728' },
+  { name: 'Clover',   bands: ['#1e7a34', '#d9a400', '#8e2a6b', '#4a1338'], center: '#2b0a1f', banner: '#3a1029' },
+  { name: 'Azzurro',  bands: ['#155fa0', '#29b6f6', '#ff5252', '#7c1f1f'], center: '#3d0f0f', banner: '#4a1414' },
+  { name: 'Sunburst', bands: ['#d9a400', '#e0451b', '#155fa0', '#0e3a63'], center: '#071b30', banner: '#0c2745' },
+  { name: 'Berry',    bands: ['#8e2a6b', '#d9a400', '#1e7a34', '#123b1a'], center: '#081f0e', banner: '#0e2a14' },
+  { name: 'Slate',    bands: ['#2b2f33', '#8e2a6b', '#155fa0', '#0e3a63'], center: '#071120', banner: '#0c1a30' }
 ];
 
 function reportCardThemeForName(name) {
@@ -282,12 +286,16 @@ function reportCardThemeForName(name) {
 function renderReportCard(data) {
   const s = data.stats;
   const theme = reportCardThemeForName(data.name);
-  const front = document.getElementById('reportCardFront');
-  front.style.setProperty('--panini-border', theme.border);
-  front.style.setProperty('--panini-bg-from', theme.bgFrom);
-  front.style.setProperty('--panini-bg-to', theme.bgTo);
-  front.style.setProperty('--panini-ghost', theme.ghost);
-  front.style.setProperty('--panini-banner', theme.banner);
+  // Set on the shared stage wrapper — both the front and back cards inherit
+  // these custom properties, so they read as a matched pair.
+  const stage = document.getElementById('reportCardStage');
+  stage.style.setProperty('--panini-border', theme.bands[0]);
+  stage.style.setProperty('--panini-band-1', theme.bands[0]);
+  stage.style.setProperty('--panini-band-2', theme.bands[1]);
+  stage.style.setProperty('--panini-band-3', theme.bands[2]);
+  stage.style.setProperty('--panini-band-4', theme.bands[3]);
+  stage.style.setProperty('--panini-center', theme.center);
+  stage.style.setProperty('--panini-banner', theme.banner);
 
   const photo = document.getElementById('reportCardPhoto');
   const placeholder = document.getElementById('reportCardPhotoPlaceholder');
