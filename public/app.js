@@ -318,10 +318,11 @@ function renderReportCard(data) {
     streakBadge.style.display = 'none';
   }
 
-  // FUT-style rating block: OVR (their accuracy, already a natural 0-100
-  // scale) with a "position" code standing in for their current rank.
-  document.getElementById('reportCardOVR').textContent = Math.round(s.accuracy);
-  document.getElementById('reportCardPos').textContent = s.currentRank != null ? `R${s.currentRank}` : '—';
+  // FUT-style rating block: total points as the headline number, current
+  // rank as the sub-label — the two numbers people actually track here,
+  // in the same visual slot FUT uses for OVR + position.
+  document.getElementById('reportCardOVR').textContent = s.totalPoints;
+  document.getElementById('reportCardPos').textContent = s.currentRank != null ? `RANK ${s.currentRank}` : '—';
 
   document.getElementById('reportCardName').textContent = data.name;
 
@@ -332,9 +333,7 @@ function renderReportCard(data) {
     </div>
   `;
   document.getElementById('reportCardStatsRow').innerHTML = [
-    statCell('PTS', s.totalPoints),
     statCell('ACC', `${s.accuracy}%`),
-    statCell('RNK', s.currentRank ?? '—'),
     statCell('PRK', s.highestRank ?? '—'),
     statCell('CST', s.currentStreak),
     statCell('BST', s.bestStreak)

@@ -872,18 +872,18 @@ body {
 
 .fut-ovr {
   font-family: 'Anton', var(--font-sans);
-  font-size: 2.1rem;
+  font-size: 1.8rem;
   line-height: 1;
-  color: #ffffff;
-  text-shadow: 2px 2px 3px rgba(0, 0, 0, 0.45);
+  color: #1c1408;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .fut-pos {
   font-family: 'Anton', var(--font-sans);
   font-size: 0.85rem;
   letter-spacing: 0.5px;
-  color: #ffffff;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+  color: #1c1408;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.4);
   margin-top: 2px;
 }
 
@@ -941,8 +941,8 @@ body {
   font-family: 'Anton', var(--font-sans);
   font-size: 1.1rem;
   letter-spacing: 0.5px;
-  color: #ffffff;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+  color: #1c1408;
+  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.4);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -955,7 +955,7 @@ body {
   top: 70%;
   height: 2px;
   z-index: 3;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .fut-stats-row {
@@ -973,8 +973,8 @@ body {
   flex: 1;
   min-width: 0;
   text-align: center;
-  border-right: 1px solid rgba(255, 255, 255, 0.3);
-  color: #ffffff;
+  border-right: 1px solid rgba(0, 0, 0, 0.25);
+  color: #1c1408;
 }
 
 .fut-stat:last-child {
@@ -1022,9 +1022,31 @@ body {
   font-family: 'Anton', var(--font-sans);
   font-size: 0.55rem;
   letter-spacing: 0.5px;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(0, 0, 0, 0.4);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* Legend (black) cards flip back to light text/dividers — everything above
+   defaults dark because 3 of the 4 tiers (gold/silver/bronze) are light. */
+.panini-front.tier-legend .fut-ovr,
+.panini-front.tier-legend .fut-pos,
+.panini-front.tier-legend .fut-name {
+  color: #ffffff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.panini-front.tier-legend .fut-divider {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.panini-front.tier-legend .fut-stat {
+  color: #ffffff;
+  border-right-color: rgba(255, 255, 255, 0.3);
+}
+
+.panini-front.tier-legend .panini-wordmark {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .panini-back {
