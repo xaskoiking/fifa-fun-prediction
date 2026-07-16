@@ -811,13 +811,16 @@ body {
   animation: legend-glow-pulse 2.6s ease-in-out infinite;
 }
 
-/* Legend cards (top 3) get a faceted, near-hexagonal outline instead of the
-   arch top. Built by masking the 4 corners of an otherwise plain rounded
-   rectangle with rotated squares colored to match the page background
-   (--bg-primary, the same color the Download Card export uses) rather than
-   clip-path — this is the one shape technique that survives the html2canvas
-   export unchanged. The bottom two masks are large enough to leave only a
-   small flat nub, reading as a tapered point at normal card size. */
+/* Every card gets the FUT pointed-bottom silhouette: the bottom two corners
+   are masked with rotated squares colored to match the page background
+   (--bg-primary) rather than clip-path (no browser-support gap to work
+   around anymore — clip-path would be simpler now that the Download Card
+   export is gone — but this technique is already built, tested, and
+   working, so there's no reason to swap it out). The masks are large
+   enough to leave only a small flat nub, reading as a tapered point at
+   normal card size. Legend (top-3) cards ALSO mask the top two corners,
+   trading the arch top for a flat, angled-corner top — the near-hexagonal
+   "special edition" outline. */
 .panini-front.tier-legend {
   border-radius: 8px;
 }
@@ -831,10 +834,15 @@ body {
   position: absolute;
   z-index: 2;
   background: var(--bg-primary);
+}
+
+.legend-corner-tl,
+.legend-corner-tr {
   display: none;
 }
 
-.panini-front.tier-legend .legend-corner {
+.panini-front.tier-legend .legend-corner-tl,
+.panini-front.tier-legend .legend-corner-tr {
   display: block;
 }
 
@@ -845,8 +853,8 @@ body {
 
 .legend-corner-tl { width: 32px; height: 32px; transform: translate(-50%, -50%) rotate(45deg); }
 .legend-corner-tr { left: auto; right: 10px; width: 32px; height: 32px; transform: translate(50%, -50%) rotate(45deg); }
-.legend-corner-bl { top: auto; bottom: 10px; width: 190px; height: 190px; transform: translate(-50%, 50%) rotate(45deg); }
-.legend-corner-br { top: auto; bottom: 10px; left: auto; right: 10px; width: 190px; height: 190px; transform: translate(50%, 50%) rotate(45deg); }
+.legend-corner-bl { top: auto; bottom: 10px; width: 110px; height: 110px; transform: translate(-50%, 50%) rotate(45deg); }
+.legend-corner-br { top: auto; bottom: 10px; left: auto; right: 10px; width: 110px; height: 110px; transform: translate(50%, 50%) rotate(45deg); }
 
 /* Diagonal foil sheen sweep on hover — restrained, one-time signature move */
 .panini-front::after {
@@ -964,10 +972,10 @@ body {
 
 .fut-stats-row {
   position: absolute;
-  left: 4%;
-  right: 4%;
+  left: 8%;
+  right: 8%;
   top: 73%;
-  bottom: 14%;
+  bottom: 18%;
   z-index: 3;
   display: flex;
   align-items: center;
@@ -1000,9 +1008,9 @@ body {
 
 .fut-footer {
   position: absolute;
-  left: 5%;
-  right: 5%;
-  bottom: 3%;
+  left: 16%;
+  right: 16%;
+  bottom: 8%;
   z-index: 4;
   display: flex;
   align-items: center;
@@ -1123,6 +1131,19 @@ body {
   text-align: center;
   padding: 30px 0;
   font-size: 0.85rem;
+}
+
+.panini-legend {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  max-width: 640px;
+  margin: 4px auto 0;
+  line-height: 1.6;
+}
+
+.panini-legend strong {
+  color: var(--text-primary);
 }
 
 .panini-supplement {
