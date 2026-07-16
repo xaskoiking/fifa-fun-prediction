@@ -297,6 +297,13 @@ function renderReportCard(data) {
   stage.style.setProperty('--panini-center', theme.center);
   stage.style.setProperty('--panini-banner', theme.banner);
 
+  // Top-3 (by current rank) get a shiny gold/silver/bronze foil card instead
+  // of their hashed color kit — a "special edition" treatment.
+  const front = document.getElementById('reportCardFront');
+  front.classList.remove('foil-gold', 'foil-silver', 'foil-bronze');
+  const foilClass = s.currentRank === 1 ? 'foil-gold' : s.currentRank === 2 ? 'foil-silver' : s.currentRank === 3 ? 'foil-bronze' : null;
+  if (foilClass) front.classList.add(foilClass);
+
   const photo = document.getElementById('reportCardPhoto');
   const placeholder = document.getElementById('reportCardPhotoPlaceholder');
   if (data.photoUrl) {
