@@ -339,20 +339,21 @@
 
         <div class="filter-bar">
           <select id="reportCardPlayerSelect" class="form-control" onchange="loadReportCard(this.value)" style="max-width: 220px;"></select>
-          <button class="filter-btn" id="reportCardSortToggle" onclick="toggleReportCardSort()">Sort: Chronological</button>
           <button class="filter-btn save-img-btn" id="reportCardDownloadBtn" onclick="downloadReportCardImage()">&#128247; Download Card</button>
         </div>
 
         <div class="leaderboard-card report-card-header" id="reportCardHeader">
-          <div class="report-card-photo-wrap">
-            <img id="reportCardPhoto" class="report-card-photo" style="display:none;" alt="Player photo">
-            <div id="reportCardPhotoPlaceholder" class="report-card-photo report-card-photo-placeholder">?</div>
+          <div class="report-card-top-row">
+            <div class="report-card-photo-wrap">
+              <img id="reportCardPhoto" class="report-card-photo" style="display:none;" alt="Player photo">
+              <div id="reportCardPhotoPlaceholder" class="report-card-photo report-card-photo-placeholder">?</div>
+            </div>
+            <div class="report-card-identity">
+              <div class="report-card-name" id="reportCardName">&nbsp;</div>
+              <div class="report-card-title" id="reportCardTitle"></div>
+            </div>
           </div>
-          <div class="report-card-identity">
-            <div class="report-card-name" id="reportCardName">&nbsp;</div>
-            <div class="report-card-title" id="reportCardTitle"></div>
-            <div class="report-card-stats" id="reportCardStats"></div>
-          </div>
+          <div class="report-card-stats" id="reportCardStats"></div>
         </div>
 
         <div class="leaderboard-card" id="reportCardUploadSection" style="display:none; padding: 14px 18px;">
@@ -363,7 +364,8 @@
           <div id="reportCardUploadMessage" class="feedback-message"></div>
         </div>
 
-        <div class="leaderboard-card">
+        <div class="leaderboard-card report-card-narrow-card">
+          <h3 class="report-card-section-title">&#127942; Top 5 Games</h3>
           <div class="table-responsive">
             <table class="leaderboard-table">
               <thead>
@@ -371,14 +373,13 @@
                   <th>Match #</th>
                   <th>Matchup</th>
                   <th>Stage</th>
-                  <th>Kickoff</th>
                   <th>Result</th>
                   <th>Pick</th>
                   <th>Points</th>
                 </tr>
               </thead>
               <tbody id="reportCardTableBody">
-                <tr><td colspan="7" class="loading-state">Select a player…</td></tr>
+                <tr><td colspan="6" class="loading-state">Select a player…</td></tr>
               </tbody>
             </table>
           </div>

@@ -1,6 +1,7 @@
 // verify_report_card_stats.js
 // Test script to verify the per-player report card stats logic
-// (rank, highest rank, current/best streak, accuracy).
+// (rank, highest rank + date reached, current/best streak + match range,
+// accuracy).
 
 function calculatePointsForMatch(votes, outcome, matchType, boosters = {}) {
   const votersHome = votes.home || [];
@@ -85,7 +86,7 @@ function buildLeaderboardHistory(db) {
       return a.name.localeCompare(b.name);
     });
 
-  const frames = [{ matchNumber: null, standings: snapshot() }];
+  const frames = [{ matchNumber: null, kickoff: null, standings: snapshot() }];
 
   const resolvedMatches = db.matches
     .filter(m => m.status === 'resolved')
@@ -108,20 +109,34 @@ function buildLeaderboardHistory(db) {
       const total = teamPts + bonusPts;
       if (total > 0) standings[user].points += total;
     });
-    frames.push({ matchNumber: match.matchNumber, standings: snapshot() });
+    frames.push({ matchNumber: match.matchNumber, kickoff: match.kickoff, standings: snapshot() });
   });
 
   return frames;
 }
 
+// Per-player report card stats: rank (current + highest ever, with the date
+// the highest rank was MOST RECENTLY reached — in case it was hit more than
+// once), scoring streak (current + best, with the match-number range of the
+// most recent run that reached the best length), and accuracy. Built on
+// buildLeaderboardHistory's replay so numbers never disagree with the racing
+// chart / comparison view.
+//
+// "Most recent" semantics for both highestRank and the best-streak range are
+// achieved with a single forward pass using <=/>= (not strict </>) so a later
+// frame that TIES the existing best overwrites which frame is reported.
 function computePlayerReportStats(db, name) {
   const frames = buildLeaderboardHistory(db);
   const matchFrames = frames.slice(1); // drop the initial all-zero frame
 
   let currentRank = null;
   let highestRank = null;
+  let highestRankFrame = null;
   let runningStreak = 0;
   let bestStreak = 0;
+  let runStartFrame = null;
+  let bestStreakStartFrame = null;
+  let bestStreakEndFrame = null;
   let prevPoints = 0;
   let sawAnyFrame = false;
 
@@ -131,22 +146,32 @@ function computePlayerReportStats(db, name) {
       sawAnyFrame = true;
       const rank = idx + 1;
       currentRank = rank;
-      if (highestRank === null || rank < highestRank) highestRank = rank;
+      if (highestRank === null || rank <= highestRank) {
+        highestRank = rank;
+        highestRankFrame = frame;
+      }
     }
     const entry = idx !== -1 ? frame.standings[idx] : null;
     const points = entry ? entry.points : prevPoints;
     if (points > prevPoints) {
+      if (runningStreak === 0) runStartFrame = frame;
       runningStreak += 1;
     } else {
       runningStreak = 0;
+      runStartFrame = null;
     }
-    if (runningStreak > bestStreak) bestStreak = runningStreak;
+    if (runningStreak > 0 && runningStreak >= bestStreak) {
+      bestStreak = runningStreak;
+      bestStreakStartFrame = runStartFrame;
+      bestStreakEndFrame = frame;
+    }
     prevPoints = points;
   });
 
   if (!sawAnyFrame) {
     currentRank = null;
     highestRank = null;
+    highestRankFrame = null;
   }
 
   // totalPredictions/correct: count resolved matches this player voted in,
@@ -178,8 +203,11 @@ function computePlayerReportStats(db, name) {
     accuracy,
     currentRank,
     highestRank,
+    highestRankDate: highestRankFrame ? highestRankFrame.kickoff : null,
     currentStreak: runningStreak,
-    bestStreak
+    bestStreak,
+    bestStreakStartMatch: bestStreakStartFrame ? bestStreakStartFrame.matchNumber : null,
+    bestStreakEndMatch: bestStreakEndFrame ? bestStreakEndFrame.matchNumber : null
   };
 }
 
@@ -217,6 +245,10 @@ console.log("\nTest #1: rank + streak across 3 resolved matches");
   //   Alice's points did NOT increase (stayed at 3) -> streak breaks.
   // Match 3: Alice picks home (correct, +1 since 0 away/0 draw... wait draw voters=2 -> pts = 0+2+1=3).
   //   -> standings after M3: Alice 6, Carol 3, Bob 0. Alice rank 1 again, streak resumes at 1.
+  // Alice is rank 1 at every frame -> highestRankDate keeps advancing to the
+  // most recent frame (M3), even though the rank value itself never changes.
+  // The M3 streak-of-1 TIES the M1 streak-of-1 for "best" -> most recent
+  // qualifying run (M3..M3) wins over the earlier one (M1..M1).
   const stats = computePlayerReportStats(db, 'Alice');
   assertDeepEqual(stats.totalPoints, 6, 'Alice totalPoints');
   assertDeepEqual(stats.correct, 2, 'Alice correct');
@@ -224,8 +256,11 @@ console.log("\nTest #1: rank + streak across 3 resolved matches");
   assertDeepEqual(stats.accuracy, 66.7, 'Alice accuracy');
   assertDeepEqual(stats.currentRank, 1, 'Alice currentRank');
   assertDeepEqual(stats.highestRank, 1, 'Alice highestRank');
+  assertDeepEqual(stats.highestRankDate, '2026-06-03T00:00:00.000Z', 'Alice highestRankDate (most recent frame at peak rank, M3)');
   assertDeepEqual(stats.currentStreak, 1, 'Alice currentStreak (broke at M2, resumed at M3)');
   assertDeepEqual(stats.bestStreak, 1, 'Alice bestStreak (never had 2 in a row)');
+  assertDeepEqual(stats.bestStreakStartMatch, '3', 'Alice bestStreakStartMatch (most recent tying run, M3)');
+  assertDeepEqual(stats.bestStreakEndMatch, '3', 'Alice bestStreakEndMatch (M3)');
 }
 
 // Test #2: a player who never scores has null ranks and a 0 streak
@@ -241,8 +276,12 @@ console.log("\nTest #2: player with zero points across all resolved matches");
   assertDeepEqual(stats.totalPoints, 0, 'Dave totalPoints');
   assertDeepEqual(stats.totalPredictions, 1, 'Dave totalPredictions (voted, even though wrong)');
   assertDeepEqual(stats.accuracy, 0, 'Dave accuracy');
+  assertDeepEqual(stats.highestRank, 2, 'Dave highestRank (behind Eve, who scored)');
+  assertDeepEqual(stats.highestRankDate, '2026-06-01T00:00:00.000Z', 'Dave highestRankDate');
   assertDeepEqual(stats.currentStreak, 0, 'Dave currentStreak');
   assertDeepEqual(stats.bestStreak, 0, 'Dave bestStreak');
+  assertDeepEqual(stats.bestStreakStartMatch, null, 'Dave bestStreakStartMatch (never scored, no run)');
+  assertDeepEqual(stats.bestStreakEndMatch, null, 'Dave bestStreakEndMatch');
 }
 
 // Test #3: a player with zero resolved matches at all -> null ranks, zero everything
@@ -255,8 +294,11 @@ console.log("\nTest #3: player with no resolved matches involvement");
   assertDeepEqual(stats.accuracy, 0, 'Frank accuracy');
   assertDeepEqual(stats.currentRank, null, 'Frank currentRank');
   assertDeepEqual(stats.highestRank, null, 'Frank highestRank');
+  assertDeepEqual(stats.highestRankDate, null, 'Frank highestRankDate');
   assertDeepEqual(stats.currentStreak, 0, 'Frank currentStreak');
   assertDeepEqual(stats.bestStreak, 0, 'Frank bestStreak');
+  assertDeepEqual(stats.bestStreakStartMatch, null, 'Frank bestStreakStartMatch');
+  assertDeepEqual(stats.bestStreakEndMatch, null, 'Frank bestStreakEndMatch');
 }
 
 // Test #4: bonus-only points (team pick wrong, bonus pick correct) still count
@@ -280,13 +322,46 @@ console.log("\nTest #4: bonus-only correct pick");
   // Gina picked away (wrong team, 0 team points) but her bonus pick EXTRA_TIME
   // matches decidedBy -> +5 bonus, correctTeam=false so it's the 5-point case,
   // not the 10-point case. Her total points go 0 -> 5, a positive-points frame,
-  // so it counts as a streak hit even though her team pick was wrong.
+  // so it counts as a streak hit even though her team pick was wrong. Hank
+  // gets 2 team points (1 away voter + 1) but 0 bonus (REGULAR != EXTRA_TIME),
+  // so Gina (5) outranks Hank (2) -> Gina is rank 1.
   const stats = computePlayerReportStats(db, 'Gina');
   assertDeepEqual(stats.totalPoints, 5, 'Gina totalPoints (bonus-only)');
   assertDeepEqual(stats.correct, 0, 'Gina correct (team pick was wrong)');
   assertDeepEqual(stats.totalPredictions, 1, 'Gina totalPredictions');
+  assertDeepEqual(stats.highestRank, 1, 'Gina highestRank (bonus points still outrank Hank)');
+  assertDeepEqual(stats.highestRankDate, '2026-06-01T00:00:00.000Z', 'Gina highestRankDate');
   assertDeepEqual(stats.currentStreak, 1, 'Gina currentStreak (bonus points still count as a hit)');
   assertDeepEqual(stats.bestStreak, 1, 'Gina bestStreak');
+  assertDeepEqual(stats.bestStreakStartMatch, '97', 'Gina bestStreakStartMatch');
+  assertDeepEqual(stats.bestStreakEndMatch, '97', 'Gina bestStreakEndMatch');
+}
+
+// Test #5: a multi-match streak (start != end) that later breaks, verifying
+// the reported best-streak match range spans the correct matches and stops
+// updating once the streak breaks.
+console.log("\nTest #5: multi-match streak range (start != end match)");
+{
+  const db = {
+    users: [{ name: 'Ian' }, { name: 'Jill' }],
+    matches: [
+      { matchNumber: '10', homeTeam: 'A', awayTeam: 'B', matchType: 'KO', kickoff: '2026-06-10T00:00:00.000Z', status: 'resolved', outcome: 'home', votes: { home: ['Ian'], away: ['Jill'], draw: [] }, boosters: {}, bonusPicks: {} },
+      { matchNumber: '11', homeTeam: 'C', awayTeam: 'D', matchType: 'KO', kickoff: '2026-06-11T00:00:00.000Z', status: 'resolved', outcome: 'home', votes: { home: ['Ian'], away: ['Jill'], draw: [] }, boosters: {}, bonusPicks: {} },
+      { matchNumber: '12', homeTeam: 'E', awayTeam: 'F', matchType: 'KO', kickoff: '2026-06-12T00:00:00.000Z', status: 'resolved', outcome: 'home', votes: { home: ['Ian'], away: ['Jill'], draw: [] }, boosters: {}, bonusPicks: {} },
+      { matchNumber: '13', homeTeam: 'G', awayTeam: 'H', matchType: 'KO', kickoff: '2026-06-13T00:00:00.000Z', status: 'resolved', outcome: 'away', votes: { home: ['Ian'], away: ['Jill'], draw: [] }, boosters: {}, bonusPicks: {} }
+    ]
+  };
+  // Ian wins M10-M12 (each +2, since Jill is the lone opposing voter each
+  // time), a 3-match streak, then loses M13 (Jill scores instead) which
+  // breaks it. Ian stays rank 1 throughout (6 pts vs Jill's 2 even after M13).
+  const stats = computePlayerReportStats(db, 'Ian');
+  assertDeepEqual(stats.totalPoints, 6, 'Ian totalPoints');
+  assertDeepEqual(stats.currentStreak, 0, 'Ian currentStreak (broken by M13 loss)');
+  assertDeepEqual(stats.bestStreak, 3, 'Ian bestStreak (M10-M12)');
+  assertDeepEqual(stats.bestStreakStartMatch, '10', 'Ian bestStreakStartMatch');
+  assertDeepEqual(stats.bestStreakEndMatch, '12', 'Ian bestStreakEndMatch');
+  assertDeepEqual(stats.highestRank, 1, 'Ian highestRank (stayed on top throughout)');
+  assertDeepEqual(stats.highestRankDate, '2026-06-13T00:00:00.000Z', 'Ian highestRankDate (still rank 1 at the most recent frame, M13)');
 }
 
 if (failed) {

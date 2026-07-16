@@ -470,33 +470,50 @@ function computePlayerReportStats(db, name) {
 
   let currentRank = null;
   let highestRank = null;
+  let highestRankFrame = null;
   let runningStreak = 0;
   let bestStreak = 0;
+  let runStartFrame = null;
+  let bestStreakStartFrame = null;
+  let bestStreakEndFrame = null;
   let prevPoints = 0;
   let sawAnyFrame = false;
 
+  // "Most recent" semantics for both highestRank and the best-streak range
+  // come from using <=/>= (not strict </>) so a later frame that TIES the
+  // existing best overwrites which frame gets reported.
   matchFrames.forEach(frame => {
     const idx = frame.standings.findIndex(s => s.name === name);
     if (idx !== -1) {
       sawAnyFrame = true;
       const rank = idx + 1;
       currentRank = rank;
-      if (highestRank === null || rank < highestRank) highestRank = rank;
+      if (highestRank === null || rank <= highestRank) {
+        highestRank = rank;
+        highestRankFrame = frame;
+      }
     }
     const entry = idx !== -1 ? frame.standings[idx] : null;
     const points = entry ? entry.points : prevPoints;
     if (points > prevPoints) {
+      if (runningStreak === 0) runStartFrame = frame;
       runningStreak += 1;
     } else {
       runningStreak = 0;
+      runStartFrame = null;
     }
-    if (runningStreak > bestStreak) bestStreak = runningStreak;
+    if (runningStreak > 0 && runningStreak >= bestStreak) {
+      bestStreak = runningStreak;
+      bestStreakStartFrame = runStartFrame;
+      bestStreakEndFrame = frame;
+    }
     prevPoints = points;
   });
 
   if (!sawAnyFrame) {
     currentRank = null;
     highestRank = null;
+    highestRankFrame = null;
   }
 
   let totalPredictions = 0;
@@ -526,8 +543,11 @@ function computePlayerReportStats(db, name) {
     accuracy,
     currentRank,
     highestRank,
+    highestRankDate: highestRankFrame ? highestRankFrame.kickoff : null,
     currentStreak: runningStreak,
-    bestStreak
+    bestStreak,
+    bestStreakStartMatch: bestStreakStartFrame ? bestStreakStartFrame.matchNumber : null,
+    bestStreakEndMatch: bestStreakEndFrame ? bestStreakEndFrame.matchNumber : null
   };
 }
 

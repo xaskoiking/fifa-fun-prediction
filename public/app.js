@@ -7,7 +7,6 @@ let currentUserIsAdmin = localStorage.getItem('soccer_prediction_is_admin') === 
 let adminPasscode = sessionStorage.getItem('admin_passcode') || '';
 let matches = [];
 let reportCardData = null;
-let reportCardSortMode = 'chronological';
 let currentFilter = 'open'; // 'open' or 'past'
 let activeTab = 'bracket';
 let countdownInterval = null;
@@ -245,20 +244,31 @@ async function initReportCardTab() {
 async function loadReportCard(name) {
   if (!name) return;
   const tbody = document.getElementById('reportCardTableBody');
-  tbody.innerHTML = `<tr><td colspan="7" class="loading-state">Loading ${escapeHtml(name)}'s report card…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="6" class="loading-state">Loading ${escapeHtml(name)}'s report card…</td></tr>`;
   try {
     const response = await fetch(`/api/report-card/${encodeURIComponent(name)}`, {
       headers: { 'x-user-secret': currentUserSecret }
     });
     if (!response.ok) throw new Error('Failed to load report card');
     reportCardData = await response.json();
-    reportCardSortMode = 'chronological';
-    document.getElementById('reportCardSortToggle').textContent = 'Sort: Chronological';
     renderReportCard(reportCardData);
   } catch (err) {
     console.error('Error loading report card:', err);
-    tbody.innerHTML = `<tr><td colspan="7" class="loading-state">Failed to load report card.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-state">Failed to load report card.</td></tr>`;
   }
+}
+
+// Builds one stat tile: emoji + label + big value + an optional small
+// sub-line (used for the best-rank date and the best-streak match range).
+function reportCardStatTile(emoji, label, value, sub) {
+  return `
+    <div class="report-card-stat-tile">
+      <div class="report-card-stat-emoji">${emoji}</div>
+      <div class="report-card-stat-label">${label}</div>
+      <div class="report-card-stat-value">${value}</div>
+      ${sub ? `<div class="report-card-stat-sub">${sub}</div>` : ''}
+    </div>
+  `;
 }
 
 function renderReportCard(data) {
@@ -280,14 +290,23 @@ function renderReportCard(data) {
   titleEl.title = data.titleReason || '';
 
   const s = data.stats;
-  document.getElementById('reportCardStats').innerHTML = `
-    <span><strong>${s.totalPoints}</strong> pts</span>
-    <span><strong>${s.accuracy}%</strong> accuracy (${s.correct}/${s.totalPredictions})</span>
-    <span>Rank <strong>${s.currentRank ?? '—'}</strong></span>
-    <span>Best Rank <strong>${s.highestRank ?? '—'}</strong></span>
-    <span>Streak <strong>${s.currentStreak}</strong></span>
-    <span>Best Streak <strong>${s.bestStreak}</strong></span>
-  `;
+  const bestRankDateStr = s.highestRankDate
+    ? new Date(s.highestRankDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : '';
+  const bestStreakRangeStr = (s.bestStreak > 0 && s.bestStreakStartMatch != null)
+    ? (s.bestStreakStartMatch === s.bestStreakEndMatch
+        ? `Match #${s.bestStreakStartMatch}`
+        : `Match #${s.bestStreakStartMatch} → #${s.bestStreakEndMatch}`)
+    : '';
+
+  document.getElementById('reportCardStats').innerHTML = [
+    reportCardStatTile('🏅', 'Total Points', s.totalPoints),
+    reportCardStatTile('🎯', 'Accuracy', `${s.accuracy}%`, `${s.correct}/${s.totalPredictions} correct`),
+    reportCardStatTile('📊', 'Current Rank', s.currentRank ?? '—'),
+    reportCardStatTile('🏆', 'Best Rank', s.highestRank ?? '—', bestRankDateStr),
+    reportCardStatTile('🔥', 'Current Streak', s.currentStreak),
+    reportCardStatTile('⚡', 'Best Streak', s.bestStreak, bestStreakRangeStr)
+  ].join('');
 
   const uploadSection = document.getElementById('reportCardUploadSection');
   uploadSection.style.display = (data.name === currentUsername) ? 'block' : 'none';
@@ -295,17 +314,14 @@ function renderReportCard(data) {
   renderReportCardTable(data.matches);
 }
 
+// Top 5 highest-point-scoring games for this player (chronological ties
+// broken by Array.sort's stability, keeping the earlier game first).
 function renderReportCardTable(rawMatches) {
   const tbody = document.getElementById('reportCardTableBody');
-  const rows = rawMatches.slice();
-  if (reportCardSortMode === 'points') {
-    rows.sort((a, b) => b.points - a.points);
-  } else {
-    rows.sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
-  }
+  const rows = rawMatches.slice().sort((a, b) => b.points - a.points).slice(0, 5);
 
   if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="loading-state">No matches yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="loading-state">No matches yet.</td></tr>`;
     return;
   }
 
@@ -314,7 +330,6 @@ function renderReportCardTable(rawMatches) {
 
   tbody.innerHTML = rows.map(m => {
     const isResolved = m.status === 'resolved';
-    const kickoffStr = new Date(m.kickoff).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     let resultText = '<span style="color: var(--color-warning);">Locked / Live</span>';
     if (isResolved) {
@@ -337,20 +352,12 @@ function renderReportCardTable(rawMatches) {
         <td style="text-align:center; font-family: monospace; color: var(--color-accent);">${m.matchNumber ? '#' + m.matchNumber : '-'}</td>
         <td>${escapeHtml(m.homeTeam)} vs ${escapeHtml(m.awayTeam)}</td>
         <td style="color: var(--text-muted); font-size: 0.8rem;">${m.stage ? stageLabels[m.stage] : escapeHtml(m.group || '')}</td>
-        <td style="color: var(--text-muted); font-size: 0.8rem;">${kickoffStr}</td>
         <td>${resultText}</td>
         <td class="${pickClass}">${pickText}</td>
         <td style="text-align:center; font-weight:700;">${isResolved ? m.points : '—'}</td>
       </tr>
     `;
   }).join('');
-}
-
-function toggleReportCardSort() {
-  reportCardSortMode = reportCardSortMode === 'chronological' ? 'points' : 'chronological';
-  document.getElementById('reportCardSortToggle').textContent =
-    reportCardSortMode === 'points' ? 'Sort: Highest Points' : 'Sort: Chronological';
-  if (reportCardData) renderReportCardTable(reportCardData.matches);
 }
 
 async function uploadReportCardPhoto() {
