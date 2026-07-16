@@ -688,26 +688,22 @@ body {
   overflow: hidden;
 }
 
-/* ============ Panini-style Report Card sticker (front + back) ============
-   Per-player color theme arrives as inline custom properties on the shared
-   #reportCardStage wrapper (--panini-border, --panini-band-1..4,
-   --panini-center, --panini-banner), set in JS from a small hashed palette
-   so the same player always lands on the same "kit" between visits. Both
-   cards inherit the properties, so front and back read as a matched pair.
-   The front's background is an original layered concentric-ring pattern
-   (built from nested inset box-shadows) in the spirit of bold, flat,
-   radiating World Cup sticker art — not a reproduction of any specific
-   licensed illustration. */
+/* ============ FUT-style Report Card (front + back) ============
+   Card color is a RARITY TIER derived from current rank (not a per-player
+   hash): top 3 are always "legend" (near-black, faceted card, with a
+   gold/silver/bronze medal glow for rank 1/2/3 respectively); everyone
+   else lands in gold/silver/bronze by percentile, with the sharper slice
+   of gold/silver getting a foil finish. Tier classes (tier-gold/-silver/
+   -bronze/-legend, tier-foil, medal-gold/-silver/-bronze) are toggled on
+   #reportCardFront in JS. --panini-border (the one surviving custom
+   property, set on the shared #reportCardStage wrapper so front and back
+   read as a pair) carries the tier's accent color for the back card's
+   border/headings. This is an original design in the spirit of FUT
+   rating cards — not a reproduction of EA's specific card art/branding. */
 
 .panini-stage {
-  /* Defaults shown briefly before JS sets the per-player theme on load. */
-  --panini-border: #2b2f33;
-  --panini-band-1: #3a3f44;
-  --panini-band-2: #33373b;
-  --panini-band-3: #2c2f33;
-  --panini-band-4: #24272a;
-  --panini-center: #1a1c1e;
-  --panini-banner: #14181b;
+  /* Default shown briefly before JS sets the real tier accent on load. */
+  --panini-border: #8a4b1f;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -724,19 +720,25 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Card silhouette: a tall arch top + softly rounded bottom, approximating
-   the FUT card shield shape using only border-radius (not clip-path) —
-   html2canvas (used for the Download Card export) doesn't reliably support
-   clip-path, so the shape has to come from a property it renders correctly. */
+/* Card silhouette (rank 4+, gold/silver/bronze): a tall arch top + softly
+   rounded bottom, approximating the FUT card shield shape using only
+   border-radius (not clip-path) — html2canvas (used for the Download Card
+   export) does not support clip-path at all (confirmed against the vendored
+   build), so the shape has to come from a property it renders correctly. */
 .panini-front {
   position: relative;
   aspect-ratio: 0.72;
   padding: 10px;
-  background: var(--panini-border);
+  background: #8a4b1f;
   border-radius: 50% 50% 18px 18px / 25% 25% 10px 10px;
   overflow: hidden;
   transition: transform 0.25s ease;
 }
+
+.panini-front.tier-gold   { background: #caa000; }
+.panini-front.tier-silver { background: #909090; }
+.panini-front.tier-bronze { background: #8a4b1f; }
+.panini-front.tier-legend { background: #000000; }
 
 .panini-front:hover {
   transform: translateY(-4px);
@@ -747,34 +749,85 @@ body {
   position: absolute;
   inset: 10px;
   border-radius: 50% 50% 10px 10px / 22% 22% 6px 6px;
-  background: linear-gradient(160deg, var(--panini-band-1), var(--panini-band-2));
+  background: linear-gradient(160deg, #e3b47f, #b06a35 45%, #7a4420 100%);
   z-index: 0;
 }
 
-/* Top-3 "special edition" foil treatment — an original crinkled-metallic
-   look (diagonal streak layers over a multi-stop metal gradient), not a
-   reproduction of any specific licensed foil card. Overrides the normal
-   kit-color background for rank 1/2/3 only (class toggled in JS). */
-.panini-front.foil-gold::before {
+.panini-front.tier-gold::before {
+  background: linear-gradient(160deg, #ffe9a8, #d9a92c 45%, #a67c00 100%);
+}
+
+.panini-front.tier-silver::before {
+  background: linear-gradient(160deg, #f5f5f5, #b7b7b7 45%, #7d7d7d 100%);
+}
+
+.panini-front.tier-bronze::before {
+  background: linear-gradient(160deg, #e3b47f, #b06a35 45%, #7a4420 100%);
+}
+
+.panini-front.tier-legend::before {
+  background: linear-gradient(160deg, #2a2a2a, #131313 60%, #000000 100%);
+}
+
+/* Foil finish — an original crinkled-metallic look (diagonal streak layers
+   over the tier's own gradient), not a reproduction of any specific
+   licensed foil card. Only the sharper slice of gold/silver gets it. */
+.panini-front.tier-gold.tier-foil::before {
   background:
     repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.45) 0 3px, rgba(255, 255, 255, 0) 3px 10px, rgba(255, 255, 255, 0.22) 10px 13px, rgba(255, 255, 255, 0) 13px 22px),
     repeating-linear-gradient(25deg, rgba(255, 255, 255, 0.16) 0 2px, rgba(255, 255, 255, 0) 2px 14px),
     linear-gradient(135deg, #fff3c4 0%, #ffd54a 18%, #caa000 32%, #fff1a8 48%, #b8860b 64%, #ffe066 80%, #a06a00 100%);
 }
 
-.panini-front.foil-silver::before {
+.panini-front.tier-silver.tier-foil::before {
   background:
     repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.5) 0 3px, rgba(255, 255, 255, 0) 3px 10px, rgba(255, 255, 255, 0.25) 10px 13px, rgba(255, 255, 255, 0) 13px 22px),
     repeating-linear-gradient(25deg, rgba(255, 255, 255, 0.18) 0 2px, rgba(255, 255, 255, 0) 2px 14px),
     linear-gradient(135deg, #ffffff 0%, #d8d8d8 18%, #9a9a9a 32%, #f2f2f2 48%, #8c8c8c 64%, #e6e6e6 80%, #737373 100%);
 }
 
-.panini-front.foil-bronze::before {
-  background:
-    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.4) 0 3px, rgba(255, 255, 255, 0) 3px 10px, rgba(255, 255, 255, 0.2) 10px 13px, rgba(255, 255, 255, 0) 13px 22px),
-    repeating-linear-gradient(25deg, rgba(255, 255, 255, 0.14) 0 2px, rgba(255, 255, 255, 0) 2px 14px),
-    linear-gradient(135deg, #ffd9b3 0%, #cd7f32 18%, #8a4b1f 32%, #e8a662 48%, #6e3610 64%, #d9924f 80%, #5c2c0d 100%);
+/* Rank 1/2/3 medal glow — layered with the card's own drop shadow (not
+   replacing it) so the glow adds to, rather than overrides, the base lift. */
+.panini-front.medal-gold   { box-shadow: var(--shadow-md), 0 0 18px 2px rgba(255, 215, 0, 0.55); }
+.panini-front.medal-silver { box-shadow: var(--shadow-md), 0 0 18px 2px rgba(210, 210, 210, 0.55); }
+.panini-front.medal-bronze { box-shadow: var(--shadow-md), 0 0 18px 2px rgba(205, 127, 50, 0.55); }
+
+/* Legend cards (top 3) get a faceted, near-hexagonal outline instead of the
+   arch top. Built by masking the 4 corners of an otherwise plain rounded
+   rectangle with rotated squares colored to match the page background
+   (--bg-primary, the same color the Download Card export uses) rather than
+   clip-path — this is the one shape technique that survives the html2canvas
+   export unchanged. The bottom two masks are large enough to leave only a
+   small flat nub, reading as a tapered point at normal card size. */
+.panini-front.tier-legend {
+  border-radius: 8px;
 }
+
+.panini-front.tier-legend::before,
+.panini-front.tier-legend::after {
+  border-radius: 4px;
+}
+
+.legend-corner {
+  position: absolute;
+  z-index: 2;
+  background: var(--bg-primary);
+  display: none;
+}
+
+.panini-front.tier-legend .legend-corner {
+  display: block;
+}
+
+.legend-corner-tl, .legend-corner-tr, .legend-corner-bl, .legend-corner-br {
+  top: 10px;
+  left: 10px;
+}
+
+.legend-corner-tl { width: 32px; height: 32px; transform: translate(-50%, -50%) rotate(45deg); }
+.legend-corner-tr { left: auto; right: 10px; width: 32px; height: 32px; transform: translate(50%, -50%) rotate(45deg); }
+.legend-corner-bl { top: auto; bottom: 10px; width: 190px; height: 190px; transform: translate(-50%, 50%) rotate(45deg); }
+.legend-corner-br { top: auto; bottom: 10px; left: auto; right: 10px; width: 190px; height: 190px; transform: translate(50%, 50%) rotate(45deg); }
 
 /* Diagonal foil sheen sweep on hover — restrained, one-time signature move */
 .panini-front::after {
@@ -954,7 +1007,7 @@ body {
 }
 
 .fut-title-chip {
-  background: var(--panini-banner);
+  background: rgba(0, 0, 0, 0.4);
   color: #ffffff;
   border-radius: 999px;
   padding: 3px 10px;

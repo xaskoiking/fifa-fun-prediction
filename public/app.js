@@ -218,6 +218,8 @@ function switchTab(tabName) {
   }
 }
 
+let reportCardTotalPlayers = 0;
+
 async function initReportCardTab() {
   const select = document.getElementById('reportCardPlayerSelect');
   if (select.dataset.loaded !== 'true') {
@@ -231,6 +233,7 @@ async function initReportCardTab() {
       if (!response.ok) throw new Error('Failed to load player list');
       const leaderboard = await response.json();
       const names = leaderboard.map(row => row.name).sort((a, b) => a.localeCompare(b));
+      reportCardTotalPlayers = names.length;
       select.innerHTML = names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
       select.value = names.includes(currentUsername) ? currentUsername : names[0];
       select.dataset.loaded = 'true';
@@ -258,51 +261,43 @@ async function loadReportCard(name) {
   }
 }
 
-// A small curated set of Panini-sticker-style "kit" themes. Each player is
-// hashed onto one deterministically, so the same name always gets the same
-// colors (not truly random on every render — a shareable card that changed
-// color every reload would look broken).
-// Each "kit" is a 4-ring radiating band sequence (outer edge -> inner ring)
-// plus a solid center where the big white rank number sits — an original
-// layered-poster pattern in the spirit of the bold, flat, concentric-band
-// World Cup sticker art, not a reproduction of any specific licensed asset.
-const REPORT_CARD_THEMES = [
-  { name: 'Ignite',   bands: ['#e0451b', '#ffb300', '#1f6b6c', '#0d3b3c'], center: '#062121', banner: '#0c2728' },
-  { name: 'Clover',   bands: ['#1e7a34', '#d9a400', '#8e2a6b', '#4a1338'], center: '#2b0a1f', banner: '#3a1029' },
-  { name: 'Azzurro',  bands: ['#155fa0', '#29b6f6', '#ff5252', '#7c1f1f'], center: '#3d0f0f', banner: '#4a1414' },
-  { name: 'Sunburst', bands: ['#d9a400', '#e0451b', '#155fa0', '#0e3a63'], center: '#071b30', banner: '#0c2745' },
-  { name: 'Berry',    bands: ['#8e2a6b', '#d9a400', '#1e7a34', '#123b1a'], center: '#081f0e', banner: '#0e2a14' },
-  { name: 'Slate',    bands: ['#2b2f33', '#8e2a6b', '#155fa0', '#0e3a63'], center: '#071120', banner: '#0c1a30' }
-];
-
-function reportCardThemeForName(name) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+// FUT-style rarity tier, derived from current rank (not a per-player hash).
+// Top 3 are always "legend" (near-black faceted card) with a medal accent
+// matching their exact rank; everyone else is bucketed into gold/silver/
+// bronze by percentile among the remaining players, with the sharper slice
+// of gold/silver getting a foil finish. Cutoffs are illustrative, not exact
+// FUT thresholds — easy to retune if the group's size/shape changes a lot.
+function reportCardTierForRank(rank, totalPlayers) {
+  if (rank == null) return { tier: 'bronze', foil: false, medal: null };
+  if (rank <= 3) {
+    return { tier: 'legend', foil: false, medal: rank === 1 ? 'gold' : rank === 2 ? 'silver' : 'bronze' };
   }
-  return REPORT_CARD_THEMES[hash % REPORT_CARD_THEMES.length];
+  const pool = Math.max(totalPlayers - 3, 1);
+  const pct = (rank - 3) / pool;
+  if (pct <= 0.2) return { tier: 'gold', foil: true, medal: null };
+  if (pct <= 0.45) return { tier: 'gold', foil: false, medal: null };
+  if (pct <= 0.65) return { tier: 'silver', foil: true, medal: null };
+  if (pct <= 0.85) return { tier: 'silver', foil: false, medal: null };
+  return { tier: 'bronze', foil: false, medal: null };
 }
+
+const REPORT_CARD_TIER_ACCENTS = { gold: '#caa000', silver: '#909090', bronze: '#8a4b1f' };
+const REPORT_CARD_MEDAL_ACCENTS = { gold: '#d4af37', silver: '#b7b7b7', bronze: '#b06a35' };
 
 function renderReportCard(data) {
   const s = data.stats;
-  const theme = reportCardThemeForName(data.name);
-  // Set on the shared stage wrapper — both the front and back cards inherit
-  // these custom properties, so they read as a matched pair.
-  const stage = document.getElementById('reportCardStage');
-  stage.style.setProperty('--panini-border', theme.bands[0]);
-  stage.style.setProperty('--panini-band-1', theme.bands[0]);
-  stage.style.setProperty('--panini-band-2', theme.bands[1]);
-  stage.style.setProperty('--panini-band-3', theme.bands[2]);
-  stage.style.setProperty('--panini-band-4', theme.bands[3]);
-  stage.style.setProperty('--panini-center', theme.center);
-  stage.style.setProperty('--panini-banner', theme.banner);
+  const { tier, foil, medal } = reportCardTierForRank(s.currentRank, reportCardTotalPlayers);
 
-  // Top-3 (by current rank) get a shiny gold/silver/bronze foil card instead
-  // of their hashed color kit — a "special edition" treatment.
   const front = document.getElementById('reportCardFront');
-  front.classList.remove('foil-gold', 'foil-silver', 'foil-bronze');
-  const foilClass = s.currentRank === 1 ? 'foil-gold' : s.currentRank === 2 ? 'foil-silver' : s.currentRank === 3 ? 'foil-bronze' : null;
-  if (foilClass) front.classList.add(foilClass);
+  front.classList.remove('tier-gold', 'tier-silver', 'tier-bronze', 'tier-legend', 'tier-foil', 'medal-gold', 'medal-silver', 'medal-bronze');
+  front.classList.add(`tier-${tier}`);
+  if (foil) front.classList.add('tier-foil');
+  if (medal) front.classList.add(`medal-${medal}`);
+
+  // Set on the shared stage wrapper — both the front and back cards inherit
+  // this, so the back card's accent matches the front's tier.
+  const stage = document.getElementById('reportCardStage');
+  stage.style.setProperty('--panini-border', medal ? REPORT_CARD_MEDAL_ACCENTS[medal] : REPORT_CARD_TIER_ACCENTS[tier]);
 
   const photo = document.getElementById('reportCardPhoto');
   const placeholder = document.getElementById('reportCardPhotoPlaceholder');
