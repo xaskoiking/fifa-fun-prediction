@@ -315,10 +315,6 @@ function renderReportCard(data) {
     placeholder.style.display = 'flex';
   }
 
-  const ghostEl = document.getElementById('reportCardGhostNumber');
-  ghostEl.textContent = s.currentRank != null ? `#${s.currentRank}` : '';
-  ghostEl.style.display = s.currentRank != null ? 'block' : 'none';
-
   const streakBadge = document.getElementById('reportCardStreakBadge');
   if (s.currentStreak > 0) {
     streakBadge.textContent = `🔥 ${s.currentStreak}`;
@@ -327,9 +323,27 @@ function renderReportCard(data) {
     streakBadge.style.display = 'none';
   }
 
+  // FUT-style rating block: OVR (their accuracy, already a natural 0-100
+  // scale) with a "position" code standing in for their current rank.
+  document.getElementById('reportCardOVR').textContent = Math.round(s.accuracy);
+  document.getElementById('reportCardPos').textContent = s.currentRank != null ? `R${s.currentRank}` : '—';
+
   document.getElementById('reportCardName').textContent = data.name;
-  document.getElementById('reportCardVitals').textContent =
-    `Rank ${s.currentRank ?? '—'} | ${s.totalPoints} pts | ${s.accuracy}% acc`;
+
+  const statCell = (label, value) => `
+    <div class="fut-stat">
+      <div class="fut-stat-label">${label}</div>
+      <div class="fut-stat-value">${value}</div>
+    </div>
+  `;
+  document.getElementById('reportCardStatsRow').innerHTML = [
+    statCell('PTS', s.totalPoints),
+    statCell('ACC', `${s.accuracy}%`),
+    statCell('RNK', s.currentRank ?? '—'),
+    statCell('PRK', s.highestRank ?? '—'),
+    statCell('CST', s.currentStreak),
+    statCell('BST', s.bestStreak)
+  ].join('');
 
   const titleEl = document.getElementById('reportCardTitle');
   titleEl.textContent = data.title ? `🎖️ ${data.title}` : 'Title pending…';

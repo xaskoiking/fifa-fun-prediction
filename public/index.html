@@ -334,7 +334,7 @@
       <section id="tabContentReportCard" class="tab-content">
         <div class="section-header">
           <h2>Report Card</h2>
-          <p class="section-description">Every player gets their own sticker. Pick a name to flip through front and back.</p>
+          <p class="section-description">Every player gets their own rated card. Pick a name to see their front and back.</p>
         </div>
 
         <div class="filter-bar">
@@ -344,20 +344,25 @@
 
         <div class="panini-stage" id="reportCardStage">
           <div class="panini-card panini-front" id="reportCardFront">
-            <div class="panini-ghost-number" id="reportCardGhostNumber"></div>
-            <div class="panini-streak-badge" id="reportCardStreakBadge" style="display:none;"></div>
+            <div class="fut-streak-badge" id="reportCardStreakBadge" style="display:none;"></div>
+            <div class="fut-rating-block">
+              <div class="fut-ovr" id="reportCardOVR"></div>
+              <div class="fut-pos" id="reportCardPos"></div>
+            </div>
+            <div class="fut-sunburst"></div>
             <div class="panini-photo-frame">
               <img id="reportCardPhoto" class="panini-photo" style="display:none;" alt="Player photo">
               <div id="reportCardPhotoPlaceholder" class="panini-photo panini-photo-placeholder">
                 <svg viewBox="0 0 24 24" class="panini-photo-placeholder-icon" aria-hidden="true"><path fill="currentColor" d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12zm0 2.4c-3.4 0-10 1.7-10 5.1v2.3h20v-2.3c0-3.4-6.6-5.1-10-5.1z"/></svg>
               </div>
             </div>
-            <div class="panini-banner panini-banner-name">
-              <div class="panini-name" id="reportCardName">&nbsp;</div>
-              <div class="panini-vitals" id="reportCardVitals"></div>
+            <div class="fut-name" id="reportCardName">&nbsp;</div>
+            <div class="fut-divider"></div>
+            <div class="fut-stats-row" id="reportCardStatsRow"></div>
+            <div class="fut-footer">
+              <div class="fut-title-chip" id="reportCardTitle"></div>
+              <div class="panini-wordmark">PREDICTION ARENA &rsquo;26</div>
             </div>
-            <div class="panini-banner panini-banner-title" id="reportCardTitle"></div>
-            <div class="panini-wordmark">PREDICTION ARENA &rsquo;26</div>
           </div>
 
           <div class="panini-card panini-back">
