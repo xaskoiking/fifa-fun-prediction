@@ -823,9 +823,12 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.25);
-  color: rgba(0, 0, 0, 0.45);
-  font-family: 'Anton', var(--font-sans);
-  font-size: 4rem;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.panini-photo-placeholder-icon {
+  width: 62%;
+  height: 62%;
 }
 
 .panini-banner {

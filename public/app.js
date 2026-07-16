@@ -306,7 +306,6 @@ function renderReportCard(data) {
   } else {
     photo.style.display = 'none';
     placeholder.style.display = 'flex';
-    placeholder.textContent = data.name.charAt(0).toUpperCase();
   }
 
   const ghostEl = document.getElementById('reportCardGhostNumber');
