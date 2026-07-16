@@ -720,40 +720,53 @@ body {
   font-family: var(--font-sans);
 }
 
-/* clip-path on .panini-front clips its OWN box-shadow away too (a shape's
-   shadow paints outside its boundary, which clip-path treats as "outside
-   the visible area" and cuts) — that's why the base card shadow and the
-   medal glow both silently vanished when the shape switched to clip-path.
-   Fix: box-shadow lives on this unclipped wrapper instead, sized to match
-   the card exactly, and .panini-front's own box-shadow is turned off. */
+/* --card-clip lives here (not on .panini-front) so both .panini-front and
+   the sibling .panini-front-glow layer below can inherit the same shape —
+   custom properties only inherit to descendants, and glow/front are
+   siblings, so a shared ancestor is required. tier-* classes are mirrored
+   onto the shell in JS for exactly this reason (tier-legend swaps the
+   shape here; the same class on .panini-front swaps its background). */
 .panini-front-shell {
-  width: 300px;
-  max-width: 100%;
-  box-shadow: var(--shadow-md);
-  transition: transform 0.25s ease;
-}
-
-.panini-front-shell .panini-front {
-  width: 100%;
-  box-shadow: none;
-}
-
-/* Card silhouette: a real FUT-style shield — domed top, straight sides,
-   tapered point at the bottom — built with clip-path (a polygon sampling
-   points around the curve, since clip-path only draws straight segments;
-   dense enough near the curves that the facets don't read at card size).
-   clip-path is fair game now that there's no Download Card export needing
-   to survive a CSS feature html2canvas doesn't support. --card-clip is set
-   once on .panini-front and inherited by ::before/::after (pseudo-elements
-   inherit custom properties from their originating element), so the outer
-   frame, the gradient panel, and the hover sheen all share one exact shape. */
-.panini-front {
   --card-clip: polygon(
     50% 0%, 66.9% 1.4%, 81.1% 5.3%, 90.7% 11.1%, 94% 18%,
     94% 78%, 76% 92%, 50% 100%, 24% 92%,
     6% 78%, 6% 18%, 9.3% 11.1%, 18.9% 5.3%, 33.1% 1.4%
   );
   position: relative;
+  width: 300px;
+  max-width: 100%;
+  transition: transform 0.25s ease;
+}
+
+.panini-front-shell.tier-legend {
+  --card-clip: polygon(
+    15% 0%, 85% 0%, 100% 12%,
+    100% 78%, 78% 92%, 50% 100%, 22% 92%,
+    0% 78%, 0% 12%
+  );
+}
+
+/* box-shadow can't be used for the card's shadow/glow at all here — it
+   always follows the element's plain rectangular box, never a clip-path
+   shape, so it would render as a rectangle behind the shield silhouette
+   regardless of which element it's declared on. Instead: a separate layer
+   with the SAME clip-path, sized slightly larger than the card and heavily
+   blurred. The blur fades to nothing well before reaching its own (larger,
+   same-color-as-nothing-visible) clip edge, so what actually shows reads as
+   a glow hugging the real card contour instead of a rectangle. */
+.panini-front-glow {
+  position: absolute;
+  inset: -14px;
+  z-index: 0;
+  clip-path: var(--card-clip);
+  background: rgba(0, 0, 0, 0.5);
+  filter: blur(12px);
+}
+
+.panini-front {
+  position: relative;
+  z-index: 1;
+  width: 100%;
   aspect-ratio: 0.72;
   padding: 10px;
   background: #8a4b1f;
@@ -763,21 +776,8 @@ body {
 .panini-front.tier-gold   { background: #caa000; }
 .panini-front.tier-silver { background: #909090; }
 .panini-front.tier-bronze { background: #8a4b1f; }
+.panini-front.tier-legend { background: #000000; }
 
-/* Legend (top-3) cards trade the domed top for a flat, angled-corner top —
-   the near-hexagonal "special edition" outline — keeping the same tapered
-   bottom as every other tier. */
-.panini-front.tier-legend {
-  --card-clip: polygon(
-    15% 0%, 85% 0%, 100% 12%,
-    100% 78%, 78% 92%, 50% 100%, 22% 92%,
-    0% 78%, 0% 12%
-  );
-  background: #000000;
-}
-
-/* On the shell, not .panini-front, so the (also-relocated) shadow/glow
-   moves together with the lift instead of staying pinned in place. */
 .panini-front-shell:hover {
   transform: translateY(-4px);
 }
@@ -824,30 +824,29 @@ body {
     linear-gradient(135deg, #ffffff 0%, #d8d8d8 18%, #9a9a9a 32%, #f2f2f2 48%, #8c8c8c 64%, #e6e6e6 80%, #737373 100%);
 }
 
-/* Rank 1/2/3 medal glow — a slow pulsing halo layered with the card's own
-   drop shadow (not replacing it), color-matched to the medal. Lives on
-   .panini-front-shell (not .panini-front), since .panini-front's clip-path
-   would otherwise clip the glow away — see the note above .panini-front-shell. */
+/* Rank 1/2/3 medal glow — a slow pulsing halo, color-matched to the medal,
+   on the shape-matched .panini-front-glow layer (a plain box-shadow glow
+   would render as a rectangle behind the clip-path silhouette — see the
+   comment above .panini-front-glow). Pulses via blur radius + opacity
+   instead of box-shadow spread, since that's what the glow layer is built
+   from now. */
 @keyframes legend-glow-pulse {
-  0%, 100% { box-shadow: var(--shadow-md), 0 0 10px 1px var(--medal-glow); }
-  50%      { box-shadow: var(--shadow-md), 0 0 24px 6px var(--medal-glow); }
+  0%, 100% { filter: blur(10px); opacity: 0.7; }
+  50%      { filter: blur(20px); opacity: 1; }
 }
 
-.panini-front-shell.medal-gold {
-  --medal-glow: rgba(255, 215, 0, 0.6);
-  box-shadow: var(--shadow-md), 0 0 18px 2px var(--medal-glow);
+.panini-front-shell.medal-gold .panini-front-glow {
+  background: rgba(255, 215, 0, 0.65);
   animation: legend-glow-pulse 2.6s ease-in-out infinite;
 }
 
-.panini-front-shell.medal-silver {
-  --medal-glow: rgba(210, 210, 210, 0.6);
-  box-shadow: var(--shadow-md), 0 0 18px 2px var(--medal-glow);
+.panini-front-shell.medal-silver .panini-front-glow {
+  background: rgba(210, 210, 210, 0.65);
   animation: legend-glow-pulse 2.6s ease-in-out infinite;
 }
 
-.panini-front-shell.medal-bronze {
-  --medal-glow: rgba(205, 127, 50, 0.6);
-  box-shadow: var(--shadow-md), 0 0 18px 2px var(--medal-glow);
+.panini-front-shell.medal-bronze .panini-front-glow {
+  background: rgba(205, 127, 50, 0.65);
   animation: legend-glow-pulse 2.6s ease-in-out infinite;
 }
 
@@ -1171,11 +1170,12 @@ body {
   .panini-front-shell, .panini-front::after {
     transition: none;
   }
-  .panini-front-shell.medal-gold,
-  .panini-front-shell.medal-silver,
-  .panini-front-shell.medal-bronze {
+  .panini-front-shell.medal-gold .panini-front-glow,
+  .panini-front-shell.medal-silver .panini-front-glow,
+  .panini-front-shell.medal-bronze .panini-front-glow {
     animation: none;
-    box-shadow: var(--shadow-md), 0 0 18px 2px var(--medal-glow);
+    filter: blur(14px);
+    opacity: 0.85;
   }
 }
 

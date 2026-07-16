@@ -293,10 +293,13 @@ function renderReportCard(data) {
   front.classList.add(`tier-${tier}`);
   if (foil) front.classList.add('tier-foil');
 
-  // Medal glow lives on the unclipped shell wrapper, not .panini-front
-  // itself — .panini-front's clip-path would otherwise clip the glow away.
+  // tier-legend is mirrored onto the shell too — that's where --card-clip
+  // (the shape polygon) lives now, since the glow layer is a sibling of
+  // .panini-front and needs the same shape from a common ancestor. The
+  // medal glow itself also lives on the shell's .panini-front-glow child.
   const shell = document.getElementById('reportCardFrontShell');
-  shell.classList.remove('medal-gold', 'medal-silver', 'medal-bronze');
+  shell.classList.remove('tier-legend', 'medal-gold', 'medal-silver', 'medal-bronze');
+  if (tier === 'legend') shell.classList.add('tier-legend');
   if (medal) shell.classList.add(`medal-${medal}`);
 
   // Set on the shared stage wrapper — both the front and back cards inherit
