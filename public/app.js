@@ -490,32 +490,6 @@ async function uploadReportCardPhoto() {
   }
 }
 
-async function downloadReportCardImage() {
-  if (typeof html2canvas !== 'function') {
-    alert('Image tool is still loading — please try again in a moment.');
-    return;
-  }
-  const el = document.getElementById('reportCardFront');
-  const btn = document.getElementById('reportCardDownloadBtn');
-  const original = btn.innerHTML;
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-  try {
-    const canvas = await html2canvas(el, { backgroundColor: '#07130b', scale: 2, useCORS: true });
-    const link = document.createElement('a');
-    const name = reportCardData ? reportCardData.name : 'player';
-    link.download = `report-card-${name}-${new Date().toISOString().slice(0, 10)}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  } catch (err) {
-    console.error('Error saving report card image:', err);
-    alert('Failed to save image: ' + err.message);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = original;
-  }
-}
-
 // Filter matches (Open vs. Past)
 function filterMatches(filter) {
   currentFilter = filter;
