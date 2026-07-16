@@ -310,19 +310,11 @@ function renderReportCard(data) {
     placeholder.style.display = 'flex';
   }
 
-  const streakBadge = document.getElementById('reportCardStreakBadge');
-  if (s.currentStreak > 0) {
-    streakBadge.textContent = `🔥 ${s.currentStreak}`;
-    streakBadge.style.display = 'block';
-  } else {
-    streakBadge.style.display = 'none';
-  }
-
-  // FUT-style rating block: total points as the headline number, current
-  // rank as the sub-label — the two numbers people actually track here,
-  // in the same visual slot FUT uses for OVR + position.
-  document.getElementById('reportCardOVR').textContent = s.totalPoints;
-  document.getElementById('reportCardPos').textContent = s.currentRank != null ? `RANK ${s.currentRank}` : '—';
+  // FUT-style rating block: current rank as the headline number ("#N"),
+  // total points as the sub-label — swapped so rank (the number people
+  // actually care about first) gets the big slot.
+  document.getElementById('reportCardOVR').textContent = s.currentRank != null ? `#${s.currentRank}` : '—';
+  document.getElementById('reportCardPos').textContent = `${s.totalPoints} PTS`;
 
   document.getElementById('reportCardName').textContent = data.name;
 
