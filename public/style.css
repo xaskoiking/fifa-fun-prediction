@@ -725,13 +725,6 @@ body {
 }
 
 .panini-front {
-  --panini-border: #2b2f33;
-  --panini-band-1: #3a3f44;
-  --panini-band-2: #33373b;
-  --panini-band-3: #2c2f33;
-  --panini-band-4: #24272a;
-  --panini-center: #1a1c1e;
-  --panini-banner: #14181b;
   position: relative;
   aspect-ratio: 0.68;
   padding: 10px;
