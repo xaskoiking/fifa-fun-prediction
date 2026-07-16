@@ -756,11 +756,11 @@ body {
    a glow hugging the real card contour instead of a rectangle. */
 .panini-front-glow {
   position: absolute;
-  inset: -22px;
+  inset: -6px;
   z-index: 0;
   clip-path: var(--card-clip);
   background: rgba(0, 0, 0, 0.4);
-  filter: blur(18px);
+  filter: blur(5px);
 }
 
 .panini-front {
@@ -836,17 +836,17 @@ body {
 }
 
 .panini-front-shell.medal-gold .panini-front-glow {
-  background: rgba(255, 215, 0, 0.65);
+  background: rgba(255, 215, 0, 0.85);
   animation: legend-glow-pulse 2.6s ease-in-out infinite;
 }
 
 .panini-front-shell.medal-silver .panini-front-glow {
-  background: rgba(210, 210, 210, 0.65);
+  background: rgba(210, 210, 210, 0.85);
   animation: legend-glow-pulse 2.6s ease-in-out infinite;
 }
 
 .panini-front-shell.medal-bronze .panini-front-glow {
-  background: rgba(205, 127, 50, 0.65);
+  background: rgba(205, 127, 50, 0.85);
   animation: legend-glow-pulse 2.6s ease-in-out infinite;
 }
 
