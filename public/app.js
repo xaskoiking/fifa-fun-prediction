@@ -463,7 +463,10 @@ function resizeImageFile(file, maxDimension = 800, quality = 0.85) {
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
         canvas.toBlob(blob => {
           if (!blob) return reject(new Error('Failed to process the image.'));
           const jpegName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
