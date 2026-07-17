@@ -1040,6 +1040,37 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+/* Tap-to-reveal on mobile (no hover for the native title-attribute tooltip
+   there): tapping the chip shows this as a temporary full-width overlay,
+   positioned in the card's full-width-safe zone (same bounds as the stats
+   row, above where the tapered bottom starts narrowing) so a multi-line
+   reason can't get clipped by the clip-path shape regardless of length.
+   A direct child of .panini-front (not nested in .fut-footer, which is
+   itself position:absolute and would anchor percentages to its own narrow
+   box instead of the full card). */
+.fut-title-reason {
+  display: none;
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 22%;
+  z-index: 10;
+  text-align: center;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.88);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+.fut-title-reason.visible {
+  display: block;
 }
 
 /* Legend (black) cards flip back to light text/dividers — everything above

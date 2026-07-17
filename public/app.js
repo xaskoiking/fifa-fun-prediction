@@ -7,6 +7,7 @@ let currentUserIsAdmin = localStorage.getItem('soccer_prediction_is_admin') === 
 let adminPasscode = sessionStorage.getItem('admin_passcode') || '';
 let matches = [];
 let reportCardData = null;
+let reportCardTitleRevertTimer = null;
 let currentFilter = 'open'; // 'open' or 'past'
 let activeTab = 'bracket';
 let countdownInterval = null;
@@ -344,7 +345,10 @@ function renderReportCard(data) {
 
   const titleEl = document.getElementById('reportCardTitle');
   titleEl.textContent = data.title ? `🎖️ ${data.title}` : 'Title pending…';
-  titleEl.title = data.titleReason || '';
+  titleEl.title = data.titleReason || ''; // desktop hover tooltip
+  titleEl.dataset.reason = data.titleReason || '';
+  document.getElementById('reportCardTitleReason').classList.remove('visible');
+  clearTimeout(reportCardTitleRevertTimer);
 
   const bestRankDateStr = s.highestRankDate
     ? new Date(s.highestRankDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -370,6 +374,23 @@ function renderReportCard(data) {
   uploadSection.style.display = (data.name === currentUsername) ? 'block' : 'none';
 
   renderReportCardTable(data.matches);
+}
+
+// The title chip's reason ("why this title") only shows on hover via the
+// native title attribute, which doesn't exist on touch devices — this lets
+// a tap do the same job, swapping the chip's text to the reason and back.
+function toggleReportCardTitleReason() {
+  const titleEl = document.getElementById('reportCardTitle');
+  const reason = titleEl.dataset.reason;
+  if (!reason) return;
+
+  const reasonEl = document.getElementById('reportCardTitleReason');
+  clearTimeout(reportCardTitleRevertTimer);
+  const nowVisible = reasonEl.classList.toggle('visible');
+  if (nowVisible) {
+    reasonEl.textContent = reason;
+    reportCardTitleRevertTimer = setTimeout(() => reasonEl.classList.remove('visible'), 4000);
+  }
 }
 
 // Back of the card: top 5 highest-point-scoring games for this player
