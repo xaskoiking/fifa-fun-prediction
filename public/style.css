@@ -869,28 +869,35 @@ body {
   background-position: -20% -20%;
 }
 
+/* Solid chip so the rank/points stay legible regardless of what part of
+   the uploaded photo sits behind them — the photo now extends up under
+   this block, so text color can no longer depend on the card's tier
+   gradient the way it used to. */
 .fut-rating-block {
   position: absolute;
   top: 12%;
   left: 11%;
   z-index: 3;
   text-align: center;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 10px;
+  padding: 5px 10px;
 }
 
 .fut-ovr {
   font-family: 'Anton', var(--font-sans);
   font-size: 1.8rem;
   line-height: 1;
-  color: #1c1408;
-  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .fut-pos {
   font-family: 'Anton', var(--font-sans);
   font-size: 0.85rem;
   letter-spacing: 0.5px;
-  color: #1c1408;
-  text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
   margin-top: 2px;
 }
 
@@ -922,7 +929,7 @@ body {
   position: absolute;
   left: 12%;
   right: 12%;
-  top: 24%;
+  top: 5%;
   bottom: 42%;
   z-index: 2;
 }
@@ -1073,10 +1080,10 @@ body {
   display: block;
 }
 
-/* Legend (black) cards flip back to light text/dividers — everything above
-   defaults dark because 3 of the 4 tiers (gold/silver/bronze) are light. */
-.panini-front.tier-legend .fut-ovr,
-.panini-front.tier-legend .fut-pos,
+/* Legend (black) cards flip back to light text/dividers — everything below
+   defaults dark because 3 of the 4 tiers (gold/silver/bronze) are light.
+   fut-ovr/fut-pos are excluded: they sit on an always-dark chip now, so
+   they're already white on every tier. */
 .panini-front.tier-legend .fut-name {
   color: #ffffff;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
