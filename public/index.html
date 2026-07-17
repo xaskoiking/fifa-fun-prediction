@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚽</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Anton&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="vendor/flag-icons/css/flag-icons.min.css">
 </head>
@@ -60,6 +60,9 @@
         </button>
         <button class="tab-btn" id="tabBtnLeaderboard" onclick="switchTab('leaderboard')">
           <span class="tab-icon">🏆</span> <span class="tab-label">Leaderboard</span>
+        </button>
+        <button class="tab-btn" id="tabBtnReportCard" onclick="switchTab('reportCard')">
+          <span class="tab-icon">🪪</span> <span class="tab-label">Report Card</span>
         </button>
         <button class="tab-btn" id="tabBtnRules" onclick="switchTab('rules')">
           <span class="tab-icon">📝</span> <span class="tab-label">Points Rules</span>
@@ -325,6 +328,68 @@
             </div>
             <div class="report-footer snap-footer"></div>
           </div>
+        </div>
+      </section>
+
+      <section id="tabContentReportCard" class="tab-content">
+        <div class="section-header">
+          <h2>Report Card</h2>
+          <p class="section-description">Every player gets their own rated card. Pick a name to see their front and back.</p>
+        </div>
+
+        <div class="filter-bar">
+          <select id="reportCardPlayerSelect" class="form-control" onchange="loadReportCard(this.value)" style="max-width: 220px;"></select>
+        </div>
+
+        <div class="panini-stage" id="reportCardStage">
+          <div class="panini-front-shell" id="reportCardFrontShell">
+            <div class="panini-front-glow"></div>
+            <div class="panini-card panini-front" id="reportCardFront">
+              <div class="fut-rating-block">
+                <div class="fut-ovr" id="reportCardOVR"></div>
+                <div class="fut-pos" id="reportCardPos"></div>
+              </div>
+              <div class="fut-sunburst"></div>
+              <div class="panini-photo-frame">
+                <img id="reportCardPhoto" class="panini-photo" style="display:none;" alt="Player photo">
+                <div id="reportCardPhotoPlaceholder" class="panini-photo panini-photo-placeholder">
+                  <svg viewBox="0 0 24 24" class="panini-photo-placeholder-icon" aria-hidden="true"><path fill="currentColor" d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12zm0 2.4c-3.4 0-10 1.7-10 5.1v2.3h20v-2.3c0-3.4-6.6-5.1-10-5.1z"/></svg>
+                </div>
+              </div>
+              <div class="fut-name" id="reportCardName">&nbsp;</div>
+              <div class="fut-divider"></div>
+              <div class="fut-stats-row" id="reportCardStatsRow"></div>
+              <div class="fut-title-reason" id="reportCardTitleReason"></div>
+              <div class="fut-footer">
+                <div class="fut-title-chip" id="reportCardTitle" onclick="toggleReportCardTitleReason()"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panini-card panini-back">
+            <div class="panini-back-header">&#127942; Top 5 Games</div>
+            <div class="panini-back-list" id="reportCardTableBody">
+              <div class="panini-back-empty">Select a player&hellip;</div>
+            </div>
+          </div>
+        </div>
+
+        <p class="panini-legend">
+          <strong>PTS</strong> Total Points &middot;
+          <strong>ACC</strong> Accuracy &middot;
+          <strong>PRK</strong> Peak Rank Ever &middot;
+          <strong>CST</strong> Current Streak &middot;
+          <strong>BST</strong> Best Streak
+        </p>
+
+        <div class="panini-supplement" id="reportCardSupplement"></div>
+
+        <div class="leaderboard-card" id="reportCardUploadSection" style="display:none; padding: 14px 18px;">
+          <div class="form-group inline-form">
+            <input type="file" id="reportCardPhotoInput" accept="image/jpeg,image/png,image/webp" class="form-control">
+            <button class="btn btn-primary btn-sm" id="reportCardUploadBtn" onclick="uploadReportCardPhoto()">Upload Photo</button>
+          </div>
+          <div id="reportCardUploadMessage" class="feedback-message"></div>
         </div>
       </section>
 
@@ -662,6 +727,22 @@
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+
+          <!-- Report Card Titles Card -->
+          <div class="rules-card" style="margin-top: 20px;">
+            <h3 class="card-toggle" onclick="toggleAdminCard(this)">🎖️ Report Card Titles <span class="collapse-chevron">▾</span></h3>
+            <div class="card-body">
+              <p class="small-desc">Export player stats to generate fun titles (e.g. "Risk Taker") offline in a Claude conversation, then import the result back in.</p>
+              <div class="form-group inline-form" style="margin-bottom: 10px;">
+                <button class="btn btn-primary btn-sm" onclick="exportReportCardStats()">Export Stats for Titling</button>
+              </div>
+              <div class="form-group inline-form">
+                <input type="file" id="titlesImportInput" accept="application/json" class="form-control">
+                <button class="btn btn-success btn-sm" onclick="importReportCardTitles()">Import Titles</button>
+              </div>
+              <div id="titlesImportMessage" class="feedback-message"></div>
             </div>
           </div>
 
