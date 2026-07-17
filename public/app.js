@@ -6,6 +6,8 @@ let currentUserSecret = localStorage.getItem('soccer_prediction_secret') || '';
 let currentUserIsAdmin = localStorage.getItem('soccer_prediction_is_admin') === 'true';
 let adminPasscode = sessionStorage.getItem('admin_passcode') || '';
 let matches = [];
+let reportCardData = null;
+let reportCardTitleRevertTimer = null;
 let currentFilter = 'open'; // 'open' or 'past'
 let activeTab = 'bracket';
 let countdownInterval = null;
@@ -212,6 +214,310 @@ function switchTab(tabName) {
   } else if (tabName === 'admin') {
     checkAdminState();
     initializeDefaultKickoff();
+  } else if (tabName === 'reportCard') {
+    initReportCardTab();
+  }
+}
+
+let reportCardTotalPlayers = 0;
+
+async function initReportCardTab() {
+  const select = document.getElementById('reportCardPlayerSelect');
+  if (select.dataset.loaded !== 'true') {
+    try {
+      // /api/leaderboard is public (no auth gate) and always contains every
+      // db.users entry — a complete, always-available player list for any
+      // logged-in user, unlike the admin-only /api/admin/users route.
+      const response = await fetch('/api/leaderboard', {
+        headers: { 'x-user-secret': currentUserSecret }
+      });
+      if (!response.ok) throw new Error('Failed to load player list');
+      // leaderboard is already rank-ordered server-side (points desc, then
+      // correct desc, then name) — use that order directly rather than
+      // re-sorting alphabetically.
+      const leaderboard = await response.json();
+      const names = leaderboard.map(row => row.name);
+      reportCardTotalPlayers = names.length;
+      select.innerHTML = leaderboard.map((row, i) => `<option value="${escapeHtml(row.name)}">#${i + 1} ${escapeHtml(row.name)}</option>`).join('');
+      select.value = names.includes(currentUsername) ? currentUsername : names[0];
+      select.dataset.loaded = 'true';
+    } catch (err) {
+      console.error('Failed to load player list:', err);
+    }
+  }
+  loadReportCard(select.value || currentUsername);
+}
+
+async function loadReportCard(name) {
+  if (!name) return;
+  const list = document.getElementById('reportCardTableBody');
+  list.innerHTML = `<div class="panini-back-empty">Loading ${escapeHtml(name)}'s card…</div>`;
+  try {
+    const response = await fetch(`/api/report-card/${encodeURIComponent(name)}`, {
+      headers: { 'x-user-secret': currentUserSecret }
+    });
+    if (!response.ok) throw new Error('Failed to load report card');
+    reportCardData = await response.json();
+    renderReportCard(reportCardData);
+  } catch (err) {
+    console.error('Error loading report card:', err);
+    list.innerHTML = `<div class="panini-back-empty">Failed to load report card.</div>`;
+  }
+}
+
+// FUT-style rarity tier, derived from current rank (not a per-player hash).
+// Top 3 are always "legend" (near-black faceted card) with a medal accent
+// matching their exact rank; everyone else is bucketed into gold/silver/
+// bronze by percentile among the remaining players, with the sharper slice
+// of gold/silver getting a foil finish. Cutoffs are illustrative, not exact
+// FUT thresholds — easy to retune if the group's size/shape changes a lot.
+function reportCardTierForRank(rank, totalPlayers) {
+  if (rank == null) return { tier: 'bronze', foil: false, medal: null };
+  if (rank <= 3) {
+    return { tier: 'legend', foil: false, medal: rank === 1 ? 'gold' : rank === 2 ? 'silver' : 'bronze' };
+  }
+  const pool = Math.max(totalPlayers - 3, 1);
+  const pct = (rank - 3) / pool;
+  if (pct <= 0.2) return { tier: 'gold', foil: true, medal: null };
+  if (pct <= 0.45) return { tier: 'gold', foil: false, medal: null };
+  if (pct <= 0.65) return { tier: 'silver', foil: true, medal: null };
+  if (pct <= 0.85) return { tier: 'silver', foil: false, medal: null };
+  return { tier: 'bronze', foil: false, medal: null };
+}
+
+const REPORT_CARD_TIER_ACCENTS = { gold: '#caa000', silver: '#909090', bronze: '#8a4b1f' };
+const REPORT_CARD_MEDAL_ACCENTS = { gold: '#d4af37', silver: '#b7b7b7', bronze: '#b06a35' };
+
+function renderReportCard(data) {
+  const s = data.stats;
+  const { tier, foil, medal } = reportCardTierForRank(s.currentRank, reportCardTotalPlayers);
+
+  const front = document.getElementById('reportCardFront');
+  front.classList.remove('tier-gold', 'tier-silver', 'tier-bronze', 'tier-legend', 'tier-foil');
+  front.classList.add(`tier-${tier}`);
+  if (foil) front.classList.add('tier-foil');
+
+  // tier-legend is mirrored onto the shell too — that's where --card-clip
+  // (the shape polygon) lives now, since the glow layer is a sibling of
+  // .panini-front and needs the same shape from a common ancestor. The
+  // medal glow itself also lives on the shell's .panini-front-glow child.
+  const shell = document.getElementById('reportCardFrontShell');
+  shell.classList.remove('tier-legend', 'medal-gold', 'medal-silver', 'medal-bronze');
+  if (tier === 'legend') shell.classList.add('tier-legend');
+  if (medal) shell.classList.add(`medal-${medal}`);
+
+  // Set on the shared stage wrapper — both the front and back cards inherit
+  // this, so the back card's accent matches the front's tier.
+  const stage = document.getElementById('reportCardStage');
+  stage.style.setProperty('--panini-border', medal ? REPORT_CARD_MEDAL_ACCENTS[medal] : REPORT_CARD_TIER_ACCENTS[tier]);
+
+  const photo = document.getElementById('reportCardPhoto');
+  const placeholder = document.getElementById('reportCardPhotoPlaceholder');
+  if (data.photoUrl) {
+    photo.src = data.photoUrl;
+    photo.style.display = 'block';
+    placeholder.style.display = 'none';
+  } else {
+    photo.style.display = 'none';
+    placeholder.style.display = 'flex';
+  }
+
+  // FUT-style rating block: current rank as the headline number ("#N"),
+  // total points as the sub-label — swapped so rank (the number people
+  // actually care about first) gets the big slot.
+  document.getElementById('reportCardOVR').textContent = s.currentRank != null ? `#${s.currentRank}` : '—';
+  document.getElementById('reportCardPos').textContent = `${s.totalPoints} PTS`;
+
+  document.getElementById('reportCardName').textContent = data.name;
+
+  const statCell = (label, value) => `
+    <div class="fut-stat">
+      <div class="fut-stat-label">${label}</div>
+      <div class="fut-stat-value">${value}</div>
+    </div>
+  `;
+  document.getElementById('reportCardStatsRow').innerHTML = [
+    statCell('ACC', `${s.accuracy}%`),
+    statCell('PRK', s.highestRank ?? '—'),
+    statCell('CST', s.currentStreak),
+    statCell('BST', s.bestStreak)
+  ].join('');
+
+  const titleEl = document.getElementById('reportCardTitle');
+  titleEl.textContent = data.title ? `🎖️ ${data.title}` : 'Title pending…';
+  titleEl.title = data.titleReason || ''; // desktop hover tooltip
+  titleEl.dataset.reason = data.titleReason || '';
+  document.getElementById('reportCardTitleReason').classList.remove('visible');
+  clearTimeout(reportCardTitleRevertTimer);
+
+  const bestRankDateStr = s.highestRankDate
+    ? new Date(s.highestRankDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
+  const bestRankPill = s.highestRank != null
+    ? `🏆 Best Rank <strong>#${s.highestRank}</strong> — ${bestRankDateStr} · held ${s.gamesAtHighestRank} game${s.gamesAtHighestRank === 1 ? '' : 's'}`
+    : `🏆 Best Rank <strong>—</strong> not ranked yet`;
+  const bestStreakRangeStr = (s.bestStreak > 0 && s.bestStreakStartMatch != null)
+    ? (s.bestStreakStartMatch === s.bestStreakEndMatch
+        ? `Match #${s.bestStreakStartMatch}`
+        : `Match #${s.bestStreakStartMatch} → #${s.bestStreakEndMatch}`)
+    : null;
+  const bestStreakPill = s.bestStreak > 0
+    ? `⚡ Best Streak <strong>${s.bestStreak}</strong> — ${bestStreakRangeStr}`
+    : `⚡ Best Streak <strong>0</strong> — none yet`;
+
+  document.getElementById('reportCardSupplement').innerHTML = `
+    <div class="panini-supplement-pill">${bestRankPill}</div>
+    <div class="panini-supplement-pill">${bestStreakPill}</div>
+  `;
+
+  const uploadSection = document.getElementById('reportCardUploadSection');
+  uploadSection.style.display = (data.name === currentUsername) ? 'block' : 'none';
+
+  renderReportCardTable(data.matches);
+}
+
+// The title chip's reason ("why this title") only shows on hover via the
+// native title attribute, which doesn't exist on touch devices — this lets
+// a tap do the same job, swapping the chip's text to the reason and back.
+function toggleReportCardTitleReason() {
+  const titleEl = document.getElementById('reportCardTitle');
+  const reason = titleEl.dataset.reason;
+  if (!reason) return;
+
+  const reasonEl = document.getElementById('reportCardTitleReason');
+  clearTimeout(reportCardTitleRevertTimer);
+  const nowVisible = reasonEl.classList.toggle('visible');
+  if (nowVisible) {
+    reasonEl.textContent = reason;
+    reportCardTitleRevertTimer = setTimeout(() => reasonEl.classList.remove('visible'), 4000);
+  }
+}
+
+// Back of the card: top 5 highest-point-scoring games for this player
+// (chronological ties broken by Array.sort's stability, earlier game first),
+// rendered as compact stat rows rather than a table — a 300px-wide sticker
+// has no room for a 6-column table.
+function renderReportCardTable(rawMatches) {
+  const list = document.getElementById('reportCardTableBody');
+  const rows = rawMatches.slice().sort((a, b) => b.points - a.points).slice(0, 5);
+
+  if (rows.length === 0) {
+    list.innerHTML = `<div class="panini-back-empty">No matches yet.</div>`;
+    return;
+  }
+
+  const bonusLabels = { REGULAR: 'Reg Time', EXTRA_TIME: 'Extra Time', PENALTIES: 'Penalties' };
+
+  list.innerHTML = rows.map(m => {
+    const isResolved = m.status === 'resolved';
+
+    const subParts = [];
+    if (!isResolved) {
+      subParts.push('Locked / Live');
+    } else {
+      subParts.push(m.pick ? (m.points > 0 ? 'Hit' : 'Miss') : 'No pick');
+    }
+    if (m.pick) {
+      const pickTeam = m.pick === 'home' ? m.homeTeam : m.pick === 'away' ? m.awayTeam : 'Draw';
+      subParts.push(escapeHtml(pickTeam) + (m.boosted ? ' ⚡' : ''));
+    }
+    if (m.bonusPick) subParts.push(bonusLabels[m.bonusPick] || m.bonusPick);
+
+    const pointsClass = isResolved ? (m.points > 0 ? 'text-active' : 'error-text') : '';
+
+    return `
+      <div class="panini-back-row">
+        <div class="panini-back-row-top">
+          <span class="panini-back-match">${m.matchNumber ? '#' + m.matchNumber : '-'}</span>
+          <span class="panini-back-matchup">${escapeHtml(m.homeTeam)} vs ${escapeHtml(m.awayTeam)}</span>
+          <span class="panini-back-points ${pointsClass}">${isResolved ? '+' + m.points : '—'}</span>
+        </div>
+        <div class="panini-back-row-sub">${subParts.join(' · ')}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Downscales an image file client-side and re-encodes it as JPEG before
+// upload, so a full-resolution phone photo (often 5-15MB) doesn't hit the
+// server's 5MB limit. The photo only ever displays as a small circular
+// avatar (and a 2x-scaled export), so 800px on the long edge is plenty.
+function resizeImageFile(file, maxDimension = 800, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read the image file.'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Failed to load the image.'));
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round(height * (maxDimension / width));
+            width = maxDimension;
+          } else {
+            width = Math.round(width * (maxDimension / height));
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        const keepTransparency = file.type === 'image/png';
+        if (!keepTransparency) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, width, height);
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const outType = keepTransparency ? 'image/png' : 'image/jpeg';
+        const outExt = keepTransparency ? '.png' : '.jpg';
+        canvas.toBlob(blob => {
+          if (!blob) return reject(new Error('Failed to process the image.'));
+          const outName = file.name.replace(/\.[^.]+$/, '') + outExt;
+          resolve(new File([blob], outName, { type: outType }));
+        }, outType, quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadReportCardPhoto() {
+  const input = document.getElementById('reportCardPhotoInput');
+  const messageEl = document.getElementById('reportCardUploadMessage');
+  messageEl.textContent = '';
+  messageEl.className = 'feedback-message';
+
+  if (!input.files || input.files.length === 0) {
+    messageEl.textContent = 'Choose a photo first.';
+    messageEl.className = 'feedback-message error';
+    return;
+  }
+
+  try {
+    messageEl.textContent = 'Processing photo…';
+    const resizedFile = await resizeImageFile(input.files[0]);
+    const formData = new FormData();
+    formData.append('photo', resizedFile);
+
+    const response = await fetch('/api/profile/photo', {
+      method: 'POST',
+      headers: { 'x-user-secret': currentUserSecret },
+      body: formData
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Upload failed');
+
+    messageEl.textContent = 'Photo updated!';
+    messageEl.className = 'feedback-message success';
+    input.value = '';
+    loadReportCard(currentUsername);
+  } catch (err) {
+    console.error('Error uploading photo:', err);
+    messageEl.textContent = 'Failed to upload: ' + err.message;
+    messageEl.className = 'feedback-message error';
   }
 }
 
@@ -3980,6 +4286,70 @@ async function downloadHistoryCSV() {
   } catch (err) {
     console.error('Error downloading CSV:', err);
     alert('Failed to download CSV: ' + err.message);
+  }
+}
+
+async function exportReportCardStats() {
+  try {
+    const response = await fetch('/api/admin/report-card-stats-export', {
+      headers: {
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      }
+    });
+    if (!response.ok) throw new Error('Failed to fetch report card stats');
+    const stats = await response.json();
+
+    const blob = new Blob([JSON.stringify(stats, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `report_card_stats_${new Date().toISOString().slice(0, 10)}.json`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error('Error exporting report card stats:', err);
+    alert('Failed to export stats: ' + err.message);
+  }
+}
+
+async function importReportCardTitles() {
+  const input = document.getElementById('titlesImportInput');
+  const messageEl = document.getElementById('titlesImportMessage');
+  messageEl.textContent = '';
+  messageEl.className = 'feedback-message';
+
+  if (!input.files || input.files.length === 0) {
+    messageEl.textContent = 'Choose a titles JSON file first.';
+    messageEl.className = 'feedback-message error';
+    return;
+  }
+
+  try {
+    const text = await input.files[0].text();
+    const payload = JSON.parse(text);
+
+    const response = await fetch('/api/admin/titles/import', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-passcode': adminPasscode,
+        'x-user-secret': currentUserSecret
+      },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Import failed');
+
+    messageEl.textContent = `Imported titles for ${result.updated} player(s).`;
+    messageEl.className = 'feedback-message success';
+    input.value = '';
+  } catch (err) {
+    console.error('Error importing titles:', err);
+    messageEl.textContent = 'Failed to import: ' + err.message;
+    messageEl.className = 'feedback-message error';
   }
 }
 
