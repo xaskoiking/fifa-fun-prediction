@@ -464,14 +464,19 @@ function resizeImageFile(file, maxDimension = 800, quality = 0.85) {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
+        const keepTransparency = file.type === 'image/png';
+        if (!keepTransparency) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, width, height);
+        }
         ctx.drawImage(img, 0, 0, width, height);
+        const outType = keepTransparency ? 'image/png' : 'image/jpeg';
+        const outExt = keepTransparency ? '.png' : '.jpg';
         canvas.toBlob(blob => {
           if (!blob) return reject(new Error('Failed to process the image.'));
-          const jpegName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
-          resolve(new File([blob], jpegName, { type: 'image/jpeg' }));
-        }, 'image/jpeg', quality);
+          const outName = file.name.replace(/\.[^.]+$/, '') + outExt;
+          resolve(new File([blob], outName, { type: outType }));
+        }, outType, quality);
       };
       img.src = e.target.result;
     };
