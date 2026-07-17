@@ -231,10 +231,13 @@ async function initReportCardTab() {
         headers: { 'x-user-secret': currentUserSecret }
       });
       if (!response.ok) throw new Error('Failed to load player list');
+      // leaderboard is already rank-ordered server-side (points desc, then
+      // correct desc, then name) — use that order directly rather than
+      // re-sorting alphabetically.
       const leaderboard = await response.json();
-      const names = leaderboard.map(row => row.name).sort((a, b) => a.localeCompare(b));
+      const names = leaderboard.map(row => row.name);
       reportCardTotalPlayers = names.length;
-      select.innerHTML = names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+      select.innerHTML = leaderboard.map((row, i) => `<option value="${escapeHtml(row.name)}">#${i + 1} ${escapeHtml(row.name)}</option>`).join('');
       select.value = names.includes(currentUsername) ? currentUsername : names[0];
       select.dataset.loaded = 'true';
     } catch (err) {
